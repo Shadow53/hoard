@@ -1,5 +1,5 @@
 [package]
-name = "backup_game_saves"
+name = "save_hoarder"
 version = "0.1.0"
 authors = ["Michael Bryant <shadow53@shadow53.com>"]
 edition = "2018"
