@@ -39,17 +39,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
-name = "backup_game_saves"
-version = "0.1.0"
-dependencies = [
- "directories",
- "log",
- "serde",
- "structopt",
- "toml",
-]
-
-[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,6 +276,17 @@ name = "rustversion"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb5d2a036dc6d2d8fd16fde3498b04306e29bd193bf306a57427019b823d5acd"
+
+[[package]]
+name = "save_hoarder"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "log",
+ "serde",
+ "structopt",
+ "toml",
+]
 
 [[package]]
 name = "scoped-tls"
