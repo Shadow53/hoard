@@ -8,7 +8,7 @@ use std::{
 };
 
 use backup::{Direction, Error as BackupError};
-use config::{AddGame, Command, Config, RemoveGame};
+use config::{AddGame, Command, Config, GameSubcommand, RemoveGame};
 use games::Games;
 use io::Write;
 use log::{debug, info, warn};
@@ -147,8 +147,10 @@ pub fn run(config: Config) -> Result<(), Error> {
             Command::Help => Config::clap().print_long_help().map_err(Error::PrintHelp)?,
             Command::Backup => backup(&root, &games)?,
             Command::Restore => restore(&root, &games)?,
-            Command::Add(to_add) => add_game(&games_path, games, to_add)?,
-            Command::Remove(to_rm) => rm_game(&games_path, games, to_rm)?,
+            Command::Game{ command } => match command {
+                GameSubcommand::Add(to_add) => add_game(&games_path, games, to_add)?,
+                GameSubcommand::Remove(to_rm) => rm_game(&games_path, games, to_rm)?,
+            }
         }
     }
 

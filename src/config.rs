@@ -302,12 +302,17 @@ pub struct RemoveGame {
 }
 
 #[derive(Clone, PartialEq, Debug, StructOpt)]
+pub enum GameSubcommand {
+    Add(AddGame),
+    Remove(RemoveGame),
+}
+
+#[derive(Clone, PartialEq, Debug, StructOpt)]
 pub enum Command {
     Help,
     Backup,
     Restore,
-    Add(AddGame),
-    Remove(RemoveGame),
+    Game{ #[structopt(subcommand)] command: GameSubcommand },
 }
 
 impl Default for Command {
