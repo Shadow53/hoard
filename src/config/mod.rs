@@ -1,15 +1,18 @@
-use crate::games::GameType;
 use directories::ProjectDirs;
-use log::Level;
+use log::{Level, debug};
 use serde::{
     de::{Deserializer, Error as DeserializeError, Visitor},
     Deserialize,
 };
-use std::{
-    ops::BitOr,
-    path::PathBuf,
-};
+use std::{io, ops::BitOr, path::PathBuf};
 use structopt::StructOpt;
+
+use crate::games::Games;
+
+pub mod command;
+pub mod game;
+
+use command::Command;
 
 #[cfg(test)]
 mod tests {
@@ -202,6 +205,13 @@ fn default_level() -> Option<Level> {
     Some(Level::Info)
 }
 
+pub enum Error {
+    DeserializeConfig(toml::de::Error),
+    DeserializeGames(toml::de::Error),
+    ReadConfig(io::Error),
+    ReadGames(io::Error),
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize, StructOpt)]
 pub struct Config {
     #[structopt(short, long)]
@@ -244,6 +254,30 @@ impl Config {
         }
     }
 
+    pub fn load() -> Result<Self, Error> {
+        // Get config from args
+        let arg_config = Config::from_args();
+
+        // Get config from file
+        let file_config: Config = {
+            let config_path = arg_config.get_config_path();
+            let s = std::fs::read_to_string(config_path).map_err(Error::ReadConfig)?;
+            toml::from_str(&s).map_err(Error::DeserializeConfig)?
+        };
+
+        Ok(arg_config | file_config)
+    }
+
+    pub fn get_games(&self) -> Result<Games, Error> {
+        let games_path = self.get_games_path();
+        debug!(
+            "Reading games entries from {}",
+            games_path.to_string_lossy()
+        );
+        let s = std::fs::read_to_string(&games_path).map_err(Error::ReadGames)?;
+        toml::from_str(&s).map_err(Error::DeserializeGames)
+    }
+
     pub fn get_config_path(&self) -> PathBuf {
         self.config
             .clone()
@@ -283,40 +317,5 @@ impl BitOr for Config {
             log_level: self.log_level.or(rhs.log_level),
             command: self.command.or(rhs.command),
         }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug, StructOpt)]
-pub struct AddGame {
-    pub game: String,
-    pub ty: GameType,
-    pub path: PathBuf,
-    #[structopt(short, long)]
-    pub force: bool,
-}
-
-#[derive(Clone, PartialEq, Debug, StructOpt)]
-pub struct RemoveGame {
-    pub game: String,
-    pub ty: Option<GameType>,
-}
-
-#[derive(Clone, PartialEq, Debug, StructOpt)]
-pub enum GameSubcommand {
-    Add(AddGame),
-    Remove(RemoveGame),
-}
-
-#[derive(Clone, PartialEq, Debug, StructOpt)]
-pub enum Command {
-    Help,
-    Backup,
-    Restore,
-    Game{ #[structopt(subcommand)] command: GameSubcommand },
-}
-
-impl Default for Command {
-    fn default() -> Self {
-        Self::Help
     }
 }

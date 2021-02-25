@@ -1,4 +1,4 @@
-use crate::games::Game;
+use crate::games::{Game, Games};
 use log::{debug, info};
 use std::fs;
 use std::io;
@@ -92,6 +92,26 @@ pub fn copy_game(root: &Path, name: &str, game: &Game, dir: Direction) -> Result
         };
 
         copy_path(source, dest)?;
+    }
+
+    Ok(())
+}
+
+/// Back up the saves for the given `games` to the given `root`.
+pub fn backup(root: &Path, games: &Games) -> Result<()> {
+    for (name, game) in games {
+        info!("Backing up {}", name);
+        copy_game(root, name, game, Direction::Backup)?;
+    }
+
+    Ok(())
+}
+
+/// Restore the saves for the given `games` from the given `root`.
+pub fn restore(root: &Path, games: &Games) -> Result<()> {
+    for (name, game) in games {
+        info!("Restoring {}", name);
+        copy_game(root, name, game, Direction::Restore)?;
     }
 
     Ok(())
