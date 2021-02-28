@@ -1,15 +1,13 @@
 use directories::ProjectDirs;
 use log::{Level, debug};
-use serde::{
-    de::{Deserializer, Error as DeserializeError, Visitor},
-    Deserialize,
-};
+use serde::{Deserialize, Serialize, Serializer, de::{Deserializer, Error as DeserializeError, Visitor}};
 use std::{io, ops::BitOr, path::PathBuf};
 use structopt::StructOpt;
 
 use crate::games::Games;
 
 pub mod command;
+pub mod config;
 pub mod game;
 
 use command::Command;
@@ -27,9 +25,9 @@ mod tests {
             let config = Config::default();
             let empty = Config::empty();
 
-            assert_eq!(Some(empty.get_config_path()), config.config);
+            assert_eq!(Some(empty.get_config_path()), config.config_file);
             assert_eq!(Some(empty.get_root_path()), config.root);
-            assert_eq!(Some(empty.get_games_path()), config.games_path);
+            assert_eq!(Some(empty.get_games_path()), config.games_file);
         }
 
         #[test]
@@ -54,7 +52,7 @@ mod tests {
         fn test_get_config_file_uses_override() {
             let mut config = Config::empty();
             let expected = PathBuf::from("/testing/override");
-            config.config = Some(expected.clone());
+            config.config_file = Some(expected.clone());
             assert_eq!(expected, config.get_config_path(), "configuration file path should use provided value, if exists");
         }
 
@@ -64,7 +62,7 @@ mod tests {
             let expected = dirs.config_dir().join("config.toml");
             let empty = Config::empty();
 
-            assert_eq!(None, empty.config, "config should be None for test to be valid");
+            assert_eq!(None, empty.config_file, "config should be None for test to be valid");
             assert_eq!(expected, empty.get_config_path(), "configuration file should default to config.toml in project config path");
         }
 
@@ -82,7 +80,7 @@ mod tests {
             let expected = dirs.data_dir().join("saves");
             let empty = Config::empty();
 
-            assert_eq!(None, empty.config, "root should be None for test to be valid");
+            assert_eq!(None, empty.config_file, "root should be None for test to be valid");
             assert_eq!(expected, empty.get_root_path(), "saves backup path should default to `saves/` in project data path");
         }
 
@@ -90,17 +88,17 @@ mod tests {
         fn test_get_games_file_uses_override() {
             let mut config = Config::empty();
             let expected = PathBuf::from("/testing/override");
-            config.games_path = Some(expected.clone());
+            config.games_file = Some(expected.clone());
             assert_eq!(expected, config.get_games_path(), "games file path should use provided value, if exists");
         }
 
         #[test]
         fn test_get_games_file_defaults_to_config_sibling() {
             let mut empty = Config::empty();
-            empty.config = Some(PathBuf::from("/path/to/config.toml"));
+            empty.config_file = Some(PathBuf::from("/path/to/config.toml"));
             let expected = PathBuf::from("/path/to/games.toml");
 
-            assert_eq!(None, empty.games_path, "games_path must be None for test to be valid");
+            assert_eq!(None, empty.games_file, "games_path must be None for test to be valid");
             assert_eq!(expected, empty.get_games_path(), "games file should default to games.toml next to config file");
         }
 
@@ -110,10 +108,10 @@ mod tests {
             // this avoids crashing by providing a super default.
             let dirs = get_dirs();
             let mut empty = Config::empty();
-            empty.config = Some(PathBuf::from("/"));
+            empty.config_file = Some(PathBuf::from("/"));
             let expected = dirs.config_dir().join("games.toml");
 
-            assert_eq!(None, empty.games_path, "games_path must be None for test to be valid");
+            assert_eq!(None, empty.games_file, "games_path must be None for test to be valid");
             assert_eq!(expected, empty.get_games_path(), "games file should default to games.toml in project config dir when config file has no parent");
         }
     }
@@ -122,8 +120,8 @@ mod tests {
     fn test_config_empty_is_all_none() {
         let expected = Config {
             root: None,
-            config: None,
-            games_path: None,
+            config_file: None,
+            games_file: None,
             log_level: None,
             command: None,
         };
@@ -139,16 +137,16 @@ mod tests {
 
         let some_one = Config {
             root: Some(PathBuf::from("/some/one/root")),
-            config: Some(PathBuf::from("/some/one/config")),
-            games_path: Some(PathBuf::from("/some/one/games")),
+            config_file: Some(PathBuf::from("/some/one/config")),
+            games_file: Some(PathBuf::from("/some/one/games")),
             log_level: Some(Level::Warn),
             command: Some(Command::Help),
         };
 
         let some_two = Config {
             root: Some(PathBuf::from("/some/two/root")),
-            config: Some(PathBuf::from("/some/two/config")),
-            games_path: Some(PathBuf::from("/some/two/games")),
+            config_file: Some(PathBuf::from("/some/two/config")),
+            games_file: Some(PathBuf::from("/some/two/games")),
             log_level: Some(Level::Error),
             command: Some(Command::Backup),
         };
@@ -201,28 +199,44 @@ where
     deserializer.deserialize_option(LevelVisitor)
 }
 
+fn serialize_level<S>(level: &Option<Level>, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    match level {
+        None => serializer.serialize_none(),
+        Some(level) => serializer.serialize_str(level.to_string().as_str()),
+    }
+}
+
 fn default_level() -> Option<Level> {
     Some(Level::Info)
 }
 
+#[derive(Debug)]
 pub enum Error {
     DeserializeConfig(toml::de::Error),
     DeserializeGames(toml::de::Error),
+    NoSuchKey(String),
+    ParseLogLevel(log::ParseLevelError),
     ReadConfig(io::Error),
     ReadGames(io::Error),
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize, StructOpt)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, StructOpt)]
+#[serde(rename_all = "kebab-case")]
+#[structopt(rename_all = "kebab")]
 pub struct Config {
     #[structopt(short, long)]
     root: Option<PathBuf>,
     #[structopt(short, long)]
     #[serde(skip)]
-    config: Option<PathBuf>,
-    #[structopt(short = "g", long = "games-list")]
-    games_path: Option<PathBuf>,
+    config_file: Option<PathBuf>,
     #[structopt(short, long)]
-    #[serde(deserialize_with = "deserialize_level", default = "default_level")]
+    games_file: Option<PathBuf>,
+    #[structopt(short, long)]
+    #[serde(
+        deserialize_with = "deserialize_level",
+        serialize_with = "serialize_level",
+        default = "default_level"
+    )]
     pub log_level: Option<Level>,
     #[structopt(subcommand)]
     #[serde(skip)]
@@ -235,8 +249,8 @@ impl Default for Config {
 
         Config {
             root: Some(empty.get_root_path()),
-            config: Some(empty.get_config_path()),
-            games_path: Some(empty.get_games_path()),
+            config_file: Some(empty.get_config_path()),
+            games_file: Some(empty.get_games_path()),
             log_level: Some(Level::Info),
             command: None,
         }
@@ -247,8 +261,8 @@ impl Config {
     pub fn empty() -> Self {
         Config {
             root: None,
-            config: None,
-            games_path: None,
+            config_file: None,
+            games_file: None,
             log_level: None,
             command: None,
         }
@@ -268,6 +282,28 @@ impl Config {
         Ok(arg_config | file_config)
     }
 
+    pub fn user_set(&mut self, key: &str, val: &str) -> Result<(), Error> {
+        match key {
+            "root" => self.root = Some(PathBuf::from(val)),
+            "games-file" => self.games_file = Some(PathBuf::from(val)),
+            "log-level" => self.log_level = Some(val.parse().map_err(Error::ParseLogLevel)?),
+            _ => return Err(Error::NoSuchKey(key.to_owned())),
+        }
+
+        Ok(())
+    }
+
+    pub fn user_unset(&mut self, key: &str) -> Result<(), Error> {
+        match key {
+            "root" => self.root = None,
+            "games-file" => self.games_file = None,
+            "log-level" => self.log_level = None,
+            _ => return Err(Error::NoSuchKey(key.to_owned())),
+        }
+
+        Ok(())
+    }
+
     pub fn get_games(&self) -> Result<Games, Error> {
         let games_path = self.get_games_path();
         debug!(
@@ -279,7 +315,7 @@ impl Config {
     }
 
     pub fn get_config_path(&self) -> PathBuf {
-        self.config
+        self.config_file
             .clone()
             .unwrap_or_else(|| get_dirs().config_dir().join(CONFIG_FILE_NAME))
     }
@@ -291,7 +327,7 @@ impl Config {
     }
 
     pub fn get_games_path(&self) -> PathBuf {
-        self.games_path.clone().unwrap_or_else(|| {
+        self.games_file.clone().unwrap_or_else(|| {
             // If not provided, assume next to the config file.
             self.get_config_path()
                 .parent()
@@ -312,8 +348,8 @@ impl BitOr for Config {
     fn bitor(self, rhs: Self) -> Self::Output {
         Self {
             root: self.root.or(rhs.root),
-            config: self.config.or(rhs.config),
-            games_path: self.games_path.or(rhs.games_path),
+            config_file: self.config_file.or(rhs.config_file),
+            games_file: self.games_file.or(rhs.games_file),
             log_level: self.log_level.or(rhs.log_level),
             command: self.command.or(rhs.command),
         }
