@@ -8,8 +8,9 @@ license = "BSD-3-Clause"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-directories = { version = "3.0" }
-log = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-structopt = "0.3"
-toml = "0.5"
+directories = "3.0.1"
+log = "0.4.14"
+serde = { version = "1.0.123", features = ["derive"] }
+structopt = "0.3.21"
+thiserror = "1.0.24"
+toml = "0.5.8"

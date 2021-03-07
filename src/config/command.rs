@@ -1,5 +1,5 @@
 use crate::backup;
-use super::{Config, Error as ConfigError};
+use super::{Config, Error as ConfigError, ConfigBuilder};
 use super::game::{Command as GameSubcommand, Error as GameError};
 use super::config::{Command as ConfigCommand, Error as ConfigCmdError};
 
@@ -33,19 +33,17 @@ impl Default for Command {
 
 impl Command {
     pub fn run(&self, config: &Config) -> Result<(), Error> {
-        let root = config.get_root_path();
+        let root = config.get_saves_root_path();
         debug!("Game saves directory: {}", root.to_string_lossy());
 
         let games = config.get_games().map_err(Error::GetGames)?;
 
-        if let Some(command) = &config.command {
-            match command {
-                Command::Help => Config::clap().print_long_help().map_err(Error::PrintHelp)?,
-                Command::Backup => backup::backup(&root, &games).map_err(Error::Backup)?,
-                Command::Restore => backup::restore(&root, &games).map_err(Error::Restore)?,
-                Command::Config { command } => command.run(config).map_err(Error::ConfigCmd)?,
-                Command::Game{ command } => command.run(config).map_err(Error::GameCmd)?,
-            }
+        match &config.command {
+            Command::Help => ConfigBuilder::clap().print_long_help().map_err(Error::PrintHelp)?,
+            Command::Backup => backup::backup(&root, &games).map_err(Error::Backup)?,
+            Command::Restore => backup::restore(&root, &games).map_err(Error::Restore)?,
+            Command::Config { command } => command.run(config).map_err(Error::ConfigCmd)?,
+            Command::Game{ command } => command.run(config).map_err(Error::GameCmd)?,
         }
 
         Ok(())

@@ -57,7 +57,7 @@ impl AddGame {
         games.insert(self.game.clone(), game);
 
         // Save to file
-        let games_path = config.get_games_path();
+        let games_path = config.get_games_file_path();
         save_games_file(&games_path, &games)?;
 
         Ok(())
@@ -97,7 +97,7 @@ impl RemoveGame {
         }
 
         // Save to file
-        let games_path = config.get_games_path();
+        let games_path = config.get_games_file_path();
         save_games_file(&games_path, &games)?;
 
         Ok(())
