@@ -3,17 +3,22 @@ use log::{debug, info};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to copy {src} to {dest}: {error}")]
     CopyFile {
         src: PathBuf,
         dest: PathBuf,
         error: io::Error,
     },
+    #[error("failed to create {path}: {error}")]
     CreateDir {
         path: PathBuf,
         error: io::Error,
     },
+    #[error("cannot read directory {path}: {error}")]
     ReadDir {
         path: PathBuf,
         error: io::Error,

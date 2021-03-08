@@ -1,14 +1,20 @@
-use std::path::{PathBuf, Path};
+use std::{fmt, path::{PathBuf, Path}};
 use std::io::{self, Write};
 use structopt::StructOpt;
 use log::{debug, warn, info};
 use crate::games::{GameType, Games};
 use super::{Config, Error as ConfigError};
+use thiserror::Error;
 
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to add {0}: already exists at {1}")]
     GameOfTypeExists(AddGame, PathBuf),
+    #[error("failed to save games list: {0}")]
     Save(io::Error),
+    #[error("failed to serialize games data: {0}")]
     Serialize(toml::ser::Error),
+    #[error("failed to read games list from file: {0}")]
     ReadGames(ConfigError),
 }
 
@@ -31,6 +37,13 @@ pub struct AddGame {
     pub path: PathBuf,
     #[structopt(short, long)]
     pub force: bool,
+}
+
+impl fmt::Display for AddGame {
+    /// This implementation on AddGame is for the purpose of error reporting.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({}) at {}", self.game, self.ty, self.path.to_string_lossy())
+    }
 }
 
 impl AddGame {

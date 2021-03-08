@@ -6,6 +6,7 @@ use super::config::{Command as ConfigCommand, Error as ConfigCmdError};
 use log::debug;
 use structopt::StructOpt;
 use structopt::clap::Error as ClapError;
+use thiserror::Error;
 
 #[cfg(test)]
 mod tests {
@@ -18,12 +19,19 @@ mod tests {
     }
 }
 
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to back up save files: {0}")]
     Backup(backup::Error),
+    #[error("failed to restore save files: {0}")]
     Restore(backup::Error),
+    #[error("failed to read games list: {0}")]
     GetGames(ConfigError),
+    #[error("failed to print help output: {0}")]
     PrintHelp(ClapError),
+    #[error("config subcommand failed: {0}")]
     ConfigCmd(ConfigCmdError),
+    #[error("game subcommand failed: {0}")]
     GameCmd(GameError),
 }
 

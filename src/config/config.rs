@@ -193,9 +193,9 @@ mod tests {
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("failed to write to configuration file: {0:?}")]
+    #[error("failed to write to configuration file: {0}")]
     WriteConfig(IOError),
-    #[error("failed to serialize configuration as TOML: {0:?}")]
+    #[error("failed to serialize configuration as TOML: {0}")]
     Serialize(toml::ser::Error),
     #[error("failed to parse log level: {0}")]
     ParseLevel(log::ParseLevelError),

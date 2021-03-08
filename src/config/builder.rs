@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 use serde::de::{Visitor, Deserializer, Error as DeserializeError};
 use serde::ser::Serializer;
 use structopt::StructOpt;
+use thiserror::Error;
 
 use super::{Config, command::Command, get_dirs};
 use super::CONFIG_FILE_NAME;
@@ -272,9 +273,11 @@ fn default_level() -> Option<Level> {
     Some(Level::Info)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to parse configuration file: {0}")]
     DeserializeConfig(toml::de::Error),
+    #[error("failed to read configuration file: {0}")]
     ReadConfig(io::Error),
 }
 

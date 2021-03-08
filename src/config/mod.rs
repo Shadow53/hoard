@@ -3,6 +3,7 @@ use log::{Level, debug};
 use std::{io, ops::BitOr, path::PathBuf};
 
 use crate::games::Games;
+use thiserror::Error;
 
 pub mod builder;
 pub mod command;
@@ -55,12 +56,14 @@ pub fn get_dirs() -> ProjectDirs {
         .expect("could not detect user home directory to place program files")
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to build configuration: {0}")]
     Builder(builder::Error),
+    #[error("failed to deserialize games file: {0}")]
     DeserializeGames(toml::de::Error),
-    NoSuchKey(String),
-    ParseLogLevel(log::ParseLevelError),
+    //NoSuchKey(String),
+    #[error("failed to open games file for reading: {0}")]
     ReadGames(io::Error),
 }
 
