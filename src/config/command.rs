@@ -7,6 +7,17 @@ use log::debug;
 use structopt::StructOpt;
 use structopt::clap::Error as ClapError;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_command_is_help() {
+        // The default command is help if one is not given
+        assert_eq!(Command::Help, Command::default());
+    }
+}
+
 pub enum Error {
     Backup(backup::Error),
     Restore(backup::Error),

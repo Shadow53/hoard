@@ -1,8 +1,6 @@
 use directories::ProjectDirs;
 use log::{Level, debug};
-use serde::{Deserialize, Serialize, Serializer, de::{Deserializer, Error as DeserializeError, Visitor}};
 use std::{io, ops::BitOr, path::PathBuf};
-use structopt::StructOpt;
 
 use crate::games::Games;
 
@@ -14,6 +12,39 @@ pub mod game;
 pub use builder::ConfigBuilder;
 
 use command::Command;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_builder_returns_new_builder() {
+        assert_eq!(Config::builder(), ConfigBuilder::new(), "Config::builder should return an unmodified new ConfigBuilder");
+    }
+
+    #[test]
+    fn test_config_default_builds_from_new_builder() {
+        assert_eq!(Config::default(), ConfigBuilder::new().build(), "Config::default should be the same as a built unmodified Builder");
+    }
+
+    #[test]
+    fn test_config_get_config_file_returns_config_file_path() {
+        let config = Config::default();
+        assert_eq!(config.get_config_file_path(), config.config_file, "should return config file path");
+    }
+
+    #[test]
+    fn test_config_get_saves_root_returns_saves_root_path() {
+        let config = Config::default();
+        assert_eq!(config.get_saves_root_path(), config.saves_root, "should return saves root path");
+    }
+
+    #[test]
+    fn test_config_get_games_file_returns_games_file_path() {
+        let config = Config::default();
+        assert_eq!(config.get_games_file_path(), config.games_file, "should return games file path");
+    }
+}
 
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 pub const GAMES_LIST_NAME: &str = "games.toml";

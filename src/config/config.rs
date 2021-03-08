@@ -15,6 +15,33 @@ mod tests {
     use crate::config::Command as TopCommand;
 
     #[test]
+    fn field_fromstr_supports_kebab_case() {
+        assert_eq!(ConfigField::SavesRoot, "saves-root".parse::<ConfigField>().expect("failed to parse saves-root"));
+        assert_eq!(ConfigField::GamesFile, "games-file".parse::<ConfigField>().expect("failed to parse games-root"));
+        assert_eq!(ConfigField::ConfigFile, "config-file".parse::<ConfigField>().expect("failed to parse config-file"));
+        assert_eq!(ConfigField::LogLevel, "log-level".parse::<ConfigField>().expect("failed to parse log-level"));
+        assert_eq!(ConfigField::Command, "command".parse::<ConfigField>().expect("failed to parse command"));
+    }
+
+    #[test]
+    fn field_fromstr_supports_snake_case() {
+        assert_eq!(ConfigField::SavesRoot, "saves_root".parse::<ConfigField>().expect("failed to parse saves-root"));
+        assert_eq!(ConfigField::GamesFile, "games_file".parse::<ConfigField>().expect("failed to parse games-root"));
+        assert_eq!(ConfigField::ConfigFile, "config_file".parse::<ConfigField>().expect("failed to parse config-file"));
+        assert_eq!(ConfigField::LogLevel, "log_level".parse::<ConfigField>().expect("failed to parse log-level"));
+        assert_eq!(ConfigField::Command, "command".parse::<ConfigField>().expect("failed to parse command"));
+    }
+
+    #[test]
+    fn field_to_string_is_lower_snake_case() {
+        assert_eq!(ConfigField::SavesRoot.to_string(), "saves_root");
+        assert_eq!(ConfigField::GamesFile.to_string(), "games_file");
+        assert_eq!(ConfigField::ConfigFile.to_string(), "config_file");
+        assert_eq!(ConfigField::LogLevel.to_string(), "log_level");
+        assert_eq!(ConfigField::Command.to_string(), "command");
+    }
+
+    #[test]
     fn test_set_config_set_root() {
         let empty = Config::builder().build();
         let field = ConfigField::SavesRoot;
