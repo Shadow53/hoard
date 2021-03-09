@@ -2,7 +2,7 @@ use std::{fmt, fs::File, path::PathBuf, str::FromStr};
 use std::io::{Write, Error as IOError};
 use std::path::Path;
 
-use super::{Config, ConfigBuilder, Error as ConfigError};
+use super::{Config, ConfigBuilder, Error as ConfigError, builder};
 
 use structopt::StructOpt;
 use thiserror::Error;
@@ -47,9 +47,8 @@ mod tests {
         let field = ConfigField::SavesRoot;
         let value = String::from("/test/root");
         let expected = {
-            Config::builder()
+            ConfigBuilder::from(empty.clone())
                 .set_saves_root(PathBuf::from(&value))
-                .build()
         };
 
         let set_config = SetConfig { field, value };
@@ -63,9 +62,8 @@ mod tests {
         let field = ConfigField::GamesFile;
         let value = String::from("/test/games.toml");
         let expected = {
-            Config::builder()
+            ConfigBuilder::from(empty.clone())
                 .set_games_file(PathBuf::from(&value))
-                .build()
         };
 
         let set_config = SetConfig { field, value };
@@ -79,9 +77,8 @@ mod tests {
         let field = ConfigField::LogLevel;
         let value = String::from("INFO");
         let expected = {
-            Config::builder()
+            ConfigBuilder::from(empty.clone())
                 .set_log_level(Level::Info)
-                .build()
         };
 
         let set_config = SetConfig { field, value };
@@ -120,15 +117,14 @@ mod tests {
         let mut input = Config::builder().build();
         input.saves_root = PathBuf::from("/test/root");
         let field = ConfigField::SavesRoot;
-        let expected = {
+        let expected: ConfigBuilder = {
             ConfigBuilder::from(input.clone())
                 .unset_saves_root()
-                .build()
         };
 
         let unset_config = UnsetConfig { field };
 
-        assert_eq!(Config::builder().build(), unset_config.unset_config(&input).expect("unsetting config should not fail"));
+        assert_eq!(expected, unset_config.unset_config(&input).expect("unsetting config should not fail"));
     }
 
 
@@ -137,15 +133,14 @@ mod tests {
         let mut input = Config::builder().build();
         input.games_file = PathBuf::from("/test/games.toml");
         let field = ConfigField::GamesFile;
-        let expected = {
+        let expected: ConfigBuilder = {
             ConfigBuilder::from(input.clone())
                 .unset_games_file()
-                .build()
         };
 
         let unset_config = UnsetConfig { field };
 
-        assert_eq!(Config::builder().build(), unset_config.unset_config(&input).expect("unsetting config should not fail"));
+        assert_eq!(expected, unset_config.unset_config(&input).expect("unsetting config should not fail"));
     }
 
     #[test]
@@ -156,7 +151,6 @@ mod tests {
         let expected = {
             ConfigBuilder::from(input.clone())
                 .unset_log_level()
-                .build()
         };
 
         let unset_config = UnsetConfig { field };
@@ -193,6 +187,8 @@ mod tests {
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to read configuration file: {0}")]
+    ReadConfig(builder::Error),
     #[error("failed to write to configuration file: {0}")]
     WriteConfig(IOError),
     #[error("failed to serialize configuration as TOML: {0}")]
@@ -257,7 +253,7 @@ pub struct SetConfig {
 }
 
 impl SetConfig {
-    fn set_config(&self, config: &Config) -> Result<Config, Error> {
+    fn set_config(&self, config: &Config) -> Result<ConfigBuilder, Error> {
         self.field.ensure_in_file()?;
         let mut builder = ConfigBuilder::from(config.to_owned());
 
@@ -271,7 +267,7 @@ impl SetConfig {
             ConfigField::ConfigFile | ConfigField::Command => builder,
         };
 
-        Ok(builder.build())
+        Ok(builder)
     }
 }
 
@@ -281,7 +277,7 @@ pub struct UnsetConfig {
 }
 
 impl UnsetConfig {
-    fn unset_config(&self, config: &Config) -> Result<Config, Error> {
+    fn unset_config(&self, config: &Config) -> Result<ConfigBuilder, Error> {
         self.field.ensure_in_file()?;
         let mut builder = ConfigBuilder::from(config.to_owned());
 
@@ -295,7 +291,7 @@ impl UnsetConfig {
             ConfigField::ConfigFile | ConfigField::Command => builder,
         };
 
-        Ok(builder.build())
+        Ok(builder)
     }
 }
 
@@ -308,7 +304,7 @@ pub enum Command {
 }
 
 impl Command {
-    fn save_config(path: &Path, config: &Config) -> Result<(), Error> {
+    fn save_config(path: &Path, config: &ConfigBuilder) -> Result<(), Error> {
         let mut file = File::create(path).map_err(Error::WriteConfig)?;
         let builder = ConfigBuilder::from(config.to_owned());
         let content = toml::to_string_pretty(&builder).map_err(Error::Serialize)?;
@@ -317,24 +313,23 @@ impl Command {
         Ok(())
     }
 
-    pub fn init(config: &Config) -> Option<Config> {
+    fn init(config: &Config) -> Result<ConfigBuilder, Error> {
         let path = config.get_config_file_path();
+        let builder = ConfigBuilder::from(config.to_owned());
         if !path.exists() {
-            Some(Config::default())
+            Ok(builder)
         } else {
-            None
+            ConfigBuilder::from_file(&path)
+                .map_err(Error::ReadConfig)
+                .map(|inner| inner.layer(builder))
         }
     }
 
     pub fn run(&self, config: &Config) -> Result<(), Error> {
         let path = config.get_config_file_path();
         let new_config = match self {
-            Self::Init => match Self::init(config) {
-                // None == config already exists, no need to write anything
-                None => return Ok(()),
-                Some(new_config) => new_config,
-            },
-            Self::Reset => Config::default(),
+            Self::Init => Self::init(config)?,
+            Self::Reset => ConfigBuilder::from(Config::builder().set_config_file(path.clone()).build()),
             Self::Set(set_config) => set_config.set_config(config)?,
             Self::Unset(unset_config) => unset_config.unset_config(config)?,
         };

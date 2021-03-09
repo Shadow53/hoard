@@ -99,7 +99,13 @@ impl Config {
             "Reading games entries from {}",
             games_path.to_string_lossy()
         );
-        let s = std::fs::read_to_string(&games_path).map_err(Error::ReadGames)?;
+        let s = match std::fs::read_to_string(&games_path) {
+            Ok(s) => s,
+            Err(err) => match err.kind() {
+                io::ErrorKind::NotFound => String::new(),
+                _ => return Err(Error::ReadGames(err)),
+            }
+        };
         toml::from_str(&s).map_err(Error::DeserializeGames)
     }
 
