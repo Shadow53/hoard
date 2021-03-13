@@ -1,7 +1,10 @@
-use std::{fs::{File, Metadata}, io::{Read, Seek, SeekFrom}};
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::{
+    fs::{File, Metadata},
+    io::{Read, Seek, SeekFrom},
+};
 
 use tempfile::{NamedTempFile, TempDir};
 
@@ -14,8 +17,12 @@ pub fn get_temp_dir() -> TempDir {
 }
 
 fn get_metadata(left: &File, right: &File) -> (Metadata, Metadata) {
-    let left_meta = left.metadata().expect("failed to get metadata for left file");
-    let right_meta = right.metadata().expect("failed to get metadata for right file");
+    let left_meta = left
+        .metadata()
+        .expect("failed to get metadata for left file");
+    let right_meta = right
+        .metadata()
+        .expect("failed to get metadata for right file");
 
     (left_meta, right_meta)
 }
@@ -28,31 +35,48 @@ pub fn assert_eq_files(left: &mut File, right: &mut File) {
 
 pub fn assert_eq_file_types(left: &File, right: &File) {
     let (left_meta, right_meta) = get_metadata(left, right);
-    assert_eq!(left_meta.file_type(), right_meta.file_type(), "files are not the samee type (dir, file, symlink)");
+    assert_eq!(
+        left_meta.file_type(),
+        right_meta.file_type(),
+        "files are not the samee type (dir, file, symlink)"
+    );
 }
 
 pub fn assert_eq_file_contents(left: &mut File, right: &mut File) {
     let (left_meta, right_meta) = get_metadata(left, right);
-    assert_eq!(left_meta.len(), right_meta.len(), "files are not the same length");
+    assert_eq!(
+        left_meta.len(),
+        right_meta.len(),
+        "files are not the same length"
+    );
 
     // Ensure seek to beginning of file
-    left.seek(SeekFrom::Start(0)).expect("failed to seek to beginning of left file (beginning)");
-    right.seek(SeekFrom::Start(0)).expect("failed to seek to beginning of right file (beginning)");
+    left.seek(SeekFrom::Start(0))
+        .expect("failed to seek to beginning of left file (beginning)");
+    right
+        .seek(SeekFrom::Start(0))
+        .expect("failed to seek to beginning of right file (beginning)");
 
     // Create iterator over bytes
-    let is_equal = left.bytes().zip(right.bytes())
-        .map(|(l, r)| (
-            l.expect("failed to read from left file"),
-            r.expect("failed to read from right file")
-        ))
+    let is_equal = left
+        .bytes()
+        .zip(right.bytes())
+        .map(|(l, r)| {
+            (
+                l.expect("failed to read from left file"),
+                r.expect("failed to read from right file"),
+            )
+        })
         .all(|(l, r)| l == r);
-
 
     assert!(is_equal, "file contents differ");
 
     // Return to beginning of file before returning
-    left.seek(SeekFrom::Start(0)).expect("failed to seek to beginning of left file (end)");
-    right.seek(SeekFrom::Start(0)).expect("failed to seek to beginning of right file (end)");
+    left.seek(SeekFrom::Start(0))
+        .expect("failed to seek to beginning of left file (end)");
+    right
+        .seek(SeekFrom::Start(0))
+        .expect("failed to seek to beginning of right file (end)");
 }
 
 pub fn assert_eq_file_permissions(left: &File, right: &File) {
@@ -62,10 +86,18 @@ pub fn assert_eq_file_permissions(left: &File, right: &File) {
     let right_perm = right_meta.permissions();
 
     // The only permission currently available on all systems
-    assert_eq!(left_perm.readonly(), right_perm.readonly(), "exactly one of the files is readonly");
+    assert_eq!(
+        left_perm.readonly(),
+        right_perm.readonly(),
+        "exactly one of the files is readonly"
+    );
 
     // Unix-specific permissions
     if cfg!(unix) {
-        assert_eq!(left_perm.mode(), right_perm.mode(), "Unix file modes differ");
+        assert_eq!(
+            left_perm.mode(),
+            right_perm.mode(),
+            "Unix file modes differ"
+        );
     }
 }

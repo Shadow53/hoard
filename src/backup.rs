@@ -14,15 +14,9 @@ pub enum Error {
         error: io::Error,
     },
     #[error("failed to create {path}: {error}")]
-    CreateDir {
-        path: PathBuf,
-        error: io::Error,
-    },
+    CreateDir { path: PathBuf, error: io::Error },
     #[error("cannot read directory {path}: {error}")]
-    ReadDir {
-        path: PathBuf,
-        error: io::Error,
-    },
+    ReadDir { path: PathBuf, error: io::Error },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

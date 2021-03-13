@@ -1,11 +1,11 @@
-use crate::backup;
-use super::{Config, Error as ConfigError, ConfigBuilder};
-use super::game::{Command as GameSubcommand, Error as GameError};
 use super::config::{Command as ConfigCommand, Error as ConfigCmdError};
+use super::game::{Command as GameSubcommand, Error as GameError};
+use super::{Config, ConfigBuilder, Error as ConfigError};
+use crate::backup;
 
 use log::debug;
-use structopt::StructOpt;
 use structopt::clap::Error as ClapError;
+use structopt::StructOpt;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -40,8 +40,14 @@ pub enum Command {
     Help,
     Backup,
     Restore,
-    Config{ #[structopt(subcommand)] command: ConfigCommand },
-    Game{ #[structopt(subcommand)] command: GameSubcommand },
+    Config {
+        #[structopt(subcommand)]
+        command: ConfigCommand,
+    },
+    Game {
+        #[structopt(subcommand)]
+        command: GameSubcommand,
+    },
 }
 
 impl Default for Command {
@@ -58,11 +64,13 @@ impl Command {
         let games = config.get_games().map_err(Error::GetGames)?;
 
         match &config.command {
-            Command::Help => ConfigBuilder::clap().print_long_help().map_err(Error::PrintHelp)?,
+            Command::Help => ConfigBuilder::clap()
+                .print_long_help()
+                .map_err(Error::PrintHelp)?,
             Command::Backup => backup::backup(&root, &games).map_err(Error::Backup)?,
             Command::Restore => backup::restore(&root, &games).map_err(Error::Restore)?,
             Command::Config { command } => command.run(config).map_err(Error::ConfigCmd)?,
-            Command::Game{ command } => command.run(config).map_err(Error::GameCmd)?,
+            Command::Game { command } => command.run(config).map_err(Error::GameCmd)?,
         }
 
         Ok(())

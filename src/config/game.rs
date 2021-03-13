@@ -1,9 +1,12 @@
-use std::{fmt, path::{PathBuf, Path}};
-use std::io::{self, Write};
-use structopt::StructOpt;
-use log::{debug, warn, info};
-use crate::games::{GameType, Games};
 use super::{Config, Error as ConfigError};
+use crate::games::{GameType, Games};
+use log::{debug, info, warn};
+use std::io::{self, Write};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
+use structopt::StructOpt;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -42,7 +45,13 @@ pub struct AddGame {
 impl fmt::Display for AddGame {
     /// This implementation on AddGame is for the purpose of error reporting.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({}) at {}", self.game, self.ty, self.path.to_string_lossy())
+        write!(
+            f,
+            "{} ({}) at {}",
+            self.game,
+            self.ty,
+            self.path.to_string_lossy()
+        )
     }
 }
 

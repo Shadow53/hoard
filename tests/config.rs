@@ -6,27 +6,30 @@ use common::{file, toml};
 
 use std::path::PathBuf;
 
-use save_hoarder::config::{Config, ConfigBuilder, command::Command};
-use save_hoarder::config::config::{ConfigField, Command as ConfigCmd, SetConfig, UnsetConfig};
+use save_hoarder::config::config::{Command as ConfigCmd, ConfigField, SetConfig, UnsetConfig};
+use save_hoarder::config::{command::Command, Config, ConfigBuilder};
 
 fn strip_non_config_file(builder: ConfigBuilder) -> ConfigBuilder {
-    builder
-        .unset_config_file()
-        .unset_command()
+    builder.unset_config_file().unset_command()
 }
 
 #[test]
 fn test_init_config() {
     let mut file = file::get_temp_file();
 
-    let cmd = Command::Config{ command: ConfigCmd::Init };
+    let cmd = Command::Config {
+        command: ConfigCmd::Init,
+    };
 
     let run_config = ConfigBuilder::new()
         .set_config_file(file.path().to_owned())
         .set_command(cmd)
         .build();
 
-    run_config.command.run(&run_config).expect("failed to run init command");
+    run_config
+        .command
+        .run(&run_config)
+        .expect("failed to run init command");
 
     let expected = ConfigBuilder::from(Config::default())
         // Expect games file to be next to the config file
@@ -41,14 +44,19 @@ fn test_init_config() {
 fn test_reset_config() {
     let file = file::get_temp_file();
 
-    let cmd = Command::Config{ command: ConfigCmd::Reset };
+    let cmd = Command::Config {
+        command: ConfigCmd::Reset,
+    };
 
     let run_config = ConfigBuilder::new()
         .set_config_file(file.path().to_owned())
         .set_command(cmd)
         .build();
 
-    run_config.command.run(&run_config).expect("failed to run reset command");
+    run_config
+        .command
+        .run(&run_config)
+        .expect("failed to run reset command");
 
     let expected = ConfigBuilder::from(Config::default())
         // Expect games file to be next to the config file
@@ -72,17 +80,21 @@ fn test_add_to_config() {
 
     let config_cmd = ConfigCmd::Set(set_config);
 
-    let cmd = Command::Config { command: config_cmd };
+    let cmd = Command::Config {
+        command: config_cmd,
+    };
 
     let run_config = ConfigBuilder::new()
         .set_config_file(file.path().to_owned())
         .set_command(cmd)
         .build();
 
-    let builder = ConfigBuilder::from(run_config.clone())
-        .set_saves_root(saves_root);
+    let builder = ConfigBuilder::from(run_config.clone()).set_saves_root(saves_root);
 
-    run_config.command.run(&run_config).expect("failed to run command");
+    run_config
+        .command
+        .run(&run_config)
+        .expect("failed to run command");
 
     toml::assert_file_contains_deserializable(file.path(), &strip_non_config_file(builder));
 }
@@ -99,7 +111,9 @@ fn test_remove_from_config() {
 
     let config_cmd = ConfigCmd::Unset(unset_config);
 
-    let cmd = Command::Config { command: config_cmd };
+    let cmd = Command::Config {
+        command: config_cmd,
+    };
 
     let run_config = ConfigBuilder::new()
         .set_saves_root(saves_root)
@@ -107,10 +121,12 @@ fn test_remove_from_config() {
         .set_command(cmd)
         .build();
 
-    let builder = ConfigBuilder::from(run_config.clone())
-        .unset_saves_root();
+    let builder = ConfigBuilder::from(run_config.clone()).unset_saves_root();
 
-    run_config.command.run(&run_config).expect("failed to run command");
+    run_config
+        .command
+        .run(&run_config)
+        .expect("failed to run command");
 
     toml::assert_file_contains_deserializable(file.path(), &strip_non_config_file(builder));
 }

@@ -2,16 +2,16 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use log::Level;
-use serde::{Serialize, Deserialize};
-use serde::de::{Visitor, Deserializer, Error as DeserializeError};
+use serde::de::{Deserializer, Error as DeserializeError, Visitor};
 use serde::ser::Serializer;
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use thiserror::Error;
 
-use super::{Config, command::Command, get_dirs};
 use super::CONFIG_FILE_NAME;
-use super::GAMES_LIST_NAME;
 use super::GAMES_DIR_SLUG;
+use super::GAMES_LIST_NAME;
+use super::{command::Command, get_dirs, Config};
 
 #[cfg(test)]
 mod tests {
@@ -47,7 +47,11 @@ mod tests {
             let config = PathBuf::from("/testing/config.toml");
             let games_file = ConfigBuilder::default_games_list_path_with_config(&config);
 
-            assert_eq!(games_file.parent(), config.parent(), "config and games files should share a parent");
+            assert_eq!(
+                games_file.parent(),
+                config.parent(),
+                "config and games files should share a parent"
+            );
         }
 
         #[test]
@@ -56,8 +60,11 @@ mod tests {
             let config = PathBuf::from("/");
             let games_file = ConfigBuilder::default_games_list_path_with_config(&config);
 
-            assert_eq!(ConfigBuilder::default_games_file(), games_file,
-                "games files should fall back to default value");
+            assert_eq!(
+                ConfigBuilder::default_games_file(),
+                games_file,
+                "games files should fall back to default value"
+            );
         }
 
         #[test]
@@ -70,7 +77,11 @@ mod tests {
                 command: None,
             };
 
-            assert_eq!(expected, ConfigBuilder::new(), "ConfigBuild::new() should have all None fields");
+            assert_eq!(
+                expected,
+                ConfigBuilder::new(),
+                "ConfigBuild::new() should have all None fields"
+            );
         }
 
         #[test]
@@ -80,8 +91,16 @@ mod tests {
 
             assert_ne!(some, none, "both builders cannot be identical");
 
-            assert_eq!(some, none.clone().layer(some.clone()), "Some fields atop None prefers Some");
-            assert_eq!(some, some.clone().layer(none.clone()), "None fields atop Some prefers Some");
+            assert_eq!(
+                some,
+                none.clone().layer(some.clone()),
+                "Some fields atop None prefers Some"
+            );
+            assert_eq!(
+                some,
+                some.clone().layer(none.clone()),
+                "None fields atop Some prefers Some"
+            );
         }
 
         #[test]
@@ -89,8 +108,16 @@ mod tests {
             let layer1 = get_default_populated_builder();
             let layer2 = get_non_default_populated_builder();
 
-            assert_eq!(layer2, layer1.clone().layer(layer2.clone()), "layer() should prefer the argument");
-            assert_eq!(layer1, layer2.clone().layer(layer1.clone()), "layer() should prefer the argument");
+            assert_eq!(
+                layer2,
+                layer1.clone().layer(layer2.clone()),
+                "layer() should prefer the argument"
+            );
+            assert_eq!(
+                layer1,
+                layer2.clone().layer(layer1.clone()),
+                "layer() should prefer the argument"
+            );
         }
 
         #[test]
@@ -99,16 +126,27 @@ mod tests {
             assert_eq!(None, builder.saves_root, "saves_root should start as None");
             let path = PathBuf::from("/testing/saves");
             builder = builder.set_saves_root(path.clone());
-            assert_eq!(Some(path), builder.saves_root, "saves_root should now be set");
+            assert_eq!(
+                Some(path),
+                builder.saves_root,
+                "saves_root should now be set"
+            );
         }
 
         #[test]
         fn builder_config_file_sets_correctly() {
             let mut builder = ConfigBuilder::new();
-            assert_eq!(None, builder.config_file, "config_file should start as None");
+            assert_eq!(
+                None, builder.config_file,
+                "config_file should start as None"
+            );
             let path = PathBuf::from("/testing/config.toml");
             builder = builder.set_config_file(path.clone());
-            assert_eq!(Some(path), builder.config_file, "config_file should now be set");
+            assert_eq!(
+                Some(path),
+                builder.config_file,
+                "config_file should now be set"
+            );
         }
 
         #[test]
@@ -117,7 +155,11 @@ mod tests {
             assert_eq!(None, builder.games_file, "games_file should start as None");
             let path = PathBuf::from("/testing/saves");
             builder = builder.set_games_file(path.clone());
-            assert_eq!(Some(path), builder.games_file, "games_file should now be set");
+            assert_eq!(
+                Some(path),
+                builder.games_file,
+                "games_file should now be set"
+            );
         }
 
         #[test]
@@ -126,7 +168,11 @@ mod tests {
             assert_eq!(None, builder.log_level, "log_level should start as None");
             let level = Level::Debug;
             builder = builder.set_log_level(level.clone());
-            assert_eq!(Some(level), builder.log_level, "log_level should now be set");
+            assert_eq!(
+                Some(level),
+                builder.log_level,
+                "log_level should now be set"
+            );
         }
 
         #[test]
@@ -143,7 +189,11 @@ mod tests {
             let mut builder = ConfigBuilder::new();
             let path = PathBuf::from("/testing/saves");
             builder = builder.set_saves_root(path.clone());
-            assert_eq!(Some(path), builder.saves_root, "saves_root should start as set");
+            assert_eq!(
+                Some(path),
+                builder.saves_root,
+                "saves_root should start as set"
+            );
             builder = builder.unset_saves_root();
             assert_eq!(None, builder.saves_root, "saves_root should now be None");
         }
@@ -153,7 +203,11 @@ mod tests {
             let mut builder = ConfigBuilder::new();
             let path = PathBuf::from("/testing/config.toml");
             builder = builder.set_config_file(path.clone());
-            assert_eq!(Some(path), builder.config_file, "config_file should start as set");
+            assert_eq!(
+                Some(path),
+                builder.config_file,
+                "config_file should start as set"
+            );
             builder = builder.unset_config_file();
             assert_eq!(None, builder.config_file, "config_file should now be None");
         }
@@ -163,7 +217,11 @@ mod tests {
             let mut builder = ConfigBuilder::new();
             let path = PathBuf::from("/testing/games.toml");
             builder = builder.set_games_file(path.clone());
-            assert_eq!(Some(path), builder.games_file, "games_file should start as set");
+            assert_eq!(
+                Some(path),
+                builder.games_file,
+                "games_file should start as set"
+            );
             builder = builder.unset_games_file();
             assert_eq!(None, builder.games_file, "games_file should now be None");
         }
@@ -173,7 +231,11 @@ mod tests {
             let mut builder = ConfigBuilder::new();
             let level = Level::Debug;
             builder = builder.set_log_level(level.clone());
-            assert_eq!(Some(level), builder.log_level, "log_level should start as set");
+            assert_eq!(
+                Some(level),
+                builder.log_level,
+                "log_level should start as set"
+            );
             builder = builder.unset_log_level();
             assert_eq!(None, builder.log_level, "log_level should now be None");
         }
@@ -262,7 +324,10 @@ where
     deserializer.deserialize_option(LevelVisitor)
 }
 
-fn serialize_level<S>(level: &Option<Level>, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+fn serialize_level<S>(level: &Option<Level>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
     match level {
         None => serializer.serialize_none(),
         Some(level) => serializer.serialize_str(level.to_string().as_str()),
@@ -313,8 +378,7 @@ impl ConfigBuilder {
     }
 
     fn default_games_file() -> PathBuf {
-        get_dirs().config_dir()
-            .join(GAMES_LIST_NAME)
+        get_dirs().config_dir().join(GAMES_LIST_NAME)
     }
 
     fn default_games_list_path_with_config(config_path: &Path) -> PathBuf {
@@ -399,7 +463,6 @@ impl ConfigBuilder {
         self
     }
 
-
     /// Set the file that contains configuration.
     ///
     /// This currently only exists for completeness. You probably want [`ConfigBuilder::from_file`]
@@ -433,7 +496,6 @@ impl ConfigBuilder {
         self
     }
 
-
     /// Unset the file that contains configuration.
     pub fn unset_config_file(mut self) -> Self {
         self.config_file = None;
@@ -460,7 +522,9 @@ impl ConfigBuilder {
     pub fn build(self) -> Config {
         let saves_root = self.saves_root.unwrap_or_else(Self::default_saves_root);
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
-        let games_file = self.games_file.unwrap_or_else(|| Self::default_games_list_path_with_config(&config_file));
+        let games_file = self
+            .games_file
+            .unwrap_or_else(|| Self::default_games_list_path_with_config(&config_file));
         let log_level = self.log_level.unwrap_or(log::Level::Info);
         let command = self.command.unwrap_or(Command::Help);
 
