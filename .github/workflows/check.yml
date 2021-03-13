@@ -23,24 +23,68 @@ jobs:
           command: fmt
           args: -- --check
 
-  check:
+  check-stable:
     name: Check Commit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo binaries
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-bin-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
-          components: clippy, rustfmt
 
       - name: Cargo Check
         uses: actions-rs/cargo@v1
         with:
           command: check
+
+      - name: Cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
+
+  check-nightly:
+    name: Check Commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo binaries
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-bin-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
@@ -49,10 +93,11 @@ jobs:
           override: true
           components: llvm-tools-preview
 
-      - name: Cargo Check
-        uses: actions-rs/cargo@v1
+      - name: Install Grcov
+        uses: actions-rs/install@v0.1
         with:
-          command: clean
+            crate: grcov
+            version: latest
 
       - name: Cargo Test (Grcov)
         uses: actions-rs/cargo@v1
@@ -60,15 +105,13 @@ jobs:
           command: test
           args: --all-features --no-fail-fast
         env:
-          CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Zinstrument-coverage'
-          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
 
       - name: Run grcov
-        uses: actions-rs/grcov@v0.1
+        run: grcov . --binary-path target/debug/deps -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore './*' -o codecov.lcov
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
         with:
           token: ${{secrets.CODECOV_TOKEN}}
-          files: ./lcov.info
+          files: ./codecov.lcov
