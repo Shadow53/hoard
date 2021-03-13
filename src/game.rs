@@ -1,11 +1,15 @@
 use super::Config;
 use log::{debug, info, warn};
-use std::{collections::BTreeMap, io::{self, Write}, str::FromStr};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::BTreeMap,
+    io::{self, Write},
+    str::FromStr,
+};
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
-use serde::{Serialize, Deserialize};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -101,10 +105,7 @@ fn save_games_file(games_path: &Path, games: &Games) -> Result<(), Error> {
 }
 
 pub fn read_games_file(path: &Path) -> Result<Games, Error> {
-    debug!(
-        "Reading games entries from {}",
-        path.to_string_lossy()
-    );
+    debug!("Reading games entries from {}", path.to_string_lossy());
     let s = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(err) => match err.kind() {

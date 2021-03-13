@@ -11,7 +11,7 @@ use thiserror::Error;
 use super::CONFIG_FILE_NAME;
 use super::GAMES_DIR_SLUG;
 use super::GAMES_LIST_NAME;
-use super::{Command, get_dirs, Config};
+use super::{get_dirs, Command, Config};
 
 #[cfg(test)]
 mod tests {

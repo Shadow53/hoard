@@ -4,15 +4,15 @@
 #![deny(clippy::complexity)]
 #![deny(clippy::perf)]
 
-pub mod builder;
-pub mod game;
 pub mod backup;
+pub mod builder;
 pub mod config;
+pub mod game;
 
 use directories::ProjectDirs;
 use log::{debug, Level};
 use std::path::PathBuf;
-use structopt::{StructOpt, clap::Error as ClapError};
+use structopt::{clap::Error as ClapError, StructOpt};
 use thiserror::Error;
 
 pub use builder::ConfigBuilder;
@@ -124,8 +124,7 @@ impl Command {
         let root = config.get_saves_root_path();
         debug!("Game saves directory: {}", root.to_string_lossy());
 
-        let games = game::read_games_file(&config.games_file)
-            .map_err(Error::ReadGames)?;
+        let games = game::read_games_file(&config.games_file).map_err(Error::ReadGames)?;
 
         match &config.command {
             Command::Help => ConfigBuilder::clap()
