@@ -2,7 +2,7 @@ use std::io::{Error as IOError, Write};
 use std::path::Path;
 use std::{fmt, fs::File, path::PathBuf, str::FromStr};
 
-use super::{builder, Config, ConfigBuilder, Error as ConfigError};
+use super::{builder, Config, ConfigBuilder};
 
 use structopt::StructOpt;
 use thiserror::Error;
@@ -10,7 +10,7 @@ use thiserror::Error;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Command as TopCommand;
+    use crate::Command as TopCommand;
     use log::Level;
     use std::path::PathBuf;
 
@@ -385,8 +385,7 @@ pub enum Command {
 impl Command {
     fn save_config(path: &Path, config: &ConfigBuilder) -> Result<(), Error> {
         let mut file = File::create(path).map_err(Error::WriteConfig)?;
-        let builder = ConfigBuilder::from(config.to_owned());
-        let content = toml::to_string_pretty(&builder).map_err(Error::Serialize)?;
+        let content = toml::to_string_pretty(&config).map_err(Error::Serialize)?;
         file.write_all(content.as_bytes())
             .map_err(Error::WriteConfig)?;
 

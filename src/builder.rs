@@ -11,7 +11,7 @@ use thiserror::Error;
 use super::CONFIG_FILE_NAME;
 use super::GAMES_DIR_SLUG;
 use super::GAMES_LIST_NAME;
-use super::{command::Command, get_dirs, Config};
+use super::{Command, get_dirs, Config};
 
 #[cfg(test)]
 mod tests {
@@ -334,6 +334,7 @@ where
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_level() -> Option<Level> {
     Some(Level::Info)
 }
@@ -366,6 +367,12 @@ pub struct ConfigBuilder {
     #[serde(skip)]
     #[structopt(subcommand)]
     command: Option<Command>,
+}
+
+impl Default for ConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConfigBuilder {

@@ -1,4 +1,4 @@
-use crate::games::{Game, Games};
+use crate::game::{Game, Games};
 use log::{debug, info};
 use std::fs;
 use std::io;

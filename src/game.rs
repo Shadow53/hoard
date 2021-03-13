@@ -1,13 +1,78 @@
-use super::{Config, Error as ConfigError};
-use crate::games::{GameType, Games};
+use super::Config;
 use log::{debug, info, warn};
-use std::io::{self, Write};
+use std::{collections::BTreeMap, io::{self, Write}, str::FromStr};
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
+use serde::{Serialize, Deserialize};
 use structopt::StructOpt;
 use thiserror::Error;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_game_type_display() {
+        assert_eq!("gog", GameType::Gog.to_string());
+        assert_eq!("itch", GameType::Itch.to_string());
+        assert_eq!("native", GameType::Native.to_string());
+        assert_eq!("steam", GameType::Steam.to_string());
+    }
+
+    #[test]
+    fn test_game_type_from_str() {
+        assert_eq!("gog".parse::<GameType>().unwrap(), GameType::Gog);
+        assert_eq!("itch".parse::<GameType>().unwrap(), GameType::Itch);
+        assert_eq!("native".parse::<GameType>().unwrap(), GameType::Native);
+        assert_eq!("steam".parse::<GameType>().unwrap(), GameType::Steam);
+    }
+
+    #[test]
+    fn test_game_type_from_str_is_case_sensitive() {
+        "GOG".parse::<GameType>().unwrap_err();
+        "ITCH".parse::<GameType>().unwrap_err();
+        "NATIVE".parse::<GameType>().unwrap_err();
+        "STEAM".parse::<GameType>().unwrap_err();
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename = "lower")]
+pub enum GameType {
+    Gog,
+    Itch,
+    Native,
+    Steam,
+}
+
+impl fmt::Display for GameType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Gog => write!(f, "gog"),
+            Self::Itch => write!(f, "itch"),
+            Self::Native => write!(f, "native"),
+            Self::Steam => write!(f, "steam"),
+        }
+    }
+}
+
+impl FromStr for GameType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "gog" => Ok(Self::Gog),
+            "itch" => Ok(Self::Itch),
+            "native" => Ok(Self::Native),
+            "steam" => Ok(Self::Steam),
+            _ => Err(format!("unexpected game type: {}", s)),
+        }
+    }
+}
+
+pub type Game = BTreeMap<GameType, PathBuf>;
+pub type Games = BTreeMap<String, Game>;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -18,7 +83,9 @@ pub enum Error {
     #[error("failed to serialize games data: {0}")]
     Serialize(toml::ser::Error),
     #[error("failed to read games list from file: {0}")]
-    ReadGames(ConfigError),
+    ReadGames(io::Error),
+    #[error("failed to deserialize games file: {0}")]
+    DeserializeGames(toml::de::Error),
 }
 
 fn save_games_file(games_path: &Path, games: &Games) -> Result<(), Error> {
@@ -31,6 +98,21 @@ fn save_games_file(games_path: &Path, games: &Games) -> Result<(), Error> {
     let mut file = std::fs::File::create(games_path).map_err(Error::Save)?;
 
     file.write_all(output.as_bytes()).map_err(Error::Save)
+}
+
+pub fn read_games_file(path: &Path) -> Result<Games, Error> {
+    debug!(
+        "Reading games entries from {}",
+        path.to_string_lossy()
+    );
+    let s = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(err) => match err.kind() {
+            io::ErrorKind::NotFound => String::new(),
+            _ => return Err(Error::ReadGames(err)),
+        },
+    };
+    toml::from_str(&s).map_err(Error::DeserializeGames)
 }
 
 #[derive(Clone, PartialEq, Debug, StructOpt)]
@@ -57,7 +139,7 @@ impl fmt::Display for AddGame {
 
 impl AddGame {
     pub fn add_game(&self, config: &Config) -> Result<(), Error> {
-        let mut games = config.get_games().map_err(Error::ReadGames)?;
+        let mut games = read_games_file(&config.games_file)?;
         // Remove game for modification
         let mut game = games.remove(&self.game).unwrap_or_default();
 
@@ -94,7 +176,7 @@ pub struct RemoveGame {
 
 impl RemoveGame {
     pub fn remove_game(&self, config: &Config) -> Result<(), Error> {
-        let mut games = config.get_games().map_err(Error::ReadGames)?;
+        let mut games = read_games_file(&config.games_file)?;
         // Remove game for modification
         let mut game = games.remove(&self.game).unwrap_or_default();
 

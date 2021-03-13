@@ -6,8 +6,8 @@ use common::{file, toml};
 
 use std::path::PathBuf;
 
-use save_hoarder::config::config::{Command as ConfigCmd, ConfigField, SetConfig, UnsetConfig};
-use save_hoarder::config::{command::Command, Config, ConfigBuilder};
+use save_hoarder::config::{Command as ConfigCmd, ConfigField, SetConfig, UnsetConfig};
+use save_hoarder::{Command, Config, ConfigBuilder};
 
 fn strip_non_config_file(builder: ConfigBuilder) -> ConfigBuilder {
     builder.unset_config_file().unset_command()
@@ -15,7 +15,7 @@ fn strip_non_config_file(builder: ConfigBuilder) -> ConfigBuilder {
 
 #[test]
 fn test_init_config() {
-    let mut file = file::get_temp_file();
+    let file = file::get_temp_file();
 
     let cmd = Command::Config {
         command: ConfigCmd::Init,
@@ -69,7 +69,7 @@ fn test_reset_config() {
 
 #[test]
 fn test_add_to_config() {
-    let mut file = file::get_temp_file();
+    let file = file::get_temp_file();
 
     let saves_root = PathBuf::from("/testing/saves");
 
@@ -101,7 +101,7 @@ fn test_add_to_config() {
 
 #[test]
 fn test_remove_from_config() {
-    let mut file = file::get_temp_file();
+    let file = file::get_temp_file();
 
     let saves_root = PathBuf::from("/testing/saves");
 
