@@ -52,7 +52,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: '0.18.0-alpha1'
-          args: '--all-features - --test-threads 1'
+          args: '--all-features -- --test-threads 1'
           out-type: Xml
 
       - name: Upload to codecov.io
