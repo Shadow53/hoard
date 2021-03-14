@@ -6,8 +6,8 @@ use common::{file, toml};
 
 use std::path::PathBuf;
 
-use save_hoarder::config::{Command as ConfigCmd, ConfigField, SetConfig, UnsetConfig};
-use save_hoarder::{Command, Config, ConfigBuilder};
+use hoard::config::{Command as ConfigCmd, ConfigField, SetConfig, UnsetConfig};
+use hoard::{Command, Config, ConfigBuilder};
 
 fn strip_non_config_file(builder: ConfigBuilder) -> ConfigBuilder {
     builder.unset_config_file().unset_command()

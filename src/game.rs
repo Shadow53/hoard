@@ -3,6 +3,7 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
+    convert::TryFrom,
     io::{self, Write},
     str::FromStr,
 };
@@ -43,12 +44,25 @@ mod tests {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
-#[serde(rename = "lower")]
+#[serde(rename = "lower", try_from = "String", into = "String")]
 pub enum GameType {
     Gog,
     Itch,
     Native,
     Steam,
+}
+
+impl From<GameType> for String {
+    fn from(t: GameType) -> String {
+        t.to_string()
+    }
+}
+
+impl TryFrom<String> for GameType {
+    type Error = Error;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
 }
 
 impl fmt::Display for GameType {
@@ -63,14 +77,14 @@ impl fmt::Display for GameType {
 }
 
 impl FromStr for GameType {
-    type Err = String;
+    type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "gog" => Ok(Self::Gog),
             "itch" => Ok(Self::Itch),
             "native" => Ok(Self::Native),
             "steam" => Ok(Self::Steam),
-            _ => Err(format!("unexpected game type: {}", s)),
+            _ => Err(Error::ParseGameType(s.to_owned())),
         }
     }
 }
@@ -90,9 +104,11 @@ pub enum Error {
     ReadGames(io::Error),
     #[error("failed to deserialize games file: {0}")]
     DeserializeGames(toml::de::Error),
+    #[error("could not parse value as game type: {0}")]
+    ParseGameType(String),
 }
 
-fn save_games_file(games_path: &Path, games: &Games) -> Result<(), Error> {
+pub fn save_games_file(games_path: &Path, games: &Games) -> Result<(), Error> {
     info!(
         "Saving games configuration to {}",
         games_path.to_string_lossy()
@@ -139,8 +155,8 @@ impl fmt::Display for AddGame {
 }
 
 impl AddGame {
-    pub fn add_game(&self, config: &Config) -> Result<(), Error> {
-        let mut games = read_games_file(&config.games_file)?;
+    pub fn add_game(&self, games_file: &Path) -> Result<(), Error> {
+        let mut games = read_games_file(&games_file)?;
         // Remove game for modification
         let mut game = games.remove(&self.game).unwrap_or_default();
 
@@ -162,8 +178,7 @@ impl AddGame {
         games.insert(self.game.clone(), game);
 
         // Save to file
-        let games_path = config.get_games_file_path();
-        save_games_file(&games_path, &games)?;
+        save_games_file(&games_file, &games)?;
 
         Ok(())
     }
@@ -176,8 +191,8 @@ pub struct RemoveGame {
 }
 
 impl RemoveGame {
-    pub fn remove_game(&self, config: &Config) -> Result<(), Error> {
-        let mut games = read_games_file(&config.games_file)?;
+    pub fn remove_game(&self, games_file: &Path) -> Result<(), Error> {
+        let mut games = read_games_file(&games_file)?;
         // Remove game for modification
         let mut game = games.remove(&self.game).unwrap_or_default();
 
@@ -195,15 +210,16 @@ impl RemoveGame {
                     None => warn!("No saves path found for {} {}", ty, self.game),
                 }
 
-                // Re-insert game into collection
-                games.insert(self.game.clone(), game);
+                if game.len() > 0 {
+                    // Re-insert game into collection
+                    games.insert(self.game.clone(), game);
+                }
             }
             None => info!("Removed all entries for {}", self.game),
         }
 
         // Save to file
-        let games_path = config.get_games_file_path();
-        save_games_file(&games_path, &games)?;
+        save_games_file(&games_file, &games)?;
 
         Ok(())
     }
@@ -218,8 +234,8 @@ pub enum Command {
 impl Command {
     pub fn run(&self, config: &Config) -> Result<(), Error> {
         match self {
-            Self::Add(adder) => adder.add_game(config),
-            Self::Remove(remover) => remover.remove_game(config),
+            Self::Add(adder) => adder.add_game(&config.games_file),
+            Self::Remove(remover) => remover.remove_game(&config.games_file),
         }
     }
 }

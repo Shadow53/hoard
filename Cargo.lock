@@ -180,6 +180,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hoard"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "log",
+ "maplit",
+ "rand",
+ "serde",
+ "structopt",
+ "tempfile",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -210,6 +225,12 @@ dependencies = [
  "generator",
  "scoped-tls",
 ]
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "ppv-lite86"
@@ -351,20 +372,6 @@ name = "rustversion"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb5d2a036dc6d2d8fd16fde3498b04306e29bd193bf306a57427019b823d5acd"
-
-[[package]]
-name = "save_hoarder"
-version = "0.1.0"
-dependencies = [
- "directories",
- "log",
- "rand",
- "serde",
- "structopt",
- "tempfile",
- "thiserror",
- "toml",
-]
 
 [[package]]
 name = "scoped-tls"
