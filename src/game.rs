@@ -210,7 +210,7 @@ impl RemoveGame {
                     None => warn!("No saves path found for {} {}", ty, self.game),
                 }
 
-                if game.len() > 0 {
+                if !game.is_empty() {
                     // Re-insert game into collection
                     games.insert(self.game.clone(), game);
                 }
