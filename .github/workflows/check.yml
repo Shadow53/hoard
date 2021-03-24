@@ -93,25 +93,22 @@ jobs:
           override: true
           components: llvm-tools-preview
 
-      - name: Install Grcov
-        uses: actions-rs/install@v0.1
-        with:
-            crate: grcov
-            version: latest
-
       - name: Cargo Test (Grcov)
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features --no-fail-fast
         env:
-          RUSTFLAGS: '-Zinstrument-coverage'
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
 
       - name: Run grcov
-        run: grcov . --binary-path target/debug/deps -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore './*' -o codecov.lcov
+        id: coverage
+        uses: actions-rs/grcov@v0.1
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
         with:
-          token: ${{secrets.CODECOV_TOKEN}}
-          files: ./codecov.lcov
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ steps.coverage.outputs.report }}
