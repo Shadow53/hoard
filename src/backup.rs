@@ -1,23 +1,22 @@
-use crate::games::{Game, Games};
+use crate::game::{Game, Games};
 use log::{debug, info};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("failed to copy {src} to {dest}: {error}")]
     CopyFile {
         src: PathBuf,
         dest: PathBuf,
         error: io::Error,
     },
-    CreateDir {
-        path: PathBuf,
-        error: io::Error,
-    },
-    ReadDir {
-        path: PathBuf,
-        error: io::Error,
-    },
+    #[error("failed to create {path}: {error}")]
+    CreateDir { path: PathBuf, error: io::Error },
+    #[error("cannot read directory {path}: {error}")]
+    ReadDir { path: PathBuf, error: io::Error },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -29,7 +28,7 @@ pub enum Direction {
 
 /// Recursively copies files from `source` to `dest`. All required folders in `dest`
 /// will be created, if necessary.
-pub fn copy_path(source: &Path, dest: &Path) -> Result<()> {
+fn copy_path(source: &Path, dest: &Path) -> Result<()> {
     if source.is_dir() {
         debug!("{} is a directory", source.to_string_lossy());
         let dir_contents = fs::read_dir(source).map_err(|err| Error::ReadDir {
@@ -73,7 +72,7 @@ pub fn copy_path(source: &Path, dest: &Path) -> Result<()> {
 
 /// Synchronizes all files for the given `game` between the backup `root` folder and the
 /// configured source directory.
-pub fn copy_game(root: &Path, name: &str, game: &Game, dir: Direction) -> Result<()> {
+fn copy_game(root: &Path, name: &str, game: &Game, dir: Direction) -> Result<()> {
     for (typ, path) in game.iter() {
         let backup: PathBuf = [&root.to_string_lossy(), name, typ.to_string().as_str()]
             .iter()
