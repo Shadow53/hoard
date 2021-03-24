@@ -1,10 +1,10 @@
+use hoard::backup::Direction;
+use hoard::{Command, Config, Game, GameType, Games};
+use rand::RngCore;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use rand::RngCore;
-use tempfile::{TempDir, NamedTempFile, tempdir};
-use hoard::{Config, Command, Games, Game, GameType};
-use hoard::backup::Direction;
+use tempfile::{tempdir, NamedTempFile, TempDir};
 
 mod common;
 
@@ -58,7 +58,9 @@ impl TestBackups {
 
         let games_str = toml::to_string_pretty(&games).expect("failed to convert games to toml");
 
-        games_file.write_all(games_str.as_bytes()).expect("failed to write games bytes to file");
+        games_file
+            .write_all(games_str.as_bytes())
+            .expect("failed to write games bytes to file");
         games_file.flush().expect("failed to flush games file");
 
         let config = Config::builder()
@@ -77,13 +79,18 @@ impl TestBackups {
     }
 
     fn populate_in(path: &Path, include_untouched: bool) {
-        let top_level = fs::File::create(path.join(Self::TOP_FILE_NAME)).expect("failed to create top-level file");
-        let nested = fs::File::create(path.join(Self::NESTED_DIR_NAME).join(Self::NESTED_FILE_NAME))
-            .expect("failed to create nested file");
+        let top_level = fs::File::create(path.join(Self::TOP_FILE_NAME))
+            .expect("failed to create top-level file");
+        let nested = fs::File::create(
+            path.join(Self::NESTED_DIR_NAME)
+                .join(Self::NESTED_FILE_NAME),
+        )
+        .expect("failed to create nested file");
 
         let files = if include_untouched {
-            let untouched = fs::File::create(path.join(Self::NESTED_DIR_NAME).join(Self::OTHER_FILE_NAME))
-                .expect("failed to create file that shouldn't be touched");
+            let untouched =
+                fs::File::create(path.join(Self::NESTED_DIR_NAME).join(Self::OTHER_FILE_NAME))
+                    .expect("failed to create file that shouldn't be touched");
             vec![top_level, nested, untouched]
         } else {
             vec![top_level, nested]
@@ -91,9 +98,12 @@ impl TestBackups {
 
         for mut file in files {
             let mut buf = [0u8; 256];
-            rand::thread_rng().try_fill_bytes(&mut buf).expect("failed to write to buffer");
+            rand::thread_rng()
+                .try_fill_bytes(&mut buf)
+                .expect("failed to write to buffer");
             file.write_all(&buf).expect("failed to write to file");
-            file.sync_all().expect("failed to sync file data to filesystem");
+            file.sync_all()
+                .expect("failed to sync file data to filesystem");
         }
     }
 
@@ -107,11 +117,20 @@ impl TestBackups {
 
     fn assert_same_files(&self) {
         let paths = vec![
-            (self.backup.path().join(Self::TOP_FILE_NAME), self.dest.path().join(Self::TOP_FILE_NAME)),
             (
-                self.backup.path().join(Self::NESTED_DIR_NAME).join(Self::NESTED_FILE_NAME),
-                self.dest.path().join(Self::NESTED_DIR_NAME).join(Self::NESTED_FILE_NAME),
-            )
+                self.backup.path().join(Self::TOP_FILE_NAME),
+                self.dest.path().join(Self::TOP_FILE_NAME),
+            ),
+            (
+                self.backup
+                    .path()
+                    .join(Self::NESTED_DIR_NAME)
+                    .join(Self::NESTED_FILE_NAME),
+                self.dest
+                    .path()
+                    .join(Self::NESTED_DIR_NAME)
+                    .join(Self::NESTED_FILE_NAME),
+            ),
         ];
 
         for (path1, path2) in paths {
@@ -124,24 +143,40 @@ impl TestBackups {
 
     fn assert_untouched_file(&self) {
         let paths = match &self.config.command {
-            Command::Backup => vec![
-                (
-                    self.backup.path().join(Self::NESTED_DIR_NAME).join(Self::OTHER_FILE_NAME),
-                    self.dest.path().join(Self::NESTED_DIR_NAME).join(Self::OTHER_FILE_NAME),
-                )
-            ],
-            Command::Restore => vec![
-                (
-                    self.dest.path().join(Self::NESTED_DIR_NAME).join(Self::OTHER_FILE_NAME),
-                    self.backup.path().join(Self::NESTED_DIR_NAME).join(Self::OTHER_FILE_NAME),
-                )
-            ],
+            Command::Backup => vec![(
+                self.backup
+                    .path()
+                    .join(Self::NESTED_DIR_NAME)
+                    .join(Self::OTHER_FILE_NAME),
+                self.dest
+                    .path()
+                    .join(Self::NESTED_DIR_NAME)
+                    .join(Self::OTHER_FILE_NAME),
+            )],
+            Command::Restore => vec![(
+                self.dest
+                    .path()
+                    .join(Self::NESTED_DIR_NAME)
+                    .join(Self::OTHER_FILE_NAME),
+                self.backup
+                    .path()
+                    .join(Self::NESTED_DIR_NAME)
+                    .join(Self::OTHER_FILE_NAME),
+            )],
             _ => panic!("expected Command::Backup, Command::Restore"),
         };
 
         for (exists, no_exists) in paths {
-            assert!(exists.exists(), "{} does not exist but should", exists.to_string_lossy());
-            assert!(!no_exists.exists(), "{} exists but should not", no_exists.to_string_lossy());
+            assert!(
+                exists.exists(),
+                "{} does not exist but should",
+                exists.to_string_lossy()
+            );
+            assert!(
+                !no_exists.exists(),
+                "{} exists but should not",
+                no_exists.to_string_lossy()
+            );
         }
     }
 
