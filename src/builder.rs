@@ -43,6 +43,11 @@ mod tests {
         }
 
         #[test]
+        fn default_builder_is_new() {
+            assert_eq!(ConfigBuilder::new(), ConfigBuilder::default());
+        }
+
+        #[test]
         fn builder_default_games_file_with_config_given_valid_config() {
             let config = PathBuf::from("/testing/config.toml");
             let games_file = ConfigBuilder::default_games_list_path_with_config(&config);

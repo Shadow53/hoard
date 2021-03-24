@@ -28,7 +28,7 @@ pub enum Direction {
 
 /// Recursively copies files from `source` to `dest`. All required folders in `dest`
 /// will be created, if necessary.
-pub fn copy_path(source: &Path, dest: &Path) -> Result<()> {
+fn copy_path(source: &Path, dest: &Path) -> Result<()> {
     if source.is_dir() {
         debug!("{} is a directory", source.to_string_lossy());
         let dir_contents = fs::read_dir(source).map_err(|err| Error::ReadDir {
@@ -72,7 +72,7 @@ pub fn copy_path(source: &Path, dest: &Path) -> Result<()> {
 
 /// Synchronizes all files for the given `game` between the backup `root` folder and the
 /// configured source directory.
-pub fn copy_game(root: &Path, name: &str, game: &Game, dir: Direction) -> Result<()> {
+fn copy_game(root: &Path, name: &str, game: &Game, dir: Direction) -> Result<()> {
     for (typ, path) in game.iter() {
         let backup: PathBuf = [&root.to_string_lossy(), name, typ.to_string().as_str()]
             .iter()

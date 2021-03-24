@@ -37,7 +37,22 @@ fn test_init_config() {
 
     file.reopen().expect("failed to reopen file after writing");
 
+    toml::assert_file_contains_deserializable(file.path(), &strip_non_config_file(expected.clone()));
+
+    std::fs::remove_file(file.path()).expect("failed to delete file");
+
+    run_config
+        .command
+        .run(&run_config)
+        .expect("failed to run init command");
+
+    // Reopening fails because it's not the original file
+    // file.reopen().expect("failed to reopen file after writing");
+
     toml::assert_file_contains_deserializable(file.path(), &strip_non_config_file(expected));
+
+    // Cleanup
+    std::fs::remove_file(file.path()).expect("failed to delete file");
 }
 
 #[test]

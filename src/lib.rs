@@ -16,6 +16,7 @@ use structopt::{clap::Error as ClapError, StructOpt};
 use thiserror::Error;
 
 pub use builder::ConfigBuilder;
+pub use game::{Game, Games, GameType};
 
 #[cfg(test)]
 mod tests {
