@@ -9,6 +9,3 @@ ignore:
   - "/*"
   - "C:/*"
   - "../*"
-path-mapping:
-  - "/path1"
-  - "/path2"
