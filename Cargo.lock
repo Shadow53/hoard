@@ -188,6 +188,7 @@ dependencies = [
  "maplit",
  "rand",
  "serde",
+ "serde_test",
  "structopt",
  "tempfile",
  "thiserror",
@@ -397,6 +398,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_test"
+version = "1.0.125"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4bb5fef7eaf5a97917567183607ac4224c5b451c15023930f23b937cce879fe"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

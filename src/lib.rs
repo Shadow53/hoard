@@ -6,6 +6,7 @@
 
 pub mod backup;
 pub mod builder;
+pub mod combinator;
 pub mod config;
 pub mod game;
 
