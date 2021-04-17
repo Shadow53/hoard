@@ -8,6 +8,7 @@ pub mod backup;
 pub mod builder;
 pub mod combinator;
 pub mod config;
+pub mod environment;
 pub mod game;
 
 use directories::ProjectDirs;

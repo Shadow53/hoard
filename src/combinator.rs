@@ -32,14 +32,14 @@ impl<T> CombinatorInner<T>
 where
     T: TryInto<bool>,
 {
-    fn is_singleton(&self) -> bool {
+    pub fn is_singleton(&self) -> bool {
         match self {
             CombinatorInner::Single(_) => true,
             CombinatorInner::Multiple(list) => list.len() == 1,
         }
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         match self {
             CombinatorInner::Single(_) => false,
             CombinatorInner::Multiple(list) => list.is_empty(),
@@ -91,7 +91,7 @@ where
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Combinator<T: TryInto<bool>>(Vec<CombinatorInner<T>>);
+pub struct Combinator<T: TryInto<bool>>(pub Vec<CombinatorInner<T>>);
 
 impl<T> Combinator<T>
 where
