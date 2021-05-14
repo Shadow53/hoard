@@ -4,7 +4,7 @@ use std::fmt;
 use std::fmt::Formatter;
 
 // Possible values: https://doc.rust-lang.org/std/env/consts/constant.OS.html
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct OperatingSystem(pub String);
 

@@ -21,7 +21,7 @@ use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 use std::fmt::Formatter;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(untagged)]
 pub enum CombinatorInner<T: TryInto<bool>> {
     Single(T),
@@ -89,7 +89,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(transparent)]
 pub struct Combinator<T: TryInto<bool>>(pub Vec<CombinatorInner<T>>);
 

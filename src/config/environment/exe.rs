@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct ExeExists(pub String);
 
@@ -35,7 +35,7 @@ mod tests {
     use super::*;
 
     #[cfg(target_os = "windows")]
-    const EXE_NAMES: [&'static str; 5] = [
+    const EXE_NAMES: [&str; 5] = [
         "CMD",
         "CMD.EXE",
         "cmd",
@@ -44,7 +44,7 @@ mod tests {
     ];
 
     #[cfg(not(target_os = "windows"))]
-    const EXE_NAMES: [&'static str; 5] = ["less", "vi", "sh", "true", "/bin/sh"];
+    const EXE_NAMES: [&str; 5] = ["less", "vi", "sh", "true", "/bin/sh"];
 
     #[test]
     fn test_exe_exists() {

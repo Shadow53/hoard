@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct Hostname(pub String);
 

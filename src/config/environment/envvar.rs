@@ -3,7 +3,7 @@ use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 pub struct EnvVariable {
     pub var: String,
     pub expected: Option<String>,

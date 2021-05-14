@@ -4,7 +4,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::path::PathBuf;
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct PathExists(pub PathBuf);
 

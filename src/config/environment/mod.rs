@@ -34,57 +34,75 @@ impl From<Infallible> for Error {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EnvCondition {
-    Hostname(Combinator<Hostname>),
-    #[serde(rename = "os")]
-    OperatingSystem(Combinator<OperatingSystem>),
-    #[serde(rename = "env")]
-    EnvVariable(Combinator<EnvVariable>),
-    ExeExists(Combinator<ExeExists>),
-    FileExists(Combinator<PathExists>),
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Hash)]
+pub struct Environment {
+    hostname: Option<Combinator<Hostname>>,
+    os: Option<Combinator<OperatingSystem>>,
+    env: Option<Combinator<EnvVariable>>,
+    exe_exists: Option<Combinator<ExeExists>>,
+    path_exists: Option<Combinator<PathExists>>,
 }
 
-impl TryInto<bool> for EnvCondition {
+// Note to self: this is a good candidate for a derive macro
+// if Combinator is put into its own library
+impl TryInto<bool> for Environment {
     type Error = Error;
 
     fn try_into(self) -> Result<bool, Self::Error> {
-        match self {
-            EnvCondition::Hostname(hostname) => hostname.try_into(),
-            EnvCondition::OperatingSystem(os) => os.try_into().map_err(Into::into),
-            EnvCondition::EnvVariable(env) => env.try_into().map_err(Into::into),
-            EnvCondition::ExeExists(exe) => exe.try_into().map_err(Error::ExeExists),
-            EnvCondition::FileExists(file) => file.try_into().map_err(Into::into),
-        }
+        let Environment {
+            hostname,
+            os,
+            env,
+            exe_exists,
+            path_exists,
+        } = self;
+
+        let hostname_cond: bool = hostname.map(TryInto::try_into).unwrap_or(Ok(true))?;
+        let os_cond: bool = os.map(TryInto::try_into).unwrap_or(Ok(true))?;
+        let env_cond: bool = env.map(TryInto::try_into).unwrap_or(Ok(true))?;
+        let exe_cond: bool = exe_exists.map(TryInto::try_into).unwrap_or(Ok(true))?;
+        let path_cond: bool = path_exists.map(TryInto::try_into).unwrap_or(Ok(true))?;
+
+        Ok(hostname_cond && os_cond && env_cond && exe_cond && path_cond)
     }
 }
 
-impl EnvCondition {
+impl Environment {
     pub fn validate(&self) -> Result<(), Error> {
-        match self {
-            Self::Hostname(comb) => {
-                if comb.is_only_and() || comb.is_complex() {
-                    return Err(Error::InvalidCondition {
-                        condition_str: comb.to_string(),
-                        message: String::from("machines cannot have multiple hostnames at once!"),
-                    });
-                }
+        let Environment { hostname, os, .. } = self;
+        if let Some(comb) = hostname {
+            if comb.is_only_and() || comb.is_complex() {
+                return Err(Error::InvalidCondition {
+                    condition_str: comb.to_string(),
+                    message: String::from("machines cannot have multiple hostnames at once!"),
+                });
             }
-            Self::OperatingSystem(comb) => {
-                if comb.is_only_and() || comb.is_complex() {
-                    return Err(Error::InvalidCondition {
-                        condition_str: comb.to_string(),
-                        message: String::from(
-                            "machines cannot have multiple operating systems at once!",
-                        ),
-                    });
-                }
+        }
+
+        if let Some(comb) = os {
+            if comb.is_only_and() || comb.is_complex() {
+                return Err(Error::InvalidCondition {
+                    condition_str: comb.to_string(),
+                    message: String::from(
+                        "machines cannot have multiple operating systems at once!",
+                    ),
+                });
             }
-            _ => {}
-        };
+        }
 
         Ok(())
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment {
+            hostname: None,
+            os: None,
+            env: None,
+            exe_exists: None,
+            path_exists: None,
+        }
     }
 }
 
@@ -102,7 +120,11 @@ mod tests {
                 Hostname("hostname.one".to_string()),
                 Hostname("hostname.two".to_string()),
             ])]);
-            let condition = EnvCondition::Hostname(combinator);
+
+            let condition = Environment {
+                hostname: Some(combinator),
+                ..Default::default()
+            };
 
             let err = condition
                 .validate()
@@ -122,7 +144,11 @@ mod tests {
                     Hostname("hostname.two".to_string()),
                 ]),
             ]);
-            let condition = EnvCondition::Hostname(combinator);
+
+            let condition = Environment {
+                hostname: Some(combinator),
+                ..Default::default()
+            };
 
             let err = condition
                 .validate()
@@ -140,7 +166,12 @@ mod tests {
                 CombinatorInner::Single(Hostname("hostname.two".to_string())),
             ]);
 
-            EnvCondition::Hostname(combinator)
+            let condition = Environment {
+                hostname: Some(combinator),
+                ..Default::default()
+            };
+
+            condition
                 .validate()
                 .expect("expecting one of two hostnames should succeed");
         }
@@ -155,7 +186,11 @@ mod tests {
                 OperatingSystem("windows".to_string()),
                 OperatingSystem("linux".to_string()),
             ])]);
-            let condition = EnvCondition::OperatingSystem(combinator);
+
+            let condition = Environment {
+                os: Some(combinator),
+                ..Default::default()
+            };
 
             let err = condition
                 .validate()
@@ -175,7 +210,11 @@ mod tests {
                     OperatingSystem("linux".to_string()),
                 ]),
             ]);
-            let condition = EnvCondition::OperatingSystem(combinator);
+
+            let condition = Environment {
+                os: Some(combinator),
+                ..Default::default()
+            };
 
             let err = condition
                 .validate()
@@ -193,7 +232,12 @@ mod tests {
                 CombinatorInner::Single(OperatingSystem("linux".to_string())),
             ]);
 
-            EnvCondition::OperatingSystem(combinator)
+            let condition = Environment {
+                os: Some(combinator),
+                ..Default::default()
+            };
+
+            condition
                 .validate()
                 .expect("expecting one of two operating systems should succeed");
         }

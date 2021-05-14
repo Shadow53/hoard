@@ -1,4 +1,3 @@
-use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::{
