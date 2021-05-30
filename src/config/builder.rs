@@ -12,9 +12,11 @@ use super::Config;
 use crate::combinator::Combinator;
 use crate::command::Command;
 use crate::config::environment::Environment;
+use crate::config::hoard::Hoard;
 use crate::CONFIG_FILE_NAME;
 use crate::GAMES_DIR_SLUG;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::convert::TryInto;
 
 struct LevelVisitor;
 
@@ -69,13 +71,15 @@ pub enum Error {
     DeserializeConfig(toml::de::Error),
     #[error("failed to read configuration file: {0}")]
     ReadConfig(io::Error),
+    #[error("failed to determine current environment: {0}")]
+    Environment(#[from] super::environment::Error),
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, StructOpt)]
 #[structopt(rename_all = "kebab")]
 pub struct Builder {
     #[structopt(skip)]
-    environments: Option<HashMap<String, Combinator<Environment>>>,
+    environments: Option<BTreeMap<String, Environment>>,
     #[structopt(short, long)]
     hoards_root: Option<PathBuf>,
     #[structopt(short, long)]
@@ -91,6 +95,8 @@ pub struct Builder {
     #[serde(skip)]
     #[structopt(subcommand)]
     command: Option<Command>,
+    #[structopt(skip)]
+    hoards: Option<BTreeMap<String, Hoard>>,
 }
 
 impl Default for Builder {
@@ -114,6 +120,7 @@ impl Builder {
     /// [`Config`] will have all default values.
     pub fn new() -> Self {
         Self {
+            hoards: None,
             hoards_root: None,
             config_file: None,
             log_level: None,
@@ -162,6 +169,12 @@ impl Builder {
         self
     }
 
+    /// Set the hoards map.
+    pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
+        self.hoards = Some(hoards);
+        self
+    }
+
     /// Set the directory that will contain all game save data.
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
         self.hoards_root = Some(path);
@@ -189,6 +202,12 @@ impl Builder {
         self
     }
 
+    /// Unset the hoards map
+    pub fn unset_hoards(mut self) -> Self {
+        self.hoards = None;
+        self
+    }
+
     /// Unset the directory that will contain all game save data.
     pub fn unset_hoards_root(mut self) -> Self {
         self.hoards_root = None;
@@ -213,37 +232,42 @@ impl Builder {
         self
     }
 
-    /// Build the `Config`.
-    ///
-    /// Because specific types are required while setting fields and no extra processing
-    /// is done during build, and since all fields have sane defaults, this function
-    /// cannot error and will not panic.
-    pub fn build(self) -> Config {
+    fn evaluated_environments(
+        &self,
+    ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
+        self.environments
+            .as_ref()
+            .map(|map| {
+                map.iter()
+                    .map(|(key, env)| Ok((key.clone(), env.clone().try_into()?)))
+                    .collect()
+            })
+            .unwrap_or_else(|| Ok(BTreeMap::new()))
+    }
+
+    pub fn build(self) -> Result<Config, Error> {
+        let environments = self.evaluated_environments()?;
         let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
         let log_level = self.log_level.unwrap_or(log::Level::Info);
         let command = self.command.unwrap_or(Command::Help);
-        let environments = self.environments.unwrap_or_else(HashMap::new);
+        let hoards = self.hoards.unwrap_or_else(BTreeMap::new);
 
-        Config {
+        Ok(Config {
             hoards_root,
             config_file,
             log_level,
             command,
             environments,
-        }
-    }
-}
-
-impl From<Builder> for Config {
-    fn from(builder: Builder) -> Config {
-        builder.build()
+            hoards,
+        })
     }
 }
 
 impl From<Config> for Builder {
     fn from(config: Config) -> Builder {
         Builder::new()
+            .set_hoards(config.hoards)
             .set_hoards_root(config.hoards_root)
             .set_config_file(config.config_file)
             .set_log_level(config.log_level)
@@ -267,6 +291,7 @@ mod tests {
                 log_level: Some(Level::Info),
                 command: Some(Command::Help),
                 environments: None,
+                hoards: None,
             }
         }
 
@@ -277,6 +302,7 @@ mod tests {
                 log_level: Some(Level::Debug),
                 command: Some(Command::Restore),
                 environments: None,
+                hoards: None,
             }
         }
 
@@ -293,6 +319,7 @@ mod tests {
                 log_level: None,
                 command: None,
                 environments: None,
+                hoards: None,
             };
 
             assert_eq!(
@@ -446,7 +473,7 @@ mod tests {
             // get_default_populated_builder is assumed to use all default values
             // for the purposes of this test.
             let builder = get_default_populated_builder();
-            let config = Builder::new().build();
+            let config = Builder::new().build().expect("failed to build config");
 
             assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
@@ -457,7 +484,7 @@ mod tests {
         #[test]
         fn builder_with_options_set_uses_options() {
             let builder = get_non_default_populated_builder();
-            let config = builder.clone().build();
+            let config = builder.clone().build().expect("failed to build config");
 
             assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
@@ -466,16 +493,9 @@ mod tests {
         }
 
         #[test]
-        fn config_from_builder_is_just_build() {
-            let builder = get_non_default_populated_builder();
-
-            assert_eq!(builder.clone().build(), Config::from(builder));
-        }
-
-        #[test]
         fn builder_from_config_undoes_build() {
             let builder = get_non_default_populated_builder();
-            let config = builder.clone().build();
+            let config = builder.clone().build().expect("failed to build config");
             assert_eq!(builder, Builder::from(config));
         }
     }

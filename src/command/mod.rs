@@ -33,8 +33,6 @@ impl Command {
         let root = config.get_hoards_root_path();
         debug!("Game saves directory: {}", root.to_string_lossy());
 
-        //let games = game::read_games_file(&config.games_file).map_err(Error::ReadGames)?;
-
         //match &config.command {
         //    Command::Help => ConfigBuilder::clap()
         //        .print_long_help()

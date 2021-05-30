@@ -1,13 +1,11 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-
-use directories::ProjectDirs;
-use log::Level;
-
-use environment::Environment;
-
 use crate::combinator::Combinator;
 use crate::command::Command;
+use directories::ProjectDirs;
+use environment::Environment;
+use log::Level;
+use serde::Deserialize;
+use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 
 pub mod builder;
 pub mod environment;
@@ -15,28 +13,45 @@ pub mod envtrie;
 pub mod hoard;
 
 pub use self::builder::Builder as ConfigBuilder;
+use crate::config::hoard::Hoard;
+use std::convert::TryInto;
+use thiserror::Error;
 
 pub fn get_dirs() -> ProjectDirs {
     ProjectDirs::from("com", "shadow53", "backup-game-saves")
         .expect("could not detect user home directory to place program files")
 }
 
+#[derive(Debug, Error)]
 pub enum Error {
-    Builder(builder::Error),
+    #[error("error while building the configuration")]
+    Builder(#[from] builder::Error),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+fn default_log_level() -> Level {
+    Level::Info
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Config {
-    environments: HashMap<String, Combinator<Environment>>,
+    #[serde(skip, default = "default_log_level")]
+    pub log_level: Level,
+    #[serde(skip)]
+    pub command: Command,
     hoards_root: PathBuf,
     config_file: PathBuf,
-    pub log_level: Level,
-    pub command: Command,
+    environments: BTreeMap<String, bool>,
+    hoards: BTreeMap<String, Hoard>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self::builder().build()
+        // Calling [`Builder::unset_hoards`] to ensure there is no panic
+        // when `expect`ing
+        Self::builder()
+            .unset_hoards()
+            .build()
+            .expect("failed to create default config")
     }
 }
 
@@ -47,8 +62,8 @@ impl Config {
 
     pub fn load() -> Result<Self, Error> {
         ConfigBuilder::from_args_then_file()
+            .map(ConfigBuilder::build)?
             .map_err(Error::Builder)
-            .map(ConfigBuilder::build)
     }
 
     pub fn get_config_file_path(&self) -> PathBuf {
@@ -76,8 +91,8 @@ mod tests {
     #[test]
     fn test_config_default_builds_from_new_builder() {
         assert_eq!(
-            Config::default(),
-            ConfigBuilder::new().build(),
+            Some(Config::default()),
+            ConfigBuilder::new().build().ok(),
             "Config::default should be the same as a built unmodified Builder"
         );
     }
