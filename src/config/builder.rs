@@ -266,12 +266,17 @@ impl Builder {
 
 impl From<Config> for Builder {
     fn from(config: Config) -> Builder {
-        Builder::new()
-            .set_hoards(config.hoards)
+        let mut builder = Builder::new()
             .set_hoards_root(config.hoards_root)
             .set_config_file(config.config_file)
             .set_log_level(config.log_level)
-            .set_command(config.command)
+            .set_command(config.command);
+
+        if !config.hoards.is_empty() {
+            builder = builder.set_hoards(config.hoards);
+        }
+
+        builder
     }
 }
 
