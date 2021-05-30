@@ -1,15 +1,14 @@
 //! Notes
 //! - Length of matching path takes precedence over the strength of any one segment.
-//! - If two paths have the same length and score, that is an error.
+//! - If two paths have the same length and score, the first one is taken.
 //! - Weights of each segment are determined by taking sets of mutually exclusive
 //!   segments and creating a DAG to determine weights.
 //! - No current design for making a short path win out over a longer one.
 
-use crate::config::environment::Environment;
-use petgraph::algo::{is_cyclic_directed, toposort};
+use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
@@ -22,7 +21,7 @@ pub enum Error {
     NoEnvironments,
     #[error("Environment \"{0}\" is simultaneously preferred to and not preferred to another")]
     WeightCycle(String),
-    #[error("Condition \"{0}\" contains empty environment. Make sure it does not start or end with {}, or have multiple consecutive {}", EnvTrie::ENV_SEPARATOR, EnvTrie::ENV_SEPARATOR)]
+    #[error("Condition \"{0}\" contains empty environment. Make sure it does not start or end with {}, or have multiple consecutive {}", ENV_SEPARATOR, ENV_SEPARATOR)]
     EmptyEnvironment(String),
     #[error("Condition \"{0}\" contains two mutually exclusive environments")]
     CombinedMutuallyExclusive(String),
@@ -35,88 +34,25 @@ struct Node {
     value: Option<PathBuf>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct EnvTrie(Node);
-
-impl EnvTrie {
-    const ENV_SEPARATOR: char = '|';
-
-    fn validate_environments(environments: &HashMap<String, PathBuf>) -> Result<(), Error> {
-        for (key, _) in environments.iter() {
-            if key.is_empty() {
-                return Err(Error::NoEnvironments);
-            }
-
-            for env in key.split(Self::ENV_SEPARATOR) {
-                if env.is_empty() {
-                    return Err(Error::EmptyEnvironment(key.to_string()));
-                }
-            }
-        }
-
-        Ok(())
+fn merge_two_trees(
+    mut acc: BTreeMap<String, Node>,
+    other: BTreeMap<String, Node>,
+) -> Result<BTreeMap<String, Node>, Error> {
+    for (key, val) in other {
+        let prev = acc.remove(&key);
+        let node = match prev {
+            None => val,
+            Some(prev) => prev.merge_with(val)?,
+        };
+        acc.insert(key, node);
     }
 
-    fn get_sorted_list(exclusive_list: &[Vec<String>]) -> Result<Vec<String>, Error> {
-        let mut score_dag = DiGraph::<String, ()>::new();
+    Ok(acc)
+}
 
-        for list in exclusive_list.iter() {
-            let mut prev_idx = None;
-
-            for node in list.iter().rev() {
-                // Add node to graph
-                let idx = score_dag.add_node(node.to_owned());
-
-                // If not first node, create edge
-                if let Some(prev) = prev_idx {
-                    // With reversing,  a list [a, b, c] will create a subgraph
-                    // (prev, idx) => c -> b -> a, i.e. from lowest to highest
-                    // priority.
-                    score_dag.add_edge(prev, idx, ());
-                }
-
-                prev_idx = Some(idx);
-            }
-        }
-
-        toposort(&score_dag, None)
-            .map(|v| v.into_iter().map(|id| score_dag[id].to_owned()).collect())
-            .map_err(|cycle| {
-                let node: &str = &score_dag[cycle.node_id()];
-                Error::WeightCycle(node.to_owned())
-            })
-    }
-
-    fn merge_hashmaps(
-        mut map1: HashMap<String, HashSet<String>>,
-        map2: HashMap<String, HashSet<String>>,
-    ) -> HashMap<String, HashSet<String>> {
-        for (key, set) in map2 {
-            let new_set = match map1.remove(&key) {
-                None => set,
-                Some(other_set) => set.union(&other_set).into_iter().cloned().collect(),
-            };
-
-            map1.insert(key, new_set);
-        }
-
-        map1
-    }
-
-    fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, HashSet<String>> {
-        exclusivity_list
-            .iter()
-            .map(|list| {
-                list.iter()
-                    .map(|item| (item.to_owned(), list.iter().cloned().collect()))
-                    .collect()
-            })
-            .reduce(Self::merge_hashmaps)
-            .unwrap_or_else(HashMap::new)
-    }
-
-    fn merge_two_nodes(acc: Node, other: Node) -> Result<Node, Error> {
-        if let (Some(first), Some(second)) = (&acc.value, &other.value) {
+impl Node {
+    fn merge_with(self, other: Node) -> Result<Node, Error> {
+        if let (Some(first), Some(second)) = (&self.value, &other.value) {
             // Make order of paths deterministic
             #[cfg(test)]
             let (first, second) = if first < second {
@@ -128,53 +64,162 @@ impl EnvTrie {
             return Err(Error::DoubleDefine(first.to_owned(), second.to_owned()));
         }
 
-        let value = acc.value.or(other.value);
+        let value = self.value.or(other.value);
 
-        let tree = if acc.tree.is_none() || other.tree.is_none() {
-            acc.tree.or(other.tree)
+        let tree = if self.tree.is_none() || other.tree.is_none() {
+            self.tree.or(other.tree)
         } else {
-            let acc_tree = acc.tree.unwrap();
+            let self_tree = self.tree.unwrap();
             let other_tree = other.tree.unwrap();
 
-            Some(Self::merge_two_trees(acc_tree, other_tree)?)
+            Some(merge_two_trees(self_tree, other_tree)?)
         };
 
         Ok(Node {
-            score: acc.score,
+            score: self.score,
             tree,
             value,
         })
     }
 
-    fn merge_two_trees(
-        mut acc: BTreeMap<String, Node>,
-        other: BTreeMap<String, Node>,
-    ) -> Result<BTreeMap<String, Node>, Error> {
-        for (key, val) in other {
-            let prev = acc.remove(&key);
-            let node = match prev {
-                None => val,
-                Some(prev) => Self::merge_two_nodes(prev, val)?,
-            };
-            acc.insert(key, node);
+    fn get_highest_path_with_score(&self, envs: &BTreeMap<String, bool>) -> Option<(&Path, usize)> {
+        let mut score = 0;
+        let mut path = None;
+
+        if let Some(tree) = &self.tree {
+            for (name, node) in tree {
+                // Ignore non-matching envs
+                if !envs.get(name).unwrap_or(&false) {
+                    continue;
+                }
+
+                if let Some((node_path, node_score)) = node.get_highest_path_with_score(envs) {
+                    if node_score > score {
+                        score = node_score;
+                        path = Some(node_path);
+                    }
+                }
+            }
         }
 
-        Ok(acc)
+        match path {
+            Some(path) => Some((path, score + self.score)),
+            None => match &self.value {
+                None => None,
+                Some(path) => Some((path, self.score)),
+            },
+        }
+    }
+}
+
+/// A Trie-like structure to help match against different environments and determine the
+/// best-matching path.
+///
+/// One `EnvTrie` is created for every pile. One hoard may then have multiple `EnvTrie`s created
+/// for it. This means that it is possible to have different sets of environments match for
+/// different piles. That is, if one pile's `EnvTrie` matches on `"foo|bar"` and a second pile
+/// does not have a configuration for `"foo|bar"`, it is possible that `"bar|baz"` is the best
+/// match instead.
+#[derive(Debug, PartialEq)]
+pub struct EnvTrie(Node);
+
+const ENV_SEPARATOR: char = '|';
+
+fn validate_environments(environments: &HashMap<String, PathBuf>) -> Result<(), Error> {
+    for (key, _) in environments.iter() {
+        if key.is_empty() {
+            return Err(Error::NoEnvironments);
+        }
+
+        for env in key.split(ENV_SEPARATOR) {
+            if env.is_empty() {
+                return Err(Error::EmptyEnvironment(key.to_string()));
+            }
+        }
     }
 
+    Ok(())
+}
+
+fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, usize>, Error> {
+    let mut score_dag = DiGraph::<String, ()>::new();
+
+    for list in exclusive_list.iter() {
+        let mut prev_idx = None;
+
+        for node in list.iter().rev() {
+            // Add node to graph
+            let idx = score_dag.add_node(node.to_owned());
+
+            // If not first node, create edge
+            if let Some(prev) = prev_idx {
+                // With reversing,  a list [a, b, c] will create a subgraph
+                // (prev, idx) => c -> b -> a, i.e. from lowest to highest
+                // priority.
+                score_dag.add_edge(prev, idx, ());
+            }
+
+            prev_idx = Some(idx);
+        }
+    }
+
+    toposort(&score_dag, None)
+        .map(|v| {
+            // Toposort returns least to highest priority, so the enumerated index
+            // suffices as relative weight
+            v.into_iter()
+                .enumerate()
+                .map(|(i, id)| (score_dag[id].to_owned(), i))
+                .collect()
+        })
+        .map_err(|cycle| {
+            let node: &str = &score_dag[cycle.node_id()];
+            Error::WeightCycle(node.to_owned())
+        })
+}
+
+fn merge_hashmaps(
+    mut map1: HashMap<String, HashSet<String>>,
+    map2: HashMap<String, HashSet<String>>,
+) -> HashMap<String, HashSet<String>> {
+    for (key, set) in map2 {
+        let new_set = match map1.remove(&key) {
+            None => set,
+            Some(other_set) => set.union(&other_set).into_iter().cloned().collect(),
+        };
+
+        map1.insert(key, new_set);
+    }
+
+    map1
+}
+
+fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, HashSet<String>> {
+    exclusivity_list
+        .iter()
+        .map(|list| {
+            list.iter()
+                .map(|item| (item.to_owned(), list.iter().cloned().collect()))
+                .collect()
+        })
+        .reduce(merge_hashmaps)
+        .unwrap_or_else(HashMap::new)
+}
+
+impl EnvTrie {
     pub fn new(
         environments: &HashMap<String, PathBuf>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
-        Self::validate_environments(environments)?;
-        let sorted_list = Self::get_sorted_list(exclusive_list)?;
-        let exclusivity_map = Self::get_exclusivity_map(exclusive_list);
+        validate_environments(environments)?;
+        let weighted_map = get_weighted_map(exclusive_list)?;
+        let exclusivity_map = get_exclusivity_map(exclusive_list);
 
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
         let trees: Vec<_> = environments
             .iter()
             .map(|(env_str, path)| {
-                let mut envs: Vec<&str> = env_str.split(Self::ENV_SEPARATOR).collect();
+                let mut envs: Vec<&str> = env_str.split(ENV_SEPARATOR).collect();
                 envs.sort_unstable();
 
                 // Check for mutually exclusive items
@@ -199,18 +244,7 @@ impl EnvTrie {
                 for segment in envs.into_iter().rev() {
                     let segment = segment.to_string();
 
-                    let score = sorted_list
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(i, s)| {
-                            if s.as_str() == segment.as_str() {
-                                Some(i + 1) // avoid score of 0
-                            } else {
-                                None
-                            }
-                        })
-                        .next()
-                        .unwrap_or(1);
+                    let score = weighted_map.get(&segment).cloned().unwrap_or(1);
 
                     let tree = {
                         let mut tree = BTreeMap::new();
@@ -237,10 +271,16 @@ impl EnvTrie {
                 // TODO: Use result flattening when stable
                 match acc {
                     Err(err) => Err(err),
-                    Ok(acc_node) => Self::merge_two_nodes(acc_node, node),
+                    Ok(acc_node) => acc_node.merge_with(node),
                 }
             })
             .map(EnvTrie)
+    }
+
+    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Option<&Path> {
+        let EnvTrie(node) = self;
+        node.get_highest_path_with_score(environments)
+            .map(|(path, _)| path)
     }
 }
 
