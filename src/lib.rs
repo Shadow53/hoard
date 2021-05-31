@@ -16,8 +16,8 @@
     meta_variable_misuse, // May have false positives
     missing_abi,
     missing_debug_implementations, // can affect compile time/code size
-    missing_docs,
-    missing_doc_code_examples,
+    //missing_docs,
+    //missing_doc_code_examples,
     no_mangle_generic_items,
     non_shorthand_field_patterns,
     noop_method_call,
@@ -42,7 +42,6 @@
     unused_lifetimes,
     unused_parens,
     unused_qualifications,
-    unused_results,
     variant_size_differences,
     while_true
 )]

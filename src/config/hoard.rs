@@ -133,6 +133,7 @@ impl MultipleEntries {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(variant_size_differences)]
 pub enum Hoard {
     Single(SingleEntry),
     Multiple(MultipleEntries),

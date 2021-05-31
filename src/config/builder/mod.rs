@@ -48,6 +48,7 @@ impl<'de> Visitor<'de> for LevelVisitor {
     }
 }
 
+#[allow(single_use_lifetimes)]
 fn deserialize_level<'de, D>(deserializer: D) -> Result<Option<Level>, D::Error>
 where
     D: Deserializer<'de>,
@@ -101,7 +102,7 @@ pub struct Builder {
         serialize_with = "serialize_level",
         default = "default_level"
     )]
-    log_level: Option<log::Level>,
+    log_level: Option<Level>,
     #[serde(skip)]
     #[structopt(subcommand)]
     command: Option<Command>,
@@ -202,7 +203,7 @@ impl Builder {
     }
 
     /// Set the log level.
-    pub fn set_log_level(mut self, level: log::Level) -> Self {
+    pub fn set_log_level(mut self, level: Level) -> Self {
         self.log_level = Some(level);
         self
     }
