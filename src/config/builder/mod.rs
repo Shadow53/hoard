@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -10,10 +10,9 @@ use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use thiserror::Error;
 
+use self::hoard::Hoard;
 use environment::Environment;
-use hoard::Hoard;
 
-use crate::combinator::Combinator;
 use crate::command::Command;
 use crate::CONFIG_FILE_NAME;
 use crate::GAMES_DIR_SLUG;
@@ -272,10 +271,10 @@ impl Builder {
             .collect::<Result<_, Error>>()?;
 
         Ok(Config {
-            hoards_root,
-            config_file,
             log_level,
             command,
+            hoards_root,
+            config_file,
             hoards,
         })
     }

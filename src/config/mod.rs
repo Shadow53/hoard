@@ -1,16 +1,11 @@
-use std::collections::BTreeMap;
-use std::path::PathBuf;
-
+pub use self::builder::Builder as ConfigBuilder;
+use self::hoard::Hoard;
+use crate::command::Command;
 use directories::ProjectDirs;
 use log::Level;
-use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use thiserror::Error;
-
-use hoard::Hoard;
-
-use crate::command::Command;
-
-pub use self::builder::Builder as ConfigBuilder;
 
 pub mod builder;
 pub mod hoard;

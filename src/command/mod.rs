@@ -1,4 +1,4 @@
-use crate::config::{Config, ConfigBuilder};
+use crate::config::Config;
 use log::debug;
 use structopt::StructOpt;
 use thiserror::Error;

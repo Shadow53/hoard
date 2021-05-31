@@ -1,6 +1,6 @@
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
