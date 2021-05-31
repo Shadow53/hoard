@@ -61,7 +61,7 @@ impl Node {
                 (second, first)
             };
 
-            return Err(Error::DoubleDefine(first.to_owned(), second.to_owned()));
+            return Err(Error::DoubleDefine(first.clone(), second.clone()));
         }
 
         let value = self.value.or(other.value);
@@ -104,10 +104,7 @@ impl Node {
 
         match path {
             Some(path) => Some((path, score + self.score)),
-            None => match &self.value {
-                None => None,
-                Some(path) => Some((path, self.score)),
-            },
+            None => self.value.as_ref().map(|path| (path.as_path(), self.score)),
         }
     }
 }
@@ -149,7 +146,7 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
 
         for node in list.iter().rev() {
             // Add node to graph
-            let idx = score_dag.add_node(node.to_owned());
+            let idx = score_dag.add_node(node.clone());
 
             // If not first node, create edge
             if let Some(prev) = prev_idx {
@@ -169,7 +166,7 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
             // suffices as relative weight
             v.into_iter()
                 .enumerate()
-                .map(|(i, id)| (score_dag[id].to_owned(), i))
+                .map(|(i, id)| (score_dag[id].clone(), i))
                 .collect()
         })
         .map_err(|cycle| {
@@ -199,7 +196,7 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, Has
         .iter()
         .map(|list| {
             list.iter()
-                .map(|item| (item.to_owned(), list.iter().cloned().collect()))
+                .map(|item| (item.clone(), list.iter().cloned().collect()))
                 .collect()
         })
         .reduce(merge_hashmaps)
@@ -227,7 +224,7 @@ impl EnvTrie {
                     for env2 in envs.iter().skip(i + 1) {
                         if let Some(set) = exclusivity_map.get(*env1) {
                             if set.contains(*env2) {
-                                return Err(Error::CombinedMutuallyExclusive(env_str.to_owned()));
+                                return Err(Error::CombinedMutuallyExclusive(env_str.clone()));
                             }
                         }
                     }
@@ -237,7 +234,7 @@ impl EnvTrie {
                 let mut prev_node = Node {
                     score: 1,
                     tree: None,
-                    value: Some(path.to_owned()),
+                    value: Some(path.clone()),
                 };
 
                 // Reverse-build a linked list
@@ -277,6 +274,7 @@ impl EnvTrie {
             .map(EnvTrie)
     }
 
+    #[must_use]
     pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Option<&Path> {
         let EnvTrie(node) = self;
         node.get_highest_path_with_score(environments)
@@ -294,18 +292,18 @@ mod tests {
 
     // Every const has a name of the form `LABEL_<char>_<int>`.
     // All consts with the same `<char>` are mutually exclusive for the purposes of testing.
-    pub const LABEL_A_1: &str = "a1";
-    pub const LABEL_A_2: &str = "a2";
-    pub const LABEL_A_3: &str = "a3";
-    pub const LABEL_B_1: &str = "b1";
-    pub const LABEL_B_2: &str = "b2";
-    pub const LABEL_B_3: &str = "b3";
-    pub const LABEL_C_1: &str = "c1";
-    pub const LABEL_C_2: &str = "c2";
+    const LABEL_A_1: &str = "a1";
+    const LABEL_A_2: &str = "a2";
+    const LABEL_A_3: &str = "a3";
+    const LABEL_B_1: &str = "b1";
+    const LABEL_B_2: &str = "b2";
+    const LABEL_B_3: &str = "b3";
+    const LABEL_C_1: &str = "c1";
+    const LABEL_C_2: &str = "c2";
 
-    pub static PATH_1: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path1"));
-    pub static PATH_2: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path2"));
-    pub static PATH_3: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path3"));
+    static PATH_1: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path1"));
+    static PATH_2: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path2"));
+    static PATH_3: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path3"));
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {

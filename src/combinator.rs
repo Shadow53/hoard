@@ -1,6 +1,6 @@
 //! A `Combinator` provides a *newtype* to parse a two-dimensional list of items as a collection of
-//! ANDed and ORed elements. Every item in the outer list is ORed, while every item in an inner list
-//! is ANDed. That is, for
+//! AND-ed and OR-ed elements. Every item in the outer list is OR-ed, while every item in an inner list
+//! is AND-ed. That is, for
 //!
 //! ```ignore
 //! [ foo, bar, [baz, quux]]
@@ -23,41 +23,41 @@ use std::fmt::Formatter;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(untagged)]
-pub enum CombinatorInner<T: TryInto<bool>> {
+pub enum Inner<T: TryInto<bool>> {
     Single(T),
     Multiple(Vec<T>),
 }
 
-impl<T> CombinatorInner<T>
+impl<T> Inner<T>
 where
     T: TryInto<bool>,
 {
     pub fn is_singleton(&self) -> bool {
         match self {
-            CombinatorInner::Single(_) => true,
-            CombinatorInner::Multiple(list) => list.len() == 1,
+            Inner::Single(_) => true,
+            Inner::Multiple(list) => list.len() == 1,
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match self {
-            CombinatorInner::Single(_) => false,
-            CombinatorInner::Multiple(list) => list.is_empty(),
+            Inner::Single(_) => false,
+            Inner::Multiple(list) => list.is_empty(),
         }
     }
 }
 
-impl<T, E> TryFrom<CombinatorInner<T>> for bool
+impl<T, E> TryFrom<Inner<T>> for bool
 where
     T: TryInto<bool, Error = E>,
     E: Error,
 {
     type Error = E;
 
-    fn try_from(combinator: CombinatorInner<T>) -> Result<bool, Self::Error> {
+    fn try_from(combinator: Inner<T>) -> Result<bool, Self::Error> {
         match combinator {
-            CombinatorInner::Single(item) => item.try_into(),
-            CombinatorInner::Multiple(list) => list
+            Inner::Single(item) => item.try_into(),
+            Inner::Multiple(list) => list
                 .into_iter()
                 .map(TryInto::try_into)
                 .collect::<Result<Vec<_>, E>>()
@@ -66,14 +66,14 @@ where
     }
 }
 
-impl<T> fmt::Display for CombinatorInner<T>
+impl<T> fmt::Display for Inner<T>
 where
     T: fmt::Display + TryInto<bool>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            CombinatorInner::Single(item) => write!(f, "{}", item),
-            CombinatorInner::Multiple(list) => {
+            Inner::Single(item) => write!(f, "{}", item),
+            Inner::Multiple(list) => {
                 let s = list.iter().map(ToString::to_string).reduce(|mut a, s| {
                     a.push_str(" AND ");
                     a.push_str(&s);
@@ -91,28 +91,33 @@ where
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(transparent)]
-pub struct Combinator<T: TryInto<bool>>(pub Vec<CombinatorInner<T>>);
+pub struct Combinator<T: TryInto<bool>>(pub Vec<Inner<T>>);
 
 impl<T> Combinator<T>
 where
     T: Serialize + TryInto<bool>,
 {
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty() || (self.0.len() == 1 && self.0.get(0).unwrap().is_empty())
     }
 
+    #[must_use]
     pub fn is_singleton(&self) -> bool {
         self.0.len() == 1 && self.0.get(0).unwrap().is_singleton()
     }
 
+    #[must_use]
     pub fn is_only_or(&self) -> bool {
-        !self.is_empty() && !self.is_singleton() && self.0.iter().all(|item| item.is_singleton())
+        !self.is_empty() && !self.is_singleton() && self.0.iter().all(Inner::is_singleton)
     }
 
+    #[must_use]
     pub fn is_only_and(&self) -> bool {
         self.0.len() == 1 && !self.is_empty() && !self.is_singleton()
     }
 
+    #[must_use]
     pub fn is_complex(&self) -> bool {
         self.0.len() > 1 && self.0.iter().any(|item| !item.is_singleton())
     }
@@ -208,16 +213,16 @@ mod tests {
     #[test]
     fn test_inner() {
         let test_params = vec![
-            (true, CombinatorInner::Single(Tester(true))),
-            (false, CombinatorInner::Single(Tester(false))),
+            (true, Inner::Single(Tester(true))),
+            (false, Inner::Single(Tester(false))),
             // CombinatorInner::Multiple should AND all items
             (
                 true,
-                CombinatorInner::Multiple(vec![Tester(true), Tester(true), Tester(true)]),
+                Inner::Multiple(vec![Tester(true), Tester(true), Tester(true)]),
             ),
             (
                 false,
-                CombinatorInner::Multiple(vec![Tester(true), Tester(false), Tester(true)]),
+                Inner::Multiple(vec![Tester(true), Tester(false), Tester(true)]),
             ),
         ];
 
@@ -234,8 +239,8 @@ mod tests {
     #[test]
     fn test_inner_serde_single() {
         let test_params_bool = vec![
-            ([Token::Bool(true)], CombinatorInner::Single(true)),
-            ([Token::Bool(false)], CombinatorInner::Single(false)),
+            ([Token::Bool(true)], Inner::Single(true)),
+            ([Token::Bool(false)], Inner::Single(false)),
         ];
 
         for (expected, input) in test_params_bool {
@@ -243,8 +248,8 @@ mod tests {
         }
 
         let test_params_tester = vec![
-            ([Token::Bool(true)], CombinatorInner::Single(Tester(true))),
-            ([Token::Bool(false)], CombinatorInner::Single(Tester(false))),
+            ([Token::Bool(true)], Inner::Single(Tester(true))),
+            ([Token::Bool(false)], Inner::Single(Tester(false))),
         ];
 
         for (expected, input) in test_params_tester {
@@ -263,7 +268,7 @@ mod tests {
                     Token::Bool(false),
                     Token::SeqEnd,
                 ][..],
-                CombinatorInner::Multiple(vec![Tester(true), Tester(false), Tester(false)]),
+                Inner::Multiple(vec![Tester(true), Tester(false), Tester(false)]),
             ),
             (
                 &[
@@ -273,7 +278,7 @@ mod tests {
                     Token::Bool(false),
                     Token::SeqEnd,
                 ][..],
-                CombinatorInner::Multiple(vec![Tester(false), Tester(true), Tester(false)]),
+                Inner::Multiple(vec![Tester(false), Tester(true), Tester(false)]),
             ),
             (
                 &[
@@ -281,7 +286,7 @@ mod tests {
                     Token::Bool(true),
                     Token::SeqEnd,
                 ][..],
-                CombinatorInner::Multiple(vec![Tester(true)]),
+                Inner::Multiple(vec![Tester(true)]),
             ),
         ];
 
@@ -309,7 +314,7 @@ mod tests {
             },
             // Containing only an empty Inner::Multiple counts as empty
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Multiple(vec![])]),
+                combinator: Combinator(vec![Inner::Multiple(vec![])]),
                 // Empty should evaluate to true
                 evaluates_to: true,
                 expected_bool_str: "",
@@ -317,26 +322,26 @@ mod tests {
             },
             // BEGIN: Singleton
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Single(Tester(true))]),
+                combinator: Combinator(vec![Inner::Single(Tester(true))]),
                 evaluates_to: true,
                 expected_bool_str: "true",
                 typ: CombinatorType::Singleton,
             },
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Single(Tester(false))]),
+                combinator: Combinator(vec![Inner::Single(Tester(false))]),
                 evaluates_to: false,
                 expected_bool_str: "false",
                 typ: CombinatorType::Singleton,
             },
             // Containing a single Inner::Multiple with a single item counts as singleton
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Multiple(vec![Tester(true)])]),
+                combinator: Combinator(vec![Inner::Multiple(vec![Tester(true)])]),
                 evaluates_to: true,
                 expected_bool_str: "true",
                 typ: CombinatorType::Singleton,
             },
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Multiple(vec![Tester(false)])]),
+                combinator: Combinator(vec![Inner::Multiple(vec![Tester(false)])]),
                 evaluates_to: false,
                 expected_bool_str: "false",
                 typ: CombinatorType::Singleton,
@@ -344,8 +349,8 @@ mod tests {
             // BEGIN: OnlyOr
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(true)),
-                    CombinatorInner::Single(Tester(false)),
+                    Inner::Single(Tester(true)),
+                    Inner::Single(Tester(false)),
                 ]),
                 evaluates_to: true,
                 expected_bool_str: "true OR false",
@@ -353,8 +358,8 @@ mod tests {
             },
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(false)),
-                    CombinatorInner::Single(Tester(false)),
+                    Inner::Single(Tester(false)),
+                    Inner::Single(Tester(false)),
                 ]),
                 evaluates_to: false,
                 expected_bool_str: "false OR false",
@@ -363,8 +368,8 @@ mod tests {
             // Containing Inner::Multiples with only one item in them counts like a Single
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(false)),
-                    CombinatorInner::Multiple(vec![Tester(true)]),
+                    Inner::Single(Tester(false)),
+                    Inner::Multiple(vec![Tester(true)]),
                 ]),
                 evaluates_to: true,
                 expected_bool_str: "false OR true",
@@ -372,8 +377,8 @@ mod tests {
             },
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(true)),
-                    CombinatorInner::Multiple(vec![Tester(false)]),
+                    Inner::Single(Tester(true)),
+                    Inner::Multiple(vec![Tester(false)]),
                 ]),
                 evaluates_to: true,
                 expected_bool_str: "true OR false",
@@ -381,7 +386,7 @@ mod tests {
             },
             // BEGIN: OnlyAnd
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Multiple(vec![
+                combinator: Combinator(vec![Inner::Multiple(vec![
                     Tester(true),
                     Tester(true),
                     Tester(true),
@@ -391,7 +396,7 @@ mod tests {
                 typ: CombinatorType::OnlyAnd,
             },
             TestItem {
-                combinator: Combinator(vec![CombinatorInner::Multiple(vec![
+                combinator: Combinator(vec![Inner::Multiple(vec![
                     Tester(true),
                     Tester(false),
                     Tester(true),
@@ -403,8 +408,8 @@ mod tests {
             // BEGIN: Complex
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(true)),
-                    CombinatorInner::Multiple(vec![Tester(true), Tester(false)]),
+                    Inner::Single(Tester(true)),
+                    Inner::Multiple(vec![Tester(true), Tester(false)]),
                 ]),
                 evaluates_to: true,
                 expected_bool_str: "true OR (true AND false)",
@@ -412,8 +417,8 @@ mod tests {
             },
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(false)),
-                    CombinatorInner::Multiple(vec![Tester(true), Tester(false)]),
+                    Inner::Single(Tester(false)),
+                    Inner::Multiple(vec![Tester(true), Tester(false)]),
                 ]),
                 evaluates_to: false,
                 expected_bool_str: "false OR (true AND false)",
@@ -421,9 +426,9 @@ mod tests {
             },
             TestItem {
                 combinator: Combinator(vec![
-                    CombinatorInner::Single(Tester(false)),
-                    CombinatorInner::Multiple(vec![Tester(true), Tester(false), Tester(false)]),
-                    CombinatorInner::Single(Tester(false)),
+                    Inner::Single(Tester(false)),
+                    Inner::Multiple(vec![Tester(true), Tester(false), Tester(false)]),
+                    Inner::Single(Tester(false)),
                 ]),
                 evaluates_to: false,
                 expected_bool_str: "false OR (true AND false AND false) OR false",

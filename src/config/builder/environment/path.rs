@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
+#[allow(clippy::module_name_repetitions)]
 pub struct PathExists(pub PathBuf);
 
 impl TryInto<bool> for PathExists {

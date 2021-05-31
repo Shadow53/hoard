@@ -10,6 +10,7 @@ use thiserror::Error;
 pub mod builder;
 pub mod hoard;
 
+#[must_use]
 pub fn get_dirs() -> ProjectDirs {
     ProjectDirs::from("com", "shadow53", "backup-game-saves")
         .expect("could not detect user home directory to place program files")
@@ -42,6 +43,7 @@ impl Default for Config {
 }
 
 impl Config {
+    #[must_use]
     pub fn builder() -> ConfigBuilder {
         ConfigBuilder::new()
     }
@@ -52,10 +54,12 @@ impl Config {
             .map_err(Error::Builder)
     }
 
+    #[must_use]
     pub fn get_config_file_path(&self) -> PathBuf {
         self.config_file.clone()
     }
 
+    #[must_use]
     pub fn get_hoards_root_path(&self) -> PathBuf {
         self.hoards_root.clone()
     }

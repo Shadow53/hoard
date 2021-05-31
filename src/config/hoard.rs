@@ -116,7 +116,7 @@ pub struct MultipleEntries {
 
 impl MultipleEntries {
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
-        for (_, entry) in &self.items {
+        for entry in self.items.values() {
             entry.backup(prefix)?;
         }
 
@@ -124,7 +124,7 @@ impl MultipleEntries {
     }
 
     pub fn restore(&self, prefix: &Path) -> Result<(), Error> {
-        for (_, entry) in &self.items {
+        for entry in self.items.values() {
             entry.restore(prefix)?;
         }
 

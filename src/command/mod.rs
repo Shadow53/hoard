@@ -1,5 +1,3 @@
-use crate::config::Config;
-use log::debug;
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -19,23 +17,6 @@ pub enum Command {
 impl Default for Command {
     fn default() -> Self {
         Self::Help
-    }
-}
-
-impl Command {
-    pub fn run(&self, config: &Config) -> Result<(), Error> {
-        let root = config.get_hoards_root_path();
-        debug!("Game saves directory: {}", root.to_string_lossy());
-
-        //match &config.command {
-        //    Command::Help => ConfigBuilder::clap()
-        //        .print_long_help()
-        //        .map_err(Error::PrintHelp)?,
-        //    Command::Backup => backup::backup(&root, &games).map_err(Error::Backup)?,
-        //    Command::Restore => backup::restore(&root, &games).map_err(Error::Restore)?,
-        //}
-
-        Ok(())
     }
 }
 

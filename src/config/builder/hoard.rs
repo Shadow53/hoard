@@ -78,7 +78,7 @@ impl MultipleEntries {
             .into_iter()
             .map(|(pile, entry)| {
                 let mut entry = entry.process_with(envs, exclusivity)?;
-                entry.config = entry.config.or(config.clone());
+                entry.config = entry.config.or_else(|| config.clone());
                 Ok((pile, entry))
             })
             .collect::<Result<_, Error>>()?;

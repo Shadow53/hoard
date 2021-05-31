@@ -1,8 +1,8 @@
 //! This module contains integration tests for the `config` subcommand.
 
-use super::common;
 mod envtrie;
 
+/*
 use common::{file, toml};
 
 use std::path::PathBuf;
@@ -13,7 +13,6 @@ fn strip_non_config_file(builder: ConfigBuilder) -> ConfigBuilder {
     builder.unset_config_file().unset_command()
 }
 
-/*
 #[test]
 fn test_init_config() {
     let file = file::get_temp_file();

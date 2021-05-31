@@ -45,11 +45,12 @@
     variant_size_differences,
     while_true
 )]
-
+#![allow(clippy::missing_errors_doc)] // TODO: remove when docs are written
+#![allow(clippy::missing_panics_doc)] // TODO: remove when docs are written
 pub use config::builder::Builder;
 
 pub mod combinator;
-mod command;
+pub mod command;
 pub mod config;
 
 pub const CONFIG_FILE_NAME: &str = "config.toml";

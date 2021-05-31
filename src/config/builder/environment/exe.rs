@@ -5,6 +5,7 @@ use std::fmt::Formatter;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
+#[allow(clippy::module_name_repetitions)]
 pub struct ExeExists(pub String);
 
 impl TryInto<bool> for ExeExists {
@@ -48,8 +49,8 @@ mod tests {
 
     #[test]
     fn test_exe_exists() {
-        for exe in EXE_NAMES.iter() {
-            let exists: bool = ExeExists(exe.to_string())
+        for exe in &EXE_NAMES {
+            let exists: bool = ExeExists((*exe).to_string())
                 .try_into()
                 .expect("failed to check if exe exists");
 

@@ -56,6 +56,7 @@ where
     deserializer.deserialize_option(LevelVisitor)
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_level<S>(level: &Option<Level>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -129,6 +130,7 @@ impl Builder {
     ///
     /// If [`build`](ConfigBuilder::build) is immediately called on this, the returned
     /// [`Config`] will have all default values.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             hoards: None,
@@ -161,6 +163,7 @@ impl Builder {
     }
 
     /// Applies all configured values in `other` over those in *this* `ConfigBuilder`.
+    #[must_use]
     pub fn layer(mut self, other: Self) -> Self {
         if let Some(path) = other.hoards_root {
             self = self.set_hoards_root(path);
@@ -182,12 +185,14 @@ impl Builder {
     }
 
     /// Set the hoards map.
+    #[must_use]
     pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
         self.hoards = Some(hoards);
         self
     }
 
     /// Set the directory that will contain all game save data.
+    #[must_use]
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
         self.hoards_root = Some(path);
         self
@@ -197,48 +202,56 @@ impl Builder {
     ///
     /// This currently only exists for completeness. You probably want [`ConfigBuilder::from_file`]
     /// instead, which will actually read and parse the file.
+    #[must_use]
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
         self.config_file = Some(path);
         self
     }
 
     /// Set the log level.
+    #[must_use]
     pub fn set_log_level(mut self, level: Level) -> Self {
         self.log_level = Some(level);
         self
     }
 
     /// Set the command that will be run.
+    #[must_use]
     pub fn set_command(mut self, cmd: Command) -> Self {
         self.command = Some(cmd);
         self
     }
 
     /// Unset the hoards map
+    #[must_use]
     pub fn unset_hoards(mut self) -> Self {
         self.hoards = None;
         self
     }
 
     /// Unset the directory that will contain all game save data.
+    #[must_use]
     pub fn unset_hoards_root(mut self) -> Self {
         self.hoards_root = None;
         self
     }
 
     /// Unset the file that contains configuration.
+    #[must_use]
     pub fn unset_config_file(mut self) -> Self {
         self.config_file = None;
         self
     }
 
     /// Unset the log level.
+    #[must_use]
     pub fn unset_log_level(mut self) -> Self {
         self.log_level = None;
         self
     }
 
     /// Unset the command that will be run.
+    #[must_use]
     pub fn unset_command(mut self) -> Self {
         self.command = None;
         self
@@ -247,14 +260,14 @@ impl Builder {
     fn evaluated_environments(
         &self,
     ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
-        self.environments
-            .as_ref()
-            .map(|map| {
+        self.environments.as_ref().map_or_else(
+            || Ok(BTreeMap::new()),
+            |map| {
                 map.iter()
                     .map(|(key, env)| Ok((key.clone(), env.clone().try_into()?)))
                     .collect()
-            })
-            .unwrap_or_else(|| Ok(BTreeMap::new()))
+            },
+        )
     }
 
     pub fn build(self) -> Result<Config, Error> {
@@ -352,7 +365,7 @@ mod tests {
             );
             assert_eq!(
                 some,
-                some.clone().layer(none.clone()),
+                some.clone().layer(none),
                 "None fields atop Some prefers Some"
             );
         }
@@ -369,7 +382,7 @@ mod tests {
             );
             assert_eq!(
                 layer1,
-                layer2.clone().layer(layer1.clone()),
+                layer2.layer(layer1.clone()),
                 "layer() should prefer the argument"
             );
         }
@@ -408,7 +421,7 @@ mod tests {
             let mut builder = Builder::new();
             assert_eq!(None, builder.log_level, "log_level should start as None");
             let level = Level::Debug;
-            builder = builder.set_log_level(level.clone());
+            builder = builder.set_log_level(level);
             assert_eq!(
                 Some(level),
                 builder.log_level,
@@ -457,7 +470,7 @@ mod tests {
         fn builder_log_level_unsets_correctly() {
             let mut builder = Builder::new();
             let level = Level::Debug;
-            builder = builder.set_log_level(level.clone());
+            builder = builder.set_log_level(level);
             assert_eq!(
                 Some(level),
                 builder.log_level,

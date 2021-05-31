@@ -57,11 +57,11 @@ impl TryInto<bool> for Environment {
             path_exists,
         } = self;
 
-        let hostname_cond: bool = hostname.map(TryInto::try_into).unwrap_or(Ok(true))?;
-        let os_cond: bool = os.map(TryInto::try_into).unwrap_or(Ok(true))?;
-        let env_cond: bool = env.map(TryInto::try_into).unwrap_or(Ok(true))?;
-        let exe_cond: bool = exe_exists.map(TryInto::try_into).unwrap_or(Ok(true))?;
-        let path_cond: bool = path_exists.map(TryInto::try_into).unwrap_or(Ok(true))?;
+        let hostname_cond: bool = hostname.map_or(Ok(true), TryInto::try_into)?;
+        let os_cond: bool = os.map_or(Ok(true), TryInto::try_into)?;
+        let env_cond: bool = env.map_or(Ok(true), TryInto::try_into)?;
+        let exe_cond: bool = exe_exists.map_or(Ok(true), TryInto::try_into)?;
+        let path_cond: bool = path_exists.map_or(Ok(true), TryInto::try_into)?;
 
         Ok(hostname_cond && os_cond && env_cond && exe_cond && path_cond)
     }
@@ -109,21 +109,21 @@ impl Default for Environment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combinator::CombinatorInner;
+    use crate::combinator::Inner;
 
     mod validate_hostname {
         use super::*;
 
         #[test]
         fn test_env_condition_invalid_hostname_only_and() {
-            let combinator = Combinator(vec![CombinatorInner::Multiple(vec![
+            let combinator = Combinator(vec![Inner::Multiple(vec![
                 Hostname("hostname.one".to_string()),
                 Hostname("hostname.two".to_string()),
             ])]);
 
             let condition = Environment {
                 hostname: Some(combinator),
-                ..Default::default()
+                ..Environment::default()
             };
 
             let err = condition
@@ -139,8 +139,8 @@ mod tests {
         #[test]
         fn test_env_condition_invalid_hostname_complex() {
             let combinator = Combinator(vec![
-                CombinatorInner::Single(Hostname("hostname.single".to_string())),
-                CombinatorInner::Multiple(vec![
+                Inner::Single(Hostname("hostname.single".to_string())),
+                Inner::Multiple(vec![
                     Hostname("hostname.one".to_string()),
                     Hostname("hostname.two".to_string()),
                 ]),
@@ -148,7 +148,7 @@ mod tests {
 
             let condition = Environment {
                 hostname: Some(combinator),
-                ..Default::default()
+                ..Environment::default()
             };
 
             let err = condition
@@ -163,13 +163,13 @@ mod tests {
         #[test]
         fn test_env_condition_valid_hostname() {
             let combinator = Combinator(vec![
-                CombinatorInner::Single(Hostname("hostname.one".to_string())),
-                CombinatorInner::Single(Hostname("hostname.two".to_string())),
+                Inner::Single(Hostname("hostname.one".to_string())),
+                Inner::Single(Hostname("hostname.two".to_string())),
             ]);
 
             let condition = Environment {
                 hostname: Some(combinator),
-                ..Default::default()
+                ..Environment::default()
             };
 
             condition
@@ -183,14 +183,14 @@ mod tests {
 
         #[test]
         fn test_env_condition_invalid_os_only_and() {
-            let combinator = Combinator(vec![CombinatorInner::Multiple(vec![
+            let combinator = Combinator(vec![Inner::Multiple(vec![
                 OperatingSystem("windows".to_string()),
                 OperatingSystem("linux".to_string()),
             ])]);
 
             let condition = Environment {
                 os: Some(combinator),
-                ..Default::default()
+                ..Environment::default()
             };
 
             let err = condition
@@ -205,8 +205,8 @@ mod tests {
         #[test]
         fn test_env_condition_invalid_os_complex() {
             let combinator = Combinator(vec![
-                CombinatorInner::Single(OperatingSystem("macos".to_string())),
-                CombinatorInner::Multiple(vec![
+                Inner::Single(OperatingSystem("macos".to_string())),
+                Inner::Multiple(vec![
                     OperatingSystem("windows".to_string()),
                     OperatingSystem("linux".to_string()),
                 ]),
@@ -214,7 +214,7 @@ mod tests {
 
             let condition = Environment {
                 os: Some(combinator),
-                ..Default::default()
+                ..Environment::default()
             };
 
             let err = condition
@@ -229,13 +229,13 @@ mod tests {
         #[test]
         fn test_env_condition_valid_os() {
             let combinator = Combinator(vec![
-                CombinatorInner::Single(OperatingSystem("windows".to_string())),
-                CombinatorInner::Single(OperatingSystem("linux".to_string())),
+                Inner::Single(OperatingSystem("windows".to_string())),
+                Inner::Single(OperatingSystem("linux".to_string())),
             ]);
 
             let condition = Environment {
                 os: Some(combinator),
-                ..Default::default()
+                ..Environment::default()
             };
 
             condition
