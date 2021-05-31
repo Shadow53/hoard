@@ -11,22 +11,36 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+/// Errors that may occur while building or evaluating an [`EnvTrie`].
 #[derive(Debug, Error, PartialEq)]
 pub enum Error {
+    /// One [`Pile`](super::hoard::Pile) has the same combination of environments defined
+    /// multiple times.
     #[error("The same condition is defined twice with paths {0} and {1}")]
     DoubleDefine(PathBuf, PathBuf),
+    /// No environment exists with the given name, but a [`Pile`](super::hoard::Pile) thinks
+    /// one does.
     #[error("\"{0}\" is not an environment that exists")]
     EnvironmentNotExist(String),
+    /// No environments were parsed for a [`Pile`](super::hoard::Pile) entry.
     #[error("Parsed 0 environments")]
     NoEnvironments,
+    /// One or more exclusivity lists combined form an exclusion cycle containing the given
+    /// environment.
     #[error("Environment \"{0}\" is simultaneously preferred to and not preferred to another")]
     WeightCycle(String),
+    /// The given condition string is improperly formatted
+    ///
+    /// The string contains at least one non-empty environment name and at least one empty one.
     #[error("Condition \"{0}\" contains empty environment. Make sure it does not start or end with {}, or have multiple consecutive {}", ENV_SEPARATOR, ENV_SEPARATOR)]
     EmptyEnvironment(String),
+    /// A condition string contains two environment names that are considered mutually exclusive and
+    /// will probably never happen.
     #[error("Condition \"{0}\" contains two mutually exclusive environments")]
     CombinedMutuallyExclusive(String),
 }
 
+/// A single node in an [`EnvTrie`].
 #[derive(Clone, Debug, PartialEq)]
 struct Node {
     score: usize,
@@ -204,6 +218,11 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, Has
 }
 
 impl EnvTrie {
+    /// Create a new [`EnvTrie`] from the given information.
+    ///
+    /// # Errors
+    ///
+    /// Any [`enum@Error`] relating to parsing or validating environment condition strings.
     pub fn new(
         environments: &BTreeMap<String, PathBuf>,
         exclusive_list: &[Vec<String>],
@@ -274,6 +293,7 @@ impl EnvTrie {
             .map(EnvTrie)
     }
 
+    /// Get the best-matched (highest-scoring) path in the `EnvTrie`.
     #[must_use]
     pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Option<&Path> {
         let EnvTrie(node) = self;

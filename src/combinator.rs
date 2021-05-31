@@ -21,10 +21,15 @@ use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 use std::fmt::Formatter;
 
+/// An internal container for the [`Combinator<T>`] type.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(untagged)]
 pub enum Inner<T: TryInto<bool>> {
+    /// A single item that can be converted to a boolean.
     Single(T),
+    /// Multiple items that can be converted to booleans.
+    ///
+    /// When the [`Inner<T>`] is evaluated, all of the booleans are AND-ed together.
     Multiple(Vec<T>),
 }
 
@@ -32,6 +37,10 @@ impl<T> Inner<T>
 where
     T: TryInto<bool>,
 {
+    /// Whether this [`Inner<T>`] contains a single item.
+    ///
+    /// This can be either an [`Inner<T>::Single`] or an [`Inner<T>::Multiple`] containing
+    /// only one item.
     pub fn is_singleton(&self) -> bool {
         match self {
             Inner::Single(_) => true,
@@ -39,6 +48,9 @@ where
         }
     }
 
+    /// Whether this [`Inner<T>`] is empty.
+    ///
+    /// This only applies if it is an [`Inner<T>::Multiple`] containing an empty list.
     pub fn is_empty(&self) -> bool {
         match self {
             Inner::Single(_) => false,
@@ -89,6 +101,10 @@ where
     }
 }
 
+/// A combination of things that can evaluate to `true` or `false`.
+///
+/// If at least one of the [`Inner<T>`] items evaluates to `true`, then entire `Combinator<T>`
+/// will evaluate to `true`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(transparent)]
 pub struct Combinator<T: TryInto<bool>>(pub Vec<Inner<T>>);
@@ -97,31 +113,59 @@ impl<T> Combinator<T>
 where
     T: Serialize + TryInto<bool>,
 {
+    /// Whether the [`Combinator<T>`] is empty.
+    ///
+    /// This can be if the list of [`Inner<T>`] is empty or if all of the contained
+    /// [`Inner<T>`] are empty (think a list of empty lists).
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty() || (self.0.len() == 1 && self.0.get(0).unwrap().is_empty())
+        self.0.is_empty() || self.0.iter().all(Inner::is_empty)
     }
 
+    /// Whether the [`Combinator<T>`] is a singleton.
+    ///
+    /// This can be any number of empty [`Inner<T>`] and exactly one that is a singleton.
     #[must_use]
     pub fn is_singleton(&self) -> bool {
-        self.0.len() == 1 && self.0.get(0).unwrap().is_singleton()
+        let mut iter = self.0.iter().filter(|inner| !inner.is_empty());
+        match iter.next() {
+            None => false,
+            Some(inner) => inner.is_singleton() && iter.next().is_none(),
+        }
     }
 
+    /// Whether the [`Combinator<T>`] is only OR-ed items.
+    ///
+    /// This means the [`Combinator`] has at least two items that are OR-ed together; i.e.,
+    /// it contains two or more [`Inner<T>`] that are all singletons.
     #[must_use]
     pub fn is_only_or(&self) -> bool {
         !self.is_empty() && !self.is_singleton() && self.0.iter().all(Inner::is_singleton)
     }
 
+    /// Whether the [`Combinator<T>`] is only AND-ed items.
+    ///
+    /// This means the [`Combinator`] has at least two items that are AND-ed together; i.e.,
+    /// it contains exactly one [`Inner<T>::Multiple`] with at least two items.
     #[must_use]
     pub fn is_only_and(&self) -> bool {
         self.0.len() == 1 && !self.is_empty() && !self.is_singleton()
     }
 
+    /// Whether the [`Combinator<T>`] is complex.
+    ///
+    /// "Complex" here means that it contains at least three items with some combination of AND
+    /// and OR.
     #[must_use]
     pub fn is_complex(&self) -> bool {
-        self.0.len() > 1 && self.0.iter().any(|item| !item.is_singleton())
+        !(self.is_empty() || self.is_singleton() || self.is_only_and() || self.is_only_or())
     }
 
+    /// Convert this [`Combinator<T>`] to TOML.
+    ///
+    /// # Errors
+    ///
+    /// Any errors during the serialization process ([`toml::ser::Error`]).
     pub fn to_toml_string(&self) -> Result<String, toml::ser::Error> {
         toml::to_string(&self)
     }

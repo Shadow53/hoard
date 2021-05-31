@@ -1,9 +1,18 @@
+//! See [`OperatingSystem`].
+
 use serde::{Deserialize, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
 
-// Possible values: https://doc.rust-lang.org/std/env/consts/constant.OS.html
+/// A conditional structure that checks against the operating system `hoard` was compiled for.
+///
+/// This has the effect of "detecting" the operating system at compile time instead of runtime.
+/// The downside is that running `hoard` in [Wine](https://www.winehq.org/) will detect the system
+/// as Windows, while running in the Windows Subsystem for Linux or FreeBSD's Linuxulator will
+/// detect the system as Linux.
+///
+/// For possible values to check against, see [`std::env::consts::OS`].
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct OperatingSystem(pub String);

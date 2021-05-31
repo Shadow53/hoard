@@ -1,3 +1,5 @@
+//! Environment definitions. For more, see [`Environment`].
+
 pub mod envvar;
 pub mod exe;
 pub mod hostname;
@@ -15,15 +17,21 @@ pub use self::os::OperatingSystem;
 pub use self::path::PathExists;
 use std::convert::{Infallible, TryInto};
 
+/// Errors that may occur while evaluating an [`Environment`].
 #[derive(Debug, Error)]
 pub enum Error {
+    /// An error that occurred while determining the system hostname.
     #[error("failed to detect hostname: {0}")]
     Hostname(#[from] std::io::Error),
+    /// An error that occurred while checking if a program exists in `$PATH`.
     #[error("failed to detect if exe exists in path: {0}")]
     ExeExists(#[from] which::Error),
+    /// A condition string is invalid. The `message` should indicate why.
     #[error("condition {condition_str} is invalid: {message}")]
     InvalidCondition {
+        /// The invalid condition string.
         condition_str: String,
+        /// A message indicating why the condition is invalid.
         message: String,
     },
 }
@@ -34,6 +42,30 @@ impl From<Infallible> for Error {
     }
 }
 
+/// A combination of conditions that make up a single Environment.
+///
+/// # Example (TOML)
+///
+/// ```toml
+/// [envs.first_env]
+///     # [Hostname][`Hostname`] must match one of the items in the list.
+///     hostname = ["localhost", "localhost.localdomain", "first.env"]
+///     # The [operating system][`OperatingSystem`] must match one of the items in the list.
+///     os = ["linux", "macos", "freebsd"]
+///     # Either `vim`, `nvim`, or both `vi` and `nano` must exist on the system.
+///     exe_exists = ["vim", "nvim", ["vi", "nano"]]
+///     # Both the `Music` and `Videos` folder must exist in user shadow53's home directory.
+///     path_exists = [["/home/shadow53/Music", "/home/shadow53/Videos"]]
+/// ```
+///
+/// See the documentation for the following types for more how these items are interpreted.
+///
+/// - [`Combinator<T>`]
+/// - [`EnvVariable`]
+/// - [`ExeExists`]
+/// - [`Hostname`]
+/// - [`OperatingSystem`]
+/// - [`PathExists`]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Hash)]
 pub struct Environment {
     hostname: Option<Combinator<Hostname>>,
@@ -68,6 +100,11 @@ impl TryInto<bool> for Environment {
 }
 
 impl Environment {
+    /// Checks that there are no invalid or impossible conditions set.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidCondition`]
     pub fn validate(&self) -> Result<(), Error> {
         let Environment { hostname, os, .. } = self;
         if let Some(comb) = hostname {

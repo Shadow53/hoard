@@ -1,3 +1,5 @@
+//! The [`Builder`] struct serves as an intermediate step between raw configuration and the
+//! [`Config`] type that is used by `hoard`.
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io;
@@ -15,7 +17,7 @@ use environment::Environment;
 
 use crate::command::Command;
 use crate::CONFIG_FILE_NAME;
-use crate::GAMES_DIR_SLUG;
+use crate::HOARDS_DIR_SLUG;
 
 use super::Config;
 
@@ -72,20 +74,27 @@ fn default_level() -> Option<Level> {
     Some(Level::Info)
 }
 
+/// Errors that can happen when using a [`Builder`].
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Error while parsing a TOML configuration file.
     #[error("failed to parse configuration file: {0}")]
     DeserializeConfig(toml::de::Error),
+    /// Error while reading from a configuration file.
     #[error("failed to read configuration file: {0}")]
     ReadConfig(io::Error),
+    /// Error while determining whether configured environments apply.
     #[error("failed to determine current environment: {0}")]
     Environment(#[from] environment::Error),
+    /// Error while determining which paths to use for configured hoards.
     #[error("failed to process hoard configuration: {0}")]
     ProcessHoard(#[from] hoard::Error),
 }
 
+/// Intermediate data structure to build a [`Config`](crate::config::Config).
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, StructOpt)]
 #[structopt(rename_all = "kebab")]
+#[serde(rename_all = "snake_case")]
 pub struct Builder {
     #[structopt(skip)]
     #[serde(rename = "envs")]
@@ -118,17 +127,19 @@ impl Default for Builder {
 }
 
 impl Builder {
+    /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         super::get_dirs().config_dir().join(CONFIG_FILE_NAME)
     }
 
+    /// Returns the default location for storing hoards.
     fn default_hoard_root() -> PathBuf {
-        super::get_dirs().data_dir().join(GAMES_DIR_SLUG)
+        super::get_dirs().data_dir().join(HOARDS_DIR_SLUG)
     }
 
-    /// Create a new `ConfigBuilder`.
+    /// Create a new `Builder`.
     ///
-    /// If [`build`](ConfigBuilder::build) is immediately called on this, the returned
+    /// If [`build`](Builder::build) is immediately called on this, the returned
     /// [`Config`] will have all default values.
     #[must_use]
     pub fn new() -> Self {
@@ -143,7 +154,11 @@ impl Builder {
         }
     }
 
-    /// Create a new `ConfigBuilder` pre-populated with the contents of the given TOML file.
+    /// Create a new [`Builder`] pre-populated with the contents of the given TOML file.
+    ///
+    /// # Errors
+    ///
+    /// Variants of [`enum@Error`] related to reading and parsing the file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
         toml::from_str(&s).map_err(Error::DeserializeConfig)
@@ -151,6 +166,10 @@ impl Builder {
 
     /// Helper method to process command-line arguments and the config file specified on CLI
     /// (or the default).
+    ///
+    /// # Errors
+    ///
+    /// See [`Builder::from_file`]
     pub fn from_args_then_file() -> Result<Self, Error> {
         let from_args = Self::from_args();
         let config_file = from_args
@@ -200,7 +219,7 @@ impl Builder {
 
     /// Set the file that contains configuration.
     ///
-    /// This currently only exists for completeness. You probably want [`ConfigBuilder::from_file`]
+    /// This currently only exists for completeness. You probably want [`Builder::from_file`]
     /// instead, which will actually read and parse the file.
     #[must_use]
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
@@ -257,6 +276,12 @@ impl Builder {
         self
     }
 
+    /// Evaluates the stored environment definitions and returns a mapping of
+    /// environment name to (boolean) whether that environment applies.
+    ///
+    /// # Errors
+    ///
+    /// Any error that occurs while evaluating the environments.
     fn evaluated_environments(
         &self,
     ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
@@ -270,6 +295,11 @@ impl Builder {
         )
     }
 
+    /// Build this [`Builder`] into a [`Config`].
+    ///
+    /// # Errors
+    ///
+    /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
     pub fn build(self) -> Result<Config, Error> {
         let environments = self.evaluated_environments()?;
         let exclusivity = self.exclusivity.unwrap_or_else(Vec::new);

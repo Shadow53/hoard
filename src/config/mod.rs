@@ -1,4 +1,6 @@
-pub use self::builder::Builder as ConfigBuilder;
+//! See [`Config`].
+
+pub use self::builder::Builder;
 use self::hoard::Hoard;
 use crate::command::Command;
 use directories::ProjectDirs;
@@ -10,24 +12,35 @@ use thiserror::Error;
 pub mod builder;
 pub mod hoard;
 
+/// Get the project directories for this project.
 #[must_use]
 pub fn get_dirs() -> ProjectDirs {
     ProjectDirs::from("com", "shadow53", "backup-game-saves")
         .expect("could not detect user home directory to place program files")
 }
 
+/// Errors that can occur while working with a [`Config`].
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Error occurred while building the configuration.
     #[error("error while building the configuration")]
     Builder(#[from] builder::Error),
 }
 
+/// A (processed) configuration.
+///
+/// To create a configuration, use [`Builder`] instead.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
+    /// The configured logging level.
     pub log_level: Level,
+    /// The command to run.
     pub command: Command,
+    /// The root directory to backup/restore hoards from.
     hoards_root: PathBuf,
+    /// Path to a configuration file.
     config_file: PathBuf,
+    /// All of the configured hoards.
     hoards: BTreeMap<String, Hoard>,
 }
 
@@ -43,22 +56,33 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Create a new [`Builder`].
     #[must_use]
-    pub fn builder() -> ConfigBuilder {
-        ConfigBuilder::new()
+    pub fn builder() -> Builder {
+        Builder::new()
     }
 
+    /// Load a [`Config`] from CLI arguments and then configuration file.
+    ///
+    /// Alias for [`Builder::from_args_then_file`] that then builds the builder into
+    /// a [`Config`].
+    ///
+    /// # Errors
+    ///
+    /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
     pub fn load() -> Result<Self, Error> {
-        ConfigBuilder::from_args_then_file()
-            .map(ConfigBuilder::build)?
+        Builder::from_args_then_file()
+            .map(Builder::build)?
             .map_err(Error::Builder)
     }
 
+    /// The path to the configured configuration file.
     #[must_use]
     pub fn get_config_file_path(&self) -> PathBuf {
         self.config_file.clone()
     }
 
+    /// The path to the configured hoards root.
     #[must_use]
     pub fn get_hoards_root_path(&self) -> PathBuf {
         self.hoards_root.clone()
@@ -73,8 +97,8 @@ mod tests {
     fn test_config_builder_returns_new_builder() {
         assert_eq!(
             Config::builder(),
-            ConfigBuilder::new(),
-            "Config::builder should return an unmodified new ConfigBuilder"
+            Builder::new(),
+            "Config::builder should return an unmodified new Builder"
         );
     }
 
@@ -82,7 +106,7 @@ mod tests {
     fn test_config_default_builds_from_new_builder() {
         assert_eq!(
             Some(Config::default()),
-            ConfigBuilder::new().build().ok(),
+            Builder::new().build().ok(),
             "Config::default should be the same as a built unmodified Builder"
         );
     }

@@ -1,8 +1,11 @@
+//! See [`Hostname`].
+
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
 
+/// A conditional structure that compares the system's hostname to the given string.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct Hostname(pub String);

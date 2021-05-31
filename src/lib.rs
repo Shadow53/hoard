@@ -1,3 +1,21 @@
+//! A CLI program for managing files across multiple devices.
+//!
+//! You can think of `hoard` as a dotfiles management tool, though its intended use extends
+//! beyond that. `hoard` can be used for backing up and restoring any kind of file from/to any
+//! location on the filesystem. In fact, the original purpose behind writing it was to synchronize
+//! save files for games that don't support cloud saves.
+//!
+//! # Terminology
+//!
+//! The following terms have special meanings when talking about `hoard`.
+//!
+//! - [`Hoard`](crate::config::builder::hoard::Hoard): A collection at least one
+//!   [`Pile`](crate::config::builder::hoard::Pile).
+//! - [`Pile`](crate::config::builder::hoard::Pile): A single file or directory in a
+//!   [`Hoard`](crate::config::builder::hoard::Hoard).
+//! - [`Environment`](crate::config::builder::environment::Environment): A combination of conditions
+//!   that can be used to determine where to find files in a [`Pile`](crate::config::builder::hoard::Pile).
+
 #![deny(clippy::all)]
 #![deny(clippy::correctness)]
 #![deny(clippy::style)]
@@ -16,8 +34,8 @@
     meta_variable_misuse, // May have false positives
     missing_abi,
     missing_debug_implementations, // can affect compile time/code size
-    //missing_docs,
-    //missing_doc_code_examples,
+    missing_docs,
+    missing_doc_code_examples,
     no_mangle_generic_items,
     non_shorthand_field_patterns,
     noop_method_call,
@@ -45,13 +63,14 @@
     variant_size_differences,
     while_true
 )]
-#![allow(clippy::missing_errors_doc)] // TODO: remove when docs are written
-#![allow(clippy::missing_panics_doc)] // TODO: remove when docs are written
 pub use config::builder::Builder;
 
 pub mod combinator;
 pub mod command;
 pub mod config;
 
+/// The default file name of the configuration file.
 pub const CONFIG_FILE_NAME: &str = "config.toml";
-pub const GAMES_DIR_SLUG: &str = "saves";
+
+/// The name of the directory containing the backed up hoards.
+pub const HOARDS_DIR_SLUG: &str = "hoards";
