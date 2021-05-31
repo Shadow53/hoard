@@ -1,21 +1,19 @@
-use crate::combinator::Combinator;
-use crate::command::Command;
-use directories::ProjectDirs;
-use environment::Environment;
-use log::Level;
-use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-pub mod builder;
-pub mod environment;
-pub mod envtrie;
-pub mod hoard;
+use directories::ProjectDirs;
+use log::Level;
+use serde::Deserialize;
+use thiserror::Error;
+
+use hoard::Hoard;
+
+use crate::command::Command;
 
 pub use self::builder::Builder as ConfigBuilder;
-use crate::config::hoard::Hoard;
-use std::convert::TryInto;
-use thiserror::Error;
+
+pub mod builder;
+pub mod hoard;
 
 pub fn get_dirs() -> ProjectDirs {
     ProjectDirs::from("com", "shadow53", "backup-game-saves")
@@ -28,19 +26,12 @@ pub enum Error {
     Builder(#[from] builder::Error),
 }
 
-fn default_log_level() -> Level {
-    Level::Info
-}
-
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Config {
-    #[serde(skip, default = "default_log_level")]
     pub log_level: Level,
-    #[serde(skip)]
     pub command: Command,
     hoards_root: PathBuf,
     config_file: PathBuf,
-    environments: BTreeMap<String, bool>,
     hoards: BTreeMap<String, Hoard>,
 }
 

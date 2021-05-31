@@ -7,7 +7,7 @@
 
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -27,7 +27,7 @@ pub enum Error {
     CombinedMutuallyExclusive(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct Node {
     score: usize,
     tree: Option<BTreeMap<String, Node>>,
@@ -120,12 +120,12 @@ impl Node {
 /// different piles. That is, if one pile's `EnvTrie` matches on `"foo|bar"` and a second pile
 /// does not have a configuration for `"foo|bar"`, it is possible that `"bar|baz"` is the best
 /// match instead.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EnvTrie(Node);
 
 const ENV_SEPARATOR: char = '|';
 
-fn validate_environments(environments: &HashMap<String, PathBuf>) -> Result<(), Error> {
+fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(), Error> {
     for (key, _) in environments.iter() {
         if key.is_empty() {
             return Err(Error::NoEnvironments);
@@ -179,9 +179,9 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
 }
 
 fn merge_hashmaps(
-    mut map1: HashMap<String, HashSet<String>>,
-    map2: HashMap<String, HashSet<String>>,
-) -> HashMap<String, HashSet<String>> {
+    mut map1: BTreeMap<String, HashSet<String>>,
+    map2: BTreeMap<String, HashSet<String>>,
+) -> BTreeMap<String, HashSet<String>> {
     for (key, set) in map2 {
         let new_set = match map1.remove(&key) {
             None => set,
@@ -194,7 +194,7 @@ fn merge_hashmaps(
     map1
 }
 
-fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, HashSet<String>> {
+fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, HashSet<String>> {
     exclusivity_list
         .iter()
         .map(|list| {
@@ -203,12 +203,12 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, Hash
                 .collect()
         })
         .reduce(merge_hashmaps)
-        .unwrap_or_else(HashMap::new)
+        .unwrap_or_else(BTreeMap::new)
 }
 
 impl EnvTrie {
     pub fn new(
-        environments: &HashMap<String, PathBuf>,
+        environments: &BTreeMap<String, PathBuf>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
         validate_environments(environments)?;
@@ -287,9 +287,9 @@ impl EnvTrie {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maplit::{btreemap, hashmap};
+    use maplit::btreemap;
     use once_cell::sync::Lazy;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
 
     // Every const has a name of the form `LABEL_<char>_<int>`.
@@ -340,7 +340,7 @@ mod tests {
         (name: $name:ident, environments: $envs:expr, exclusivity: $excl:expr, expected: $result:expr) => {
             #[test]
             fn $name() {
-                let environments: HashMap<String, PathBuf> = $envs;
+                let environments: BTreeMap<String, PathBuf> = $envs;
                 let exclusivity: Vec<Vec<String>> = $excl;
 
                 let res: Result<EnvTrie, Error> = EnvTrie::new(&environments, &exclusivity);
@@ -367,7 +367,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_valid_single_env,
-        environments: hashmap! {
+        environments: btreemap! {
             LABEL_A_1.into() => PATH_1.clone(),
             LABEL_B_1.into() => PATH_2.clone(),
             LABEL_C_1.into() => PATH_3.clone(),
@@ -401,7 +401,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_valid_multi_env,
-        environments: hashmap! {
+        environments: btreemap! {
             format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1) => PATH_1.clone(),
             // Testing merged trees
             format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1) => PATH_2.clone(),
@@ -474,7 +474,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_invalid_separator_prefix,
-        environments: hashmap! {
+        environments: btreemap! {
             format!("|{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
         },
         exclusivity: vec![],
@@ -483,7 +483,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_invalid_separator_suffix,
-        environments: hashmap! {
+        environments: btreemap! {
             format!("{}|{}|", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
         },
         exclusivity: vec![],
@@ -492,7 +492,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_invalid_consecutive_separator,
-        environments: hashmap! {
+        environments: btreemap! {
             format!("{}||{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
         },
         exclusivity: vec![],
@@ -501,7 +501,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_combine_mutually_exclusive_is_invalid,
-        environments: hashmap! {
+        environments: btreemap! {
             format!("{}|{}", LABEL_A_1, LABEL_A_2) => PATH_1.clone(),
         },
         exclusivity: vec![vec![LABEL_A_1.into(), LABEL_A_2.into()]],
@@ -510,7 +510,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_same_condition_twice_is_invalid,
-        environments: hashmap! {
+        environments: btreemap! {
             format!("{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
             format!("{}|{}", LABEL_B_1, LABEL_A_1) => PATH_2.clone(),
         },
@@ -520,7 +520,7 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_empty_condition_is_invalid,
-        environments: hashmap! {
+        environments: btreemap! {
             "".into() => PATH_1.clone(),
         },
         exclusivity: vec![],

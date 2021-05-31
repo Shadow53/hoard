@@ -12,6 +12,7 @@ use hoard::config::builder::Builder as ConfigBuilder;
 fn strip_non_config_file(builder: ConfigBuilder) -> ConfigBuilder {
     builder.unset_config_file().unset_command()
 }
+
 /*
 #[test]
 fn test_init_config() {

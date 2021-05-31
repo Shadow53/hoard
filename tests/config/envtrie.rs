@@ -1,1 +1,1 @@
-use hoard::config::envtrie;
+use hoard::config::builder::envtrie;

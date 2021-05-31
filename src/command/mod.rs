@@ -1,5 +1,3 @@
-pub mod backup;
-
 use crate::config::{Config, ConfigBuilder};
 use log::debug;
 use structopt::StructOpt;
@@ -7,12 +5,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("error while backing up: {0}")]
-    Backup(backup::Error),
     #[error("error while printing help message: {0}")]
     PrintHelp(structopt::clap::Error),
-    #[error("error while restoring up: {0}")]
-    Restore(backup::Error),
 }
 
 #[derive(Clone, PartialEq, Debug, StructOpt)]
