@@ -350,7 +350,9 @@ mod tests {
                 hoards_root: Some(PathBuf::from("/testing/saves")),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 log_level: Some(Level::Debug),
-                command: Some(Command::Restore),
+                command: Some(Command::Restore {
+                    hoards: vec!["test".into()],
+                }),
                 environments: None,
                 exclusivity: None,
                 hoards: None,
