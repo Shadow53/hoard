@@ -15,7 +15,8 @@ pub mod hoard;
 /// Get the project directories for this project.
 #[must_use]
 pub fn get_dirs() -> ProjectDirs {
-    ProjectDirs::from("com", "shadow53", "backup-game-saves")
+    log::trace!("Determining project default folders");
+    ProjectDirs::from("com", "shadow53", "hoard")
         .expect("could not detect user home directory to place program files")
 }
 
@@ -67,6 +68,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        log::trace!("Creating default Config");
         // Calling [`Builder::unset_hoards`] to ensure there is no panic
         // when `expect`ing
         Self::builder()
@@ -92,9 +94,12 @@ impl Config {
     ///
     /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
     pub fn load() -> Result<Self, Error> {
-        Builder::from_args_then_file()
+        log::info!("Loading configuration...");
+        let config = Builder::from_args_then_file()
             .map(Builder::build)?
-            .map_err(Error::Builder)
+            .map_err(Error::Builder)?;
+        log::info!("Configuration loaded.");
+        Ok(config)
     }
 
     /// The path to the configured configuration file.
@@ -112,8 +117,11 @@ impl Config {
     #[must_use]
     fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a String> {
         if hoards.is_empty() {
+            log::debug!("No hoard names provided. Acting on all of them.");
             self.hoards.keys().collect()
         } else {
+            log::debug!("Using hoard names provided on CLI");
+            log::trace!("--> {:?}", hoards);
             hoards.iter().collect()
         }
     }
@@ -142,6 +150,7 @@ impl Config {
                 for name in hoards {
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
+                    log::info!("Backing up hoard {}", name);
                     hoard.backup(&prefix).map_err(|error| Error::Backup {
                         name: name.clone(),
                         error,
@@ -153,6 +162,7 @@ impl Config {
                 for name in hoards {
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
+                    log::info!("Restoring hoard {}", name);
                     hoard.restore(&prefix).map_err(|error| Error::Restore {
                         name: name.clone(),
                         error,
