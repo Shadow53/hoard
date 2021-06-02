@@ -96,18 +96,25 @@ impl Node {
         })
     }
 
-    fn get_highest_path_with_score(&self, envs: &BTreeMap<String, bool>) -> Option<(&Path, usize)> {
+    fn get_highest_path_with_score(
+        &self,
+        envs: &BTreeMap<String, bool>,
+    ) -> Result<Option<(&Path, usize)>, Error> {
         let mut score = 0;
         let mut path = None;
 
         if let Some(tree) = &self.tree {
             for (name, node) in tree {
                 // Ignore non-matching envs
-                if !envs.get(name).unwrap_or(&false) {
+                if !envs
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| Error::EnvironmentNotExist(name.clone()))?
+                {
                     continue;
                 }
 
-                if let Some((node_path, node_score)) = node.get_highest_path_with_score(envs) {
+                if let Some((node_path, node_score)) = node.get_highest_path_with_score(envs)? {
                     if node_score > score {
                         score = node_score;
                         path = Some(node_path);
@@ -117,8 +124,8 @@ impl Node {
         }
 
         match path {
-            Some(path) => Some((path, score + self.score)),
-            None => self.value.as_ref().map(|path| (path.as_path(), self.score)),
+            Some(path) => Ok(Some((path, score + self.score))),
+            None => Ok(self.value.as_ref().map(|path| (path.as_path(), self.score))),
         }
     }
 }
@@ -294,11 +301,16 @@ impl EnvTrie {
     }
 
     /// Get the best-matched (highest-scoring) path in the `EnvTrie`.
-    #[must_use]
-    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Option<&Path> {
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
+    ///   `environments` argument.
+    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
         let EnvTrie(node) = self;
-        node.get_highest_path_with_score(environments)
-            .map(|(path, _)| path)
+        Ok(node
+            .get_highest_path_with_score(environments)?
+            .map(|(path, _)| path))
     }
 }
 

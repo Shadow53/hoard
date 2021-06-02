@@ -29,9 +29,13 @@ pub enum Error {
 
 /// Configuration for symmetric (password) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SymmetricEncryption {
-    password: String,
-    password_cmd: Vec<String>,
+pub enum SymmetricEncryption {
+    /// Raw password.
+    #[serde(rename = "encrypt_pass")]
+    Password(String),
+    /// Command whose first line of output to stdout is the password.
+    #[serde(rename = "encrypt_pass_cmd")]
+    PasswordCmd(Vec<String>),
 }
 
 /// Configuration for asymmetric (public key) encryption.
@@ -74,7 +78,7 @@ impl Pile {
     ) -> Result<ConfigSingle, Error> {
         let Pile { config, items } = self;
         let trie = EnvTrie::new(&items, exclusivity)?;
-        let path = trie.get_path(envs).map(Path::to_owned);
+        let path = trie.get_path(envs)?.map(Path::to_owned);
 
         Ok(ConfigSingle { config, path })
     }
@@ -208,7 +212,7 @@ mod tests {
         }
 
         #[test]
-        fn no_config_multiple_entry() {
+        fn multiple_entry_no_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: None,
                 items: btreemap! {
@@ -227,6 +231,48 @@ mod tests {
                     Token::Map { len: None },
                     Token::Str("config"),
                     Token::None,
+                    Token::Str("item1"),
+                    Token::Map { len: None },
+                    Token::Str("config"),
+                    Token::None,
+                    Token::Str("bar_env|foo_env"),
+                    Token::Str("/some/path"),
+                    Token::MapEnd,
+                    Token::MapEnd,
+                ],
+            );
+        }
+
+        #[test]
+        fn multiple_entry_with_config() {
+            let hoard = Hoard::Multiple(MultipleEntries {
+                config: Some(Config {
+                    encryption: Encryption::Symmetric(SymmetricEncryption::Password(
+                        "correcthorsebatterystaple".into(),
+                    )),
+                }),
+                items: btreemap! {
+                    "item1".to_string() => Pile {
+                        config: None,
+                        items: btreemap! {
+                            "bar_env|foo_env".to_string() => PathBuf::from("/some/path")
+                        }
+                    },
+                },
+            });
+
+            assert_tokens(
+                &hoard,
+                &[
+                    Token::Map { len: None },
+                    Token::Str("config"),
+                    Token::Some,
+                    Token::Map { len: None },
+                    Token::Str("encrypt"),
+                    Token::Str("symmetric"),
+                    Token::Str("password"),
+                    Token::Str("correcthorsebatterystaple"),
+                    Token::MapEnd,
                     Token::Str("item1"),
                     Token::Map { len: None },
                     Token::Str("config"),

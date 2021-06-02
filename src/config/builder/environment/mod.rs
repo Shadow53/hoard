@@ -67,6 +67,7 @@ impl From<Infallible> for Error {
 /// - [`OperatingSystem`]
 /// - [`PathExists`]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Hash)]
+#[serde(deny_unknown_fields)]
 pub struct Environment {
     hostname: Option<Combinator<Hostname>>,
     os: Option<Combinator<OperatingSystem>>,

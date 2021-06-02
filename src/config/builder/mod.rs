@@ -347,8 +347,6 @@ impl Builder {
 mod tests {
     use super::*;
 
-    mod level_serde {}
-
     mod builder {
         use super::*;
 
