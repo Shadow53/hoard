@@ -1,0 +1,145 @@
+# Lists of environment names.
+#
+# Environment names in lists together cannot appear in the same environment condition string.
+# For example, you cannot specify a path that matches both Vim and Neovim.
+exclusivity = [
+    # Neovim takes priority over Vim.
+    ["neovim", "vim"],
+    # Flatpak steam installation takes priority over "native" install.
+    ["steam_flatpak", "steam"]
+]
+
+[envs]
+
+# Match if `fish` is somewhere in $PATH.
+[envs.fish]
+    exe_exists = ["fish"]
+
+[envs.neovim]
+    # Detect "neovim" if AT LEAST one of `nvim` or `nvim-qt` exists in $PATH.
+    # This is parsed as `nvim OR nvim-qt`.
+    exe_exists = ["nvim", "nvim-qt"]
+[envs.vim]
+    # Detect "vim" if AT LEAST one of `vim` or `gvim` exists in $PATH.
+    exe_exists = ["vim", "gvim"]
+
+# GAMES
+[envs.itch]
+    # Match itch if BOTH of these paths exist.
+    # These paths are parsed as (first) AND (second).
+    path_exists = [[
+        "/home/shadow53/.itch",
+        "/home/shadow53/.local/share/applications/io.itch.itch.desktop"
+    ]]
+[envs.openrct2]
+    exe_exists = ["openrct2"]
+[envs.scummvm]
+    exe_exists = ["scummvm"]
+[envs.steam]
+    exe_exists = ["steam"]
+[envs.steam_flatpak]
+    exe_exists = ["flatpak"]
+    path_exists = [
+        "/home/shadow53/.var/app/com.valvesoftware.Steam"
+    ]
+
+# OPERATING SYSTEMS
+# See https://doc.rust-lang.org/stable/std/env/consts/constant.OS.html for some possible
+# values for `os`.
+[envs.windows]
+    os = ["windows"]
+[envs.linux]
+    os = ["linux"]
+[envs.macos]
+    os = ["macos"]
+[envs.freebsd]
+    os = ["freebsd"]
+
+# Is Unix if one of the OSes match AND both of the environment variables exist.
+# You can also require a specific value for the variable with
+# { var = "SOME_VAR", expected = "the var value" }
+[envs.unix]
+    os = ["linux", "macos", "freebsd"]
+    env = [
+        { var = "HOME" },
+        { var = "XDG_CONFIG_HOME" }
+    ]
+
+[hoards]
+
+# Both `fish|linux` and `linux|fish` match the same way and are considered
+# the same condition internally.
+[hoards.fish]
+    [hoards.fish.confdir]
+        "linux|fish" = "/home/shadow53/.config/fish/conf.d"
+    [hoards.fish.functions]
+        "fish|linux" = "/home/shadow53/.config/fish/functions"
+
+[hoards.fonts]
+    # This is a standard place for Linux systems to store user fonts.
+    "linux" = "/home/shadow53/.local/share/fonts"
+
+[hoards.game_saves]
+    # There is no "OR" in environment condition strings, so the path gets written twice.
+    [hoards.game_saves.apotheon]
+        "linux|steam"         = "/home/shadow53/.local/share/Apotheon/SavedGames"
+        "linux|steam_flatpak" = "/home/shadow53/.local/share/Apotheon/SavedGames"
+    [hoards.game_saves.death_and_taxes]
+        "linux|itch" = "/home/shadow53/.config/unity3d/Placeholder Gameworks/Death and Taxes/Saves"
+    [hoards.game_saves.dnd_lesbians]
+        "linux|itch" = "/home/shadow53/.renpy/DnDLes-1580852644"
+    [hoards.game_saves.lovers_dangerous_spacetime]
+        "linux|steam"         = "/home/shadow53/.local/share/LoversInADangerousSpacetime/save.dat"
+        "linux|steam_flatpak" = "/home/shadow53/.local/share/LoversInADangerousSpacetime/save.dat"
+    [hoards.game_saves.scummvm]
+        "linux|scummvm" = "/home/shadow53/.local/share/scummvm/saves"
+    [hoards.game_saves.spacechem]
+        "linux|steam"         = "/home/shadow53/.local/share/Zachtronics Industries/SpaceChem/save"
+        "linux|steam_flatpak" = "/home/shadow53/.local/share/Zachtronics Industries/SpaceChem/save"
+    [hoards.game_saves.superliminal]
+        "linux|steam"         = "/home/shadow53/.config/unity3d/PillowCastle/SuperliminalSteam/Clouds"
+        "linux|steam_flatpak" = "/home/shadow53/.config/unity3d/PillowCastle/SuperliminalSteam/Clouds"
+    [hoards.game_saves.they_bleed_pixels]
+        "linux|itch" = "/home/shadow53/.local/share/TheyBleedPixels/savedata"
+    [hoards.game_saves.wizard_of_legend]
+        "linux|steam"         = "/home/shadow53/.config/unity3d/Contingent99/Wizard of Legend/128757792"
+        "linux|steam_flatpak" = "/home/shadow53/.config/unity3d/Contingent99/Wizard of Legend/128757792"
+
+[hoards.git]
+    "linux" = "/home/shadow53/.gitconfig"
+
+[hoards.latex]
+    [hoards.latex.awesomecv]
+        "linux" = "/home/shadow53/.texmf/tex/awesome-cv"
+    [hoards.latex.fonts]
+        "linux" = "/home/shadow53/.texmf/fonts"
+
+[hoards.newsboat]
+    "linux" = "/home/shadow53/.newsboat/config"
+
+[hoards.qemu]
+    [hoards.qemu.script]
+        "linux" = "/home/shadow53/.bin/vm"
+    [hoards.qemu.configs]
+        "linux" = "/home/shadow53/.config/qemu"
+
+[hoards.vim]
+    [hoards.vim.init]
+        # Match linux AND neovim environments
+        "linux|neovim" = "/home/shadow53/.config/nvim/init.vim"
+        "linux|vim" = "/home/shadow53/.vimrc"
+        "windows|neovim" = "C:\\Users\\Shadow53\\AppData\\Local\\nvim\\init.vim"
+        "windows|vim" = "C:\\Users\\Shadow53\\.vim\\_vimrc"
+    [hoards.vim.configdir]
+        "windows|neovim" = "C:\\Users\\Shadow53\\AppData\\Local\\nvim\\config"
+        "windows|vim" = "C:\\Users\\Shadow53\\.vim\\config"
+        "linux|neovim" = "/home/shadow53/.config/nvim/config"
+        "linux|vim" = "/home/shadow53/.vim/config"
+    [hoards.vim.templates]
+        "windows|neovim" = "C:\\Users\\Shadow53\\AppData\\Local\\nvim\\templates"
+        "windows|vim" = "C:\\Users\\Shadow53\\.vim\\templates"
+        "linux|neovim" = "/home/shadow53/.config/nvim/templates"
+        "linux|vim" = "/home/shadow53/.vim/templates"
+
+[hoards.vorta]
+    "linux" = "/home/shadow53/.local/share/Vorta/settings.db"
