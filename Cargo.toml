@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Michael Bryant <shadow53@shadow53.com>"]
 edition = "2018"
 license = "BSD-3-Clause"
+description = "Hoard backups of files across your filesystem into one location."
+homepage = "https://github.com/Shadow53/hoard"
+repository = "https://github.com/Shadow53/hoard"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
