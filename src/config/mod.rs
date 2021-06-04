@@ -15,16 +15,38 @@ pub mod hoard;
 /// Get the project directories for this project.
 #[must_use]
 pub fn get_dirs() -> ProjectDirs {
-    ProjectDirs::from("com", "shadow53", "backup-game-saves")
+    log::trace!("Determining project default folders");
+    ProjectDirs::from("com", "shadow53", "hoard")
         .expect("could not detect user home directory to place program files")
 }
 
 /// Errors that can occur while working with a [`Config`].
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Error occurred while backing up a hoard.
+    #[error("failed to back up {name}: {error}")]
+    Backup {
+        /// The name of the hoard that failed to back up.
+        name: String,
+        /// The error that occurred.
+        #[source]
+        error: hoard::Error,
+    },
     /// Error occurred while building the configuration.
-    #[error("error while building the configuration")]
+    #[error("error while building the configuration: {0}")]
     Builder(#[from] builder::Error),
+    /// The requested hoard does not exist.
+    #[error("no such hoard is configured: {0}")]
+    NoSuchHoard(String),
+    /// Error occurred while restoring a hoard.
+    #[error("failed to back up {name}: {error}")]
+    Restore {
+        /// The name of the hoard that failed to restore.
+        name: String,
+        /// The error that occurred.
+        #[source]
+        error: hoard::Error,
+    },
 }
 
 /// A (processed) configuration.
@@ -46,6 +68,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        log::trace!("Creating default Config");
         // Calling [`Builder::unset_hoards`] to ensure there is no panic
         // when `expect`ing
         Self::builder()
@@ -71,9 +94,12 @@ impl Config {
     ///
     /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
     pub fn load() -> Result<Self, Error> {
-        Builder::from_args_then_file()
+        log::info!("Loading configuration...");
+        let config = Builder::from_args_then_file()
             .map(Builder::build)?
-            .map_err(Error::Builder)
+            .map_err(Error::Builder)?;
+        log::info!("Configuration loaded.");
+        Ok(config)
     }
 
     /// The path to the configured configuration file.
@@ -86,6 +112,68 @@ impl Config {
     #[must_use]
     pub fn get_hoards_root_path(&self) -> PathBuf {
         self.hoards_root.clone()
+    }
+
+    #[must_use]
+    fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a String> {
+        if hoards.is_empty() {
+            log::debug!("No hoard names provided. Acting on all of them.");
+            self.hoards.keys().collect()
+        } else {
+            log::debug!("Using hoard names provided on CLI");
+            log::trace!("--> {:?}", hoards);
+            hoards.iter().collect()
+        }
+    }
+
+    #[must_use]
+    fn get_prefix(&self, name: &str) -> PathBuf {
+        self.hoards_root.join(name)
+    }
+
+    fn get_hoard<'a>(&'a self, name: &'_ str) -> Result<&'a Hoard, Error> {
+        self.hoards
+            .get(name)
+            .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
+    }
+
+    /// Run the stored [`Command`] using this [`Config`].
+    ///
+    /// # Errors
+    ///
+    /// Any [`enum@Error`] that might happen while running the command.
+    pub fn run(&self) -> Result<(), Error> {
+        match &self.command {
+            Command::Validate => {
+                log::info!("Configuration is valid.")
+            }
+            Command::Backup { hoards } => {
+                let hoards = self.get_hoards(&hoards);
+                for name in hoards {
+                    let prefix = self.get_prefix(name);
+                    let hoard = self.get_hoard(name)?;
+                    log::info!("Backing up hoard {}", name);
+                    hoard.backup(&prefix).map_err(|error| Error::Backup {
+                        name: name.clone(),
+                        error,
+                    })?;
+                }
+            }
+            Command::Restore { hoards } => {
+                let hoards = self.get_hoards(&hoards);
+                for name in hoards {
+                    let prefix = self.get_prefix(name);
+                    let hoard = self.get_hoard(name)?;
+                    log::info!("Restoring hoard {}", name);
+                    hoard.restore(&prefix).map_err(|error| Error::Restore {
+                        name: name.clone(),
+                        error,
+                    })?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

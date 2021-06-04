@@ -14,6 +14,11 @@ use thiserror::Error;
 /// Errors that may occur while building or evaluating an [`EnvTrie`].
 #[derive(Debug, Error, PartialEq)]
 pub enum Error {
+    /// Cannot decide between two environments based on length and mutual exclusion.
+    /// The two `String`s are the environment conditions, so the user can look at their
+    /// configuration file and resolve the issue.
+    #[error("\"{0}\" and \"{1}\" have equal weight. Consider a more specific condition for the preferred one or make them mutually exclusive")]
+    Indecision(String, String),
     /// One [`Pile`](super::hoard::Pile) has the same combination of environments defined
     /// multiple times.
     #[error("The same condition is defined twice with paths {0} and {1}")]
@@ -46,6 +51,7 @@ struct Node {
     score: usize,
     tree: Option<BTreeMap<String, Node>>,
     value: Option<PathBuf>,
+    name: String,
 }
 
 fn merge_two_trees(
@@ -62,6 +68,13 @@ fn merge_two_trees(
     }
 
     Ok(acc)
+}
+
+struct Evaluation<'a> {
+    name: String,
+    path: Option<&'a Path>,
+    score: usize,
+    len: usize,
 }
 
 impl Node {
@@ -90,36 +103,82 @@ impl Node {
         };
 
         Ok(Node {
+            name: self.name,
             score: self.score,
             tree,
             value,
         })
     }
 
-    fn get_highest_path_with_score(&self, envs: &BTreeMap<String, bool>) -> Option<(&Path, usize)> {
-        let mut score = 0;
-        let mut path = None;
+    fn get_evaluation(&self, envs: &BTreeMap<String, bool>) -> Result<Evaluation, Error> {
+        let mut eval = Evaluation {
+            name: self.name.clone(),
+            path: self.value.as_ref().map(PathBuf::as_ref),
+            score: 0,
+            len: 1, // this node
+        };
 
         if let Some(tree) = &self.tree {
             for (name, node) in tree {
-                // Ignore non-matching envs
-                if !envs.get(name).unwrap_or(&false) {
+                // Ignore non-matching envs.
+                // Error on environments that don't exist.
+                if !envs
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| Error::EnvironmentNotExist(name.clone()))?
+                {
                     continue;
                 }
 
-                if let Some((node_path, node_score)) = node.get_highest_path_with_score(envs) {
-                    if node_score > score {
-                        score = node_score;
-                        path = Some(node_path);
+                let node_eval = match node.get_evaluation(envs) {
+                    Ok(node_eval) => node_eval,
+                    Err(err) => match err {
+                        Error::Indecision(left, right) => {
+                            return Err(Error::Indecision(
+                                if left.is_empty() {
+                                    self.name.clone()
+                                } else {
+                                    format!("{}|{}", self.name, left)
+                                },
+                                if right.is_empty() {
+                                    self.name.clone()
+                                } else {
+                                    format!("{}|{}", self.name, right)
+                                },
+                            ))
+                        }
+                        _ => return Err(err),
+                    },
+                };
+
+                // Path must exist
+                match (eval.path, node_eval.path) {
+                    (_, None) => {}
+                    (None, Some(_)) => eval = node_eval,
+                    (Some(_), Some(_)) => {
+                        if node_eval.len > eval.len
+                            || (node_eval.len == eval.len && node_eval.score > eval.score)
+                        {
+                            // Greater length takes precedence, otherwise use score.
+                            eval.path = node_eval.path;
+                            eval.score = node_eval.score + self.score;
+                            eval.len += node_eval.len;
+                        } else if node_eval.len == eval.len && node_eval.score == eval.score {
+                            // If length and score are same, cannot choose
+                            return Err(Error::Indecision(eval.name, name.clone()));
+                        }
+                        // Otherwise, keep current one.
                     }
                 }
             }
         }
 
-        match path {
-            Some(path) => Some((path, score + self.score)),
-            None => self.value.as_ref().map(|path| (path.as_path(), self.score)),
-        }
+        Ok(eval)
+    }
+
+    fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+        let Evaluation { path, .. } = self.get_evaluation(envs)?;
+        Ok(path)
     }
 }
 
@@ -251,6 +310,7 @@ impl EnvTrie {
 
                 // Last node, then building up to the root.
                 let mut prev_node = Node {
+                    name: String::new(),
                     score: 1,
                     tree: None,
                     value: Some(path.clone()),
@@ -261,7 +321,7 @@ impl EnvTrie {
                     let segment = segment.to_string();
 
                     let score = weighted_map.get(&segment).cloned().unwrap_or(1);
-
+                    prev_node.name = segment.clone();
                     let tree = {
                         let mut tree = BTreeMap::new();
                         tree.insert(segment, prev_node);
@@ -272,6 +332,7 @@ impl EnvTrie {
                         score,
                         tree,
                         value: None,
+                        name: String::new(),
                     };
                 }
 
@@ -294,11 +355,14 @@ impl EnvTrie {
     }
 
     /// Get the best-matched (highest-scoring) path in the `EnvTrie`.
-    #[must_use]
-    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Option<&Path> {
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
+    ///   `environments` argument.
+    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
         let EnvTrie(node) = self;
-        node.get_highest_path_with_score(environments)
-            .map(|(path, _)| path)
+        node.get_highest_path(environments)
     }
 }
 
@@ -393,20 +457,24 @@ mod tests {
         exclusivity: vec![],
         expected: {
             let node = Node {
+                name: String::new(),
                 score: 1,
                 value: None,
                 tree: Some(btreemap!{
                     LABEL_A_1.to_owned() => Node {
+                        name: LABEL_A_1.to_owned(),
                         score: 1,
                         tree: None,
                         value: Some(PATH_1.clone()),
                     },
                     LABEL_B_1.to_owned() => Node {
+                        name: LABEL_B_1.to_owned(),
                         score: 1,
                         tree: None,
                         value: Some(PATH_2.clone()),
                     },
                     LABEL_C_1.to_owned() => Node {
+                        name: LABEL_C_1.to_owned(),
                         score: 1,
                         tree: None,
                         value: Some(PATH_3.clone()),
@@ -435,18 +503,22 @@ mod tests {
         ],
         expected: {
             let node = Node {
+                name: String::new(),
                 score: 1,
                 value: None,
                 tree: Some(btreemap! {
                     LABEL_A_1.into() => Node {
+                        name: LABEL_A_1.to_owned(),
                         score: 1,
                         value: None,
                         tree: Some(btreemap!{
                             LABEL_B_1.into() => Node {
+                                name: LABEL_B_1.to_owned(),
                                 score: 1,
                                 value: None,
                                 tree: Some(btreemap!{
                                     LABEL_C_1.into() => Node {
+                                        name: LABEL_C_1.to_owned(),
                                         score: 1,
                                         tree: None,
                                         value: Some(PATH_1.clone()),
@@ -454,10 +526,12 @@ mod tests {
                                 })
                             },
                             LABEL_B_2.into() => Node {
+                                name: LABEL_B_2.to_owned(),
                                 score: 1,
                                 value: None,
                                 tree: Some(btreemap!{
                                     LABEL_C_1.into() => Node {
+                                        name: LABEL_C_1.to_owned(),
                                         score: 1,
                                         tree: None,
                                         value: Some(PATH_2.clone())
@@ -467,14 +541,17 @@ mod tests {
                         })
                     },
                     LABEL_A_3.into() => Node {
+                        name: LABEL_A_3.to_owned(),
                         score: 1,
                         value: None,
                         tree: Some(btreemap! {
                             LABEL_B_3.into() => Node {
+                                name: LABEL_B_3.to_owned(),
                                 score: 1,
                                 value: Some(PATH_2.clone()),
                                 tree: Some(btreemap! {
                                     LABEL_C_2.into() => Node {
+                                        name: LABEL_C_2.to_owned(),
                                         score: 1,
                                         tree: None,
                                         value: Some(PATH_3.clone()),

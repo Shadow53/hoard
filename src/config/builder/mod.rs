@@ -95,6 +95,7 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, StructOpt)]
 #[structopt(rename_all = "kebab")]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub struct Builder {
     #[structopt(skip)]
     #[serde(rename = "envs")]
@@ -143,6 +144,7 @@ impl Builder {
     /// [`Config`] will have all default values.
     #[must_use]
     pub fn new() -> Self {
+        log::trace!("Creating new config builder");
         Self {
             hoards: None,
             hoards_root: None,
@@ -160,6 +162,7 @@ impl Builder {
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
+        log::debug!("Reading configuration from \"{}\"", path.to_string_lossy());
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
         toml::from_str(&s).map_err(Error::DeserializeConfig)
     }
@@ -171,13 +174,23 @@ impl Builder {
     ///
     /// See [`Builder::from_file`]
     pub fn from_args_then_file() -> Result<Self, Error> {
+        log::debug!("Loading configuration from CLI arguments");
         let from_args = Self::from_args();
+
+        log::trace!("Attempting to get configuration file from CLI arguments or use default");
         let config_file = from_args
             .config_file
             .clone()
             .unwrap_or_else(Self::default_config_file);
+
+        log::trace!(
+            "Configuration file is \"{}\"",
+            config_file.to_string_lossy()
+        );
+
         let from_file = Self::from_file(&config_file)?;
 
+        log::debug!("Merging configuration file and CLI arguments");
         Ok(from_file.layer(from_args))
     }
 
@@ -285,6 +298,7 @@ impl Builder {
     fn evaluated_environments(
         &self,
     ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
+        log::trace!("Evaluating raw environments: {:#?}", self.environments);
         self.environments.as_ref().map_or_else(
             || Ok(BTreeMap::new()),
             |map| {
@@ -301,12 +315,17 @@ impl Builder {
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
     pub fn build(self) -> Result<Config, Error> {
+        log::trace!("Building configuration from {:#?}", self);
         let environments = self.evaluated_environments()?;
+        log::trace!("--> environments: {:#?}", environments);
         let exclusivity = self.exclusivity.unwrap_or_else(Vec::new);
+        log::trace!("--> exclusivity: {:#?}", exclusivity);
         let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
+        log::trace!("--> config file: {}", hoards_root.to_string_lossy());
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
+        log::trace!("--> config file: {}", config_file.to_string_lossy());
         let log_level = self.log_level.unwrap_or(log::Level::Info);
-        let command = self.command.unwrap_or(Command::Help);
+        let command = self.command.unwrap_or_else(Command::default);
         let hoards = self
             .hoards
             .unwrap_or_else(BTreeMap::new)
@@ -328,8 +347,6 @@ impl Builder {
 mod tests {
     use super::*;
 
-    mod level_serde {}
-
     mod builder {
         use super::*;
 
@@ -338,7 +355,7 @@ mod tests {
                 hoards_root: Some(Builder::default_hoard_root()),
                 config_file: Some(Builder::default_config_file()),
                 log_level: Some(Level::Info),
-                command: Some(Command::Help),
+                command: Some(Command::Validate),
                 environments: None,
                 exclusivity: None,
                 hoards: None,
@@ -350,7 +367,9 @@ mod tests {
                 hoards_root: Some(PathBuf::from("/testing/saves")),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 log_level: Some(Level::Debug),
-                command: Some(Command::Restore),
+                command: Some(Command::Restore {
+                    hoards: vec!["test".into()],
+                }),
                 environments: None,
                 exclusivity: None,
                 hoards: None,
@@ -463,7 +482,7 @@ mod tests {
         fn builder_command_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(None, builder.command, "command should start as None");
-            let cmd = Command::Help;
+            let cmd = Command::Validate;
             builder = builder.set_command(cmd.clone());
             assert_eq!(Some(cmd), builder.command, "command should now be set");
         }
@@ -513,7 +532,7 @@ mod tests {
         #[test]
         fn builder_command_unsets_correctly() {
             let mut builder = Builder::new();
-            let cmd = Command::Help;
+            let cmd = Command::Validate;
             builder = builder.set_command(cmd.clone());
             assert_eq!(Some(cmd), builder.command, "command should start as set");
             builder = builder.unset_command();

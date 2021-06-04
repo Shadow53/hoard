@@ -17,6 +17,12 @@ impl TryInto<bool> for Hostname {
         let Hostname(expected) = self;
         let host = hostname::get().map_err(super::Error::Hostname)?;
 
+        log::trace!(
+            "checking if system hostname ({}) is {}",
+            host.to_string_lossy(),
+            expected
+        );
+
         Ok(host == expected.as_str())
     }
 }

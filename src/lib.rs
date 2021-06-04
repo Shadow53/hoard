@@ -63,7 +63,7 @@
     variant_size_differences,
     while_true
 )]
-pub use config::builder::Builder;
+pub use config::Config;
 
 pub mod combinator;
 pub mod command;

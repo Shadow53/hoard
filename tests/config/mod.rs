@@ -1,7 +1,5 @@
 //! This module contains integration tests for the `config` subcommand.
 
-mod envtrie;
-
 /*
 use common::{file, toml};
 
@@ -149,3 +147,4 @@ fn test_remove_from_config() {
     toml::assert_file_contains_deserializable(file.path(), &strip_non_config_file(builder));
 }
 */
+mod precedence_conflict;
