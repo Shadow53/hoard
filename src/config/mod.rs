@@ -144,7 +144,9 @@ impl Config {
     /// Any [`enum@Error`] that might happen while running the command.
     pub fn run(&self) -> Result<(), Error> {
         match &self.command {
-            Command::Help => {} //Builder::long_help(),
+            Command::Validate => {
+                log::info!("Configuration is valid.")
+            }
             Command::Backup { hoards } => {
                 let hoards = self.get_hoards(&hoards);
                 for name in hoards {

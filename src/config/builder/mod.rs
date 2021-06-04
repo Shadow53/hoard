@@ -325,7 +325,7 @@ impl Builder {
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
         log::trace!("--> config file: {}", config_file.to_string_lossy());
         let log_level = self.log_level.unwrap_or(log::Level::Info);
-        let command = self.command.unwrap_or(Command::Help);
+        let command = self.command.unwrap_or_else(Command::default);
         let hoards = self
             .hoards
             .unwrap_or_else(BTreeMap::new)

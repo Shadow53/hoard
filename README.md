@@ -22,16 +22,17 @@ starting the file name with a dot (`.`).
 
 ### Subcommands
 
-- Backup: `hoard backup [name] [name] [...]`
+- Backup: `hoard [flags...] backup [name] [name] [...]`
   - Back up the specified hoard(s). If no `name` is specified, all hoards are backed up.
-- Restore: `hoard restore [name] [name] [...]`
+- Restore: `hoard [flags...] restore [name] [name] [...]`
   - Restore the specified hoard(s). If no `name` is specified, all hoards are restored.
-- Help: `hoard help`
-  - View the program's help message.
+- Validate: `hoard [flags...] validate`
+  - Attempt to parse the default configuration file (or the one provided via `--config-file`)
+    Exits with code `0` if the config is valid.
 
 ### Flags
 
-- `--help`: Same as the `help` subcommand.
+- `--help`: View the program's help message.
 - `-V/--version`: Print the version of `hoard`.
 - `-c/--config-file`: Path to (non-default) configuration file.
 - `-h/--hoards-root`: Path to (non-default) hoards root directory.
