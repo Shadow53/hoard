@@ -355,7 +355,7 @@ mod tests {
                 hoards_root: Some(Builder::default_hoard_root()),
                 config_file: Some(Builder::default_config_file()),
                 log_level: Some(Level::Info),
-                command: Some(Command::Help),
+                command: Some(Command::Validate),
                 environments: None,
                 exclusivity: None,
                 hoards: None,
@@ -482,7 +482,7 @@ mod tests {
         fn builder_command_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(None, builder.command, "command should start as None");
-            let cmd = Command::Help;
+            let cmd = Command::Validate;
             builder = builder.set_command(cmd.clone());
             assert_eq!(Some(cmd), builder.command, "command should now be set");
         }
@@ -532,7 +532,7 @@ mod tests {
         #[test]
         fn builder_command_unsets_correctly() {
             let mut builder = Builder::new();
-            let cmd = Command::Help;
+            let cmd = Command::Validate;
             builder = builder.set_command(cmd.clone());
             assert_eq!(Some(cmd), builder.command, "command should start as set");
             builder = builder.unset_command();

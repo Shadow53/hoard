@@ -270,7 +270,7 @@ mod tests {
                     Token::Map { len: None },
                     Token::Str("encrypt"),
                     Token::Str("symmetric"),
-                    Token::Str("password"),
+                    Token::Str("encrypt_pass"),
                     Token::Str("correcthorsebatterystaple"),
                     Token::MapEnd,
                     Token::Str("item1"),
