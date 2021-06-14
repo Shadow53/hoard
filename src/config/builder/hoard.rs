@@ -9,9 +9,11 @@
 //! used.
 
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
+use crate::env_vars::expand_env_in_path;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::env::VarError;
+use std::path::Path;
 use thiserror::Error;
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
@@ -25,6 +27,15 @@ pub enum Error {
     /// Error while evaluating a [`Pile`]'s [`EnvTrie`].
     #[error("error while processing environment requirements: {0}")]
     EnvTrie(#[from] TrieError),
+    /// Error while expanding environment variables in a path.
+    #[error("error while expanding environment variables in {path}: {error}")]
+    ExpandEnv {
+        /// The path being processed.
+        path: String,
+        /// The original error.
+        #[source]
+        error: VarError,
+    },
 }
 
 /// Configuration for symmetric (password) encryption.
@@ -67,7 +78,7 @@ pub struct Config {
 pub struct Pile {
     config: Option<Config>,
     #[serde(flatten)]
-    items: BTreeMap<String, PathBuf>,
+    items: BTreeMap<String, String>,
 }
 
 impl Pile {
@@ -77,6 +88,17 @@ impl Pile {
         exclusivity: &[Vec<String>],
     ) -> Result<ConfigSingle, Error> {
         let Pile { config, items } = self;
+        let items = items
+            .into_iter()
+            .map(|(key, path)| {
+                let path = expand_env_in_path(&path).map_err(|err| Error::ExpandEnv {
+                    path: path.to_string(),
+                    error: err,
+                })?;
+
+                Ok((key, path))
+            })
+            .collect::<Result<_, Error>>()?;
         let trie = EnvTrie::new(&items, exclusivity)?;
         let path = trie.get_path(envs)?.map(Path::to_owned);
 
@@ -152,6 +174,36 @@ impl Hoard {
 mod tests {
     use super::*;
 
+    mod process {
+        use super::*;
+        use crate::config::hoard::Pile as ConfigPile;
+        use maplit::btreemap;
+        use std::path::PathBuf;
+
+        #[test]
+        fn env_vars_are_expanded() {
+            let pile = Pile {
+                config: None,
+                items: btreemap! {
+                    "foo".into() => "${HOME}/something".into()
+                },
+            };
+
+            let home = std::env::var("HOME").expect("failed to read $HOME");
+            let expected = ConfigPile {
+                config: None,
+                path: Some(PathBuf::from(format!("{}/something", home))),
+            };
+
+            let envs = btreemap! { "foo".into() =>  true };
+            let result = pile
+                .process_with(&envs, &[])
+                .expect("pile should process without issues");
+
+            assert_eq!(result, expected);
+        }
+    }
+
     mod serde {
         use super::*;
         use maplit::btreemap;
@@ -162,7 +214,7 @@ mod tests {
             let hoard = Hoard::Single(Pile {
                 config: None,
                 items: btreemap! {
-                    "bar_env|foo_env".to_string() => PathBuf::from("/some/path")
+                    "bar_env|foo_env".to_string() => "/some/path".to_string()
                 },
             });
 
@@ -188,7 +240,7 @@ mod tests {
                     }),
                 }),
                 items: btreemap! {
-                    "bar_env|foo_env".to_string() => PathBuf::from("/some/path")
+                    "bar_env|foo_env".to_string() => "/some/path".to_string()
                 },
             });
 
@@ -219,7 +271,7 @@ mod tests {
                     "item1".to_string() => Pile {
                         config: None,
                         items: btreemap! {
-                            "bar_env|foo_env".to_string() => PathBuf::from("/some/path")
+                            "bar_env|foo_env".to_string() => "/some/path".to_string()
                         }
                     },
                 },
@@ -255,7 +307,7 @@ mod tests {
                     "item1".to_string() => Pile {
                         config: None,
                         items: btreemap! {
-                            "bar_env|foo_env".to_string() => PathBuf::from("/some/path")
+                            "bar_env|foo_env".to_string() => "/some/path".to_string()
                         }
                     },
                 },
