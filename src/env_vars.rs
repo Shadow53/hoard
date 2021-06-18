@@ -12,7 +12,7 @@ use std::path::PathBuf;
 //
 // The `+?` is non-greedy matching, which is necessary for if there are multiple variables.
 static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"\$\{[^(=|\x{0})]+?}"#).expect("failed to compile regular expression")
+    Regex::new(r#"\$\{[^(=|\x{0}|$)]+?}"#).expect("failed to compile regular expression")
 });
 
 /// Takes the input string, expands all environment variables, and returns the
@@ -199,5 +199,13 @@ mod tests {
         env: "TEST_HOME",
         value: "${HOME}",
         expected: PathBuf::from("${HOME}")
+    }
+
+    test_env! {
+        name: var_inside_var,
+        input: "${WRAPPING${TEST_VAR}VARIABLE}",
+        env: "TEST_VAR",
+        value: "_",
+        expected: PathBuf::from("${WRAPPING_VARIABLE}")
     }
 }
