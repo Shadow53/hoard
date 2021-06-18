@@ -45,13 +45,16 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, env::VarError> {
         let value = env::var(var)?;
 
         old_start = start;
-        start = start + mat.start() + value.len() + 1;
+        start += value.len();
         if start > (new_path.len() + value.len() - mat.as_str().len()) {
             start = new_path.len();
         }
 
         let range = mat.range();
         new_path.replace_range(range.start + old_start..range.end + old_start, &value);
+        if start >= new_path.len() {
+            break;
+        }
     }
 
     // Splitting into components and collecting will collapse multiple separators.
@@ -61,76 +64,140 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, env::VarError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::MAIN_SEPARATOR;
 
-    fn get_home_without_starting_sep() -> String {
-        let home = env::var("HOME").expect("failed to find HOME");
-        home.strip_prefix(MAIN_SEPARATOR)
-            .map_or(home.clone(), std::borrow::ToOwned::to_owned)
+    macro_rules! test_env {
+        (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr, require_var: $require_var:literal) => {
+            #[test]
+            #[serial_test::serial]
+            fn $name() {
+                if $require_var && !($input).contains(&format!("${{{}}}", $var)) {
+                    panic!("input string {} doesn't contain variable {}", $input, $var);
+                }
+
+                std::env::set_var($var, $value);
+                let expected: PathBuf = $expected;
+                let result = expand_env_in_path($input).expect("failed to expand env in path");
+                assert_eq!(result, expected);
+            }
+        };
+        (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr) => {
+            test_env!{ name: $name, input: $input, env: $var, value: $value, expected: $expected, require_var: true }
+        };
     }
 
-    #[test]
-    fn path_starting_with_var() {
-        let home = get_home_without_starting_sep();
-        let expected: PathBuf = ["/", &home, "testdir", "testfile"].iter().collect();
-        let result =
-            expand_env_in_path("${HOME}/testdir/testfile").expect("failed to expand env in path");
-        assert_eq!(result, expected);
+    test_env! {
+        name: var_at_start_shorter_than_value,
+        input: "${TEST_HOME}/test/file",
+        env: "TEST_HOME",
+        value: "/home/testuser",
+        expected: PathBuf::from("/home/testuser/test/file")
     }
 
-    #[test]
-    fn path_wrapping_var() {
-        let home = get_home_without_starting_sep();
-        let expected: PathBuf = vec!["/start", &home, "testdir"].into_iter().collect();
-        let result =
-            expand_env_in_path("/start/${HOME}/testdir").expect("failed to expand env in path");
-        assert_eq!(result, expected);
+    test_env! {
+        name: var_in_middle_shorter_than_value,
+        input: "/home/testuser/${TEST_PATH}/file",
+        env: "TEST_PATH",
+        value: "test/subdir/subberdir",
+        expected: PathBuf::from("/home/testuser/test/subdir/subberdir/file")
     }
 
-    #[test]
-    fn path_ending_in_var() {
-        let home = get_home_without_starting_sep();
-        let expected: PathBuf = vec!["/start", "testdir", &home].into_iter().collect();
-        let result =
-            expand_env_in_path("/start/testdir/${HOME}").expect("failed to expand env in path");
-        assert_eq!(result, expected);
+    test_env! {
+        name: var_at_end_shorter_than_value,
+        input: "/home/testuser/${TEST_PATH}",
+        env: "TEST_PATH",
+        value: "test/subdir/file",
+        expected: PathBuf::from("/home/testuser/test/subdir/file")
     }
 
-    #[test]
-    fn path_without_var_stays_same() {
-        let template = "/path/without/variables";
-        let expected = PathBuf::from(template);
-        let result =
-            expand_env_in_path(template).expect("failed to process path without variables");
-        assert_eq!(result, expected);
+    // Same length == var name + ${}
+    test_env! {
+        name: var_at_start_same_length_as_value,
+        input: "${TEST_HOME}/test/file",
+        env: "TEST_HOME",
+        value: "/home/tester",
+        expected: PathBuf::from("/home/tester/test/file")
     }
 
-    #[test]
-    fn path_with_two_variables() {
-        let home = get_home_without_starting_sep();
-        let expected: PathBuf = vec!["/start", &home, "testdir", &home, "end"]
-            .into_iter()
-            .collect();
-        let result = expand_env_in_path("/start/${HOME}/testdir/${HOME}/end")
-            .expect("failed to expand env in path");
-        assert_eq!(result, expected);
+    test_env! {
+        name: var_in_middle_same_length_as_value,
+        input: "/home/testuser/${TEST_PATH}/file",
+        env: "TEST_PATH",
+        value: "/test/folder",
+        expected: PathBuf::from("/home/testuser/test/folder/file")
     }
 
-    #[test]
-    fn path_with_variables_without_braces_not_expanded() {
-        let template = "/path/with/$INVALID/variable";
-        let expected = PathBuf::from(template);
-        let result =
-            expand_env_in_path(template).expect("failed to process path with invalid variable");
-        assert_eq!(result, expected);
+    test_env! {
+        name: var_at_end_same_length_as_value,
+        input: "/home/testuser/${TEST_PATH}",
+        env: "TEST_PATH",
+        value: "testing/file",
+        expected: PathBuf::from("/home/testuser/testing/file")
     }
 
-    #[test]
-    fn path_with_win32_style_variable_not_expanded() {
-        let template = "/path/with/%INVALID%/variable";
-        let expected = PathBuf::from(template);
-        let result =
-            expand_env_in_path(template).expect("failed to process path with invalid variable");
-        assert_eq!(result, expected);
+    test_env! {
+        name: var_at_start_longer_than_value,
+        input: "${TEST_HOME}/test/file",
+        env: "TEST_HOME",
+        value: "/home/test",
+        expected: PathBuf::from("/home/test/test/file")
+    }
+
+    test_env! {
+        name: var_in_middle_longer_than_value,
+        input: "/home/testuser/${TEST_PATH}/file",
+        env: "TEST_PATH",
+        value: "test/dir",
+        expected: PathBuf::from("/home/testuser/test/dir/file")
+    }
+
+    test_env! {
+        name: var_at_end_longer_than_value,
+        input: "/home/testuser/${TEST_PATH}",
+        env: "TEST_PATH",
+        value: "a/file",
+        expected: PathBuf::from("/home/testuser/a/file")
+    }
+
+    test_env! {
+        name: path_without_var_stays_same,
+        input: "/path/without/variables",
+        env: "UNUSED",
+        value: "NOTHING",
+        expected: PathBuf::from("/path/without/variables"),
+        require_var: false
+    }
+
+    test_env! {
+        name: path_with_two_variables,
+        input: "/home/${TEST_USER}/somedir/${TEST_USER}/file",
+        env: "TEST_USER",
+        value: "testuser",
+        expected: PathBuf::from("/home/testuser/somedir/testuser/file")
+    }
+
+    test_env! {
+        name: var_without_braces_not_expanded,
+        input: "/path/with/$INVALID/variable",
+        env: "INVALID",
+        value: "broken",
+        expected: PathBuf::from("/path/with/$INVALID/variable"),
+        require_var: false
+    }
+
+    test_env! {
+        name: var_windows_style_not_expanded,
+        input: "/path/with/%INVALID%/variable",
+        env: "INVALID",
+        value: "broken",
+        expected: PathBuf::from("/path/with/%INVALID%/variable"),
+        require_var: false
+    }
+
+    test_env! {
+        name: vars_not_recursively_expanded,
+        input: "${TEST_HOME}",
+        env: "TEST_HOME",
+        value: "${HOME}",
+        expected: PathBuf::from("${HOME}")
     }
 }
