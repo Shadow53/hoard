@@ -1,32 +1,34 @@
-use env_logger::Builder;
 use hoard::config::Error;
 use hoard::Config;
-use log::LevelFilter;
+use tracing::Level;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 fn error_and_exit(err: Error) -> ! {
-    log::error!("{}", err);
+    tracing::error!("{}", err);
     std::process::exit(1);
 }
 
 fn main() {
     // Set up default logging
-    let mut builder = Builder::new();
-    builder.filter_level(if cfg!(debug_assertions) {
-        LevelFilter::Debug
-    } else {
-        LevelFilter::Info
-    });
-    builder.parse_env("HOARD_LOG");
-    builder.init();
+    let env_filter = EnvFilter::from_env("HOARD_LOG")
+        .add_directive(Level::WARN.into())
+        .add_directive(
+            "hoard=info"
+                .parse()
+                .expect("failed to parse tracing directive"),
+        );
+    FmtSubscriber::builder()
+        .compact()
+        .with_ansi(true)
+        .with_level(true)
+        .with_env_filter(env_filter)
+        .init();
 
     // Get configuration
     let config = match Config::load() {
         Ok(config) => config,
         Err(err) => error_and_exit(err),
     };
-
-    // Use configured log level
-    log::set_max_level(config.log_level.to_level_filter());
 
     // Run command with config
     if let Err(err) = config.run() {

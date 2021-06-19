@@ -22,7 +22,7 @@ impl TryInto<bool> for OperatingSystem {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let OperatingSystem(expected) = self;
-        log::trace!(
+        tracing::trace!(
             "Comparing current operating system ({}) to {}",
             std::env::consts::OS,
             expected

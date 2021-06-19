@@ -124,7 +124,7 @@ impl MultipleEntries {
         let items = items
             .into_iter()
             .map(|(pile, entry)| {
-                log::trace!("Processing pile \"{}\"", pile);
+                tracing::trace!("Processing pile \"{}\"", pile);
                 let mut entry = entry.process_with(envs, exclusivity)?;
                 entry.config = entry.config.or_else(|| config.clone());
                 Ok((pile, entry))

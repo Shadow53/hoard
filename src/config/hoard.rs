@@ -81,7 +81,7 @@ impl Pile {
         }
 
         if src.is_dir() {
-            log::trace!("{} is a directory", src.to_string_lossy());
+            tracing::trace!("{} is a directory", src.to_string_lossy());
 
             let dir_contents = fs::read_dir(src).map_err(|err| Error::ReadDir {
                 path: src.to_owned(),
@@ -98,19 +98,19 @@ impl Pile {
                 Self::copy(&item.path(), &dest)?;
             }
         } else if src.is_file() {
-            log::trace!("{} is a file", src.to_string_lossy());
+            tracing::trace!("{} is a file", src.to_string_lossy());
 
             // Create parent directory only if there is an actual file to copy.
             // Avoids unnecessarily creating empty directories.
             if let Some(parent) = dest.parent() {
-                log::trace!("creating parent directories: {}", parent.to_string_lossy());
+                tracing::trace!("creating parent directories: {}", parent.to_string_lossy());
                 fs::create_dir_all(parent).map_err(|err| Error::CreateDir {
                     path: dest.to_owned(),
                     error: err,
                 })?;
             }
 
-            log::trace!(
+            tracing::trace!(
                 "Copying {} to {}",
                 src.to_string_lossy(),
                 dest.to_string_lossy()
@@ -122,7 +122,7 @@ impl Pile {
                 error: err,
             })?;
         } else {
-            log::warn!("{} is not a file or directory", src.to_string_lossy());
+            tracing::warn!("{} is not a file or directory", src.to_string_lossy());
         }
 
         Ok(())
@@ -139,10 +139,10 @@ impl Pile {
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
         // TODO: do stuff with config
         if let Some(path) = &self.path {
-            log::trace!("Backing up {}", path.to_string_lossy());
+            tracing::trace!("Backing up {}", path.to_string_lossy());
             Self::copy(path, prefix)?;
         } else {
-            log::warn!("Pile has no associated path -- perhaps no environment matched");
+            tracing::warn!("Pile has no associated path -- perhaps no environment matched");
         }
 
         Ok(())
@@ -156,10 +156,10 @@ impl Pile {
     pub fn restore(&self, prefix: &Path) -> Result<(), Error> {
         // TODO: do stuff with config
         if let Some(path) = &self.path {
-            log::trace!("Restoring {}", path.to_string_lossy());
+            tracing::trace!("Restoring {}", path.to_string_lossy());
             Self::copy(prefix, path)?;
         } else {
-            log::warn!("Pile has no associated path -- perhaps no environment matched");
+            tracing::warn!("Pile has no associated path -- perhaps no environment matched");
         }
 
         Ok(())
@@ -181,7 +181,7 @@ impl MultipleEntries {
     /// See [`Pile::backup`].
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
         for (name, entry) in &self.piles {
-            log::trace!("Backing up pile {}", name);
+            tracing::trace!("Backing up pile {}", name);
             let sub_prefix = prefix.join(name);
             entry.backup(&sub_prefix)?;
         }
@@ -196,7 +196,7 @@ impl MultipleEntries {
     /// See [`Pile::restore`].
     pub fn restore(&self, prefix: &Path) -> Result<(), Error> {
         for (name, entry) in &self.piles {
-            log::trace!("Restoring pile {}", name);
+            tracing::trace!("Restoring pile {}", name);
             let sub_prefix = prefix.join(name);
             entry.restore(&sub_prefix)?;
         }

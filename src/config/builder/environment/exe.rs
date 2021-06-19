@@ -19,7 +19,7 @@ impl TryInto<bool> for ExeExists {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let ExeExists(exe) = self;
-        log::trace!("Checking if {} exists in $PATH", exe);
+        tracing::trace!("Checking if {} exists in $PATH", exe);
         match which::which(exe) {
             Ok(_) => Ok(true),
             Err(err) => match err {

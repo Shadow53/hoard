@@ -20,13 +20,13 @@ impl TryInto<bool> for EnvVariable {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let EnvVariable { var, expected } = self;
-        log::trace!("Checking ENV variable: {}", var);
+        tracing::trace!("Checking ENV variable: {}", var);
         let result = match std::env::var_os(&var) {
             None => false,
             Some(val) => match expected {
                 None => true,
                 Some(expected_val) => {
-                    log::trace!("Checking if ${} == {}", var, expected_val);
+                    tracing::trace!("Checking if ${} == {}", var, expected_val);
                     val == expected_val.as_str()
                 }
             },
