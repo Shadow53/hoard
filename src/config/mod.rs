@@ -4,7 +4,6 @@ pub use self::builder::Builder;
 use self::hoard::Hoard;
 use crate::command::Command;
 use directories::ProjectDirs;
-use log::Level;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -15,7 +14,7 @@ pub mod hoard;
 /// Get the project directories for this project.
 #[must_use]
 pub fn get_dirs() -> ProjectDirs {
-    log::trace!("Determining project default folders");
+    tracing::trace!("determining project default folders");
     ProjectDirs::from("com", "shadow53", "hoard")
         .expect("could not detect user home directory to place program files")
 }
@@ -54,8 +53,6 @@ pub enum Error {
 /// To create a configuration, use [`Builder`] instead.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
-    /// The configured logging level.
-    pub log_level: Level,
     /// The command to run.
     pub command: Command,
     /// The root directory to backup/restore hoards from.
@@ -68,7 +65,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        log::trace!("Creating default Config");
+        tracing::trace!("creating default config");
         // Calling [`Builder::unset_hoards`] to ensure there is no panic
         // when `expect`ing
         Self::builder()
@@ -94,11 +91,11 @@ impl Config {
     ///
     /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
     pub fn load() -> Result<Self, Error> {
-        log::info!("Loading configuration...");
+        tracing::info!("loading configuration...");
         let config = Builder::from_args_then_file()
             .map(Builder::build)?
             .map_err(Error::Builder)?;
-        log::info!("Configuration loaded.");
+        tracing::info!("loaded configuration.");
         Ok(config)
     }
 
@@ -117,11 +114,11 @@ impl Config {
     #[must_use]
     fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a String> {
         if hoards.is_empty() {
-            log::debug!("No hoard names provided. Acting on all of them.");
+            tracing::debug!("no hoard names provided, acting on all of them.");
             self.hoards.keys().collect()
         } else {
-            log::debug!("Using hoard names provided on CLI");
-            log::trace!("--> {:?}", hoards);
+            tracing::debug!("using hoard names provided on cli");
+            tracing::trace!(?hoards);
             hoards.iter().collect()
         }
     }
@@ -143,16 +140,19 @@ impl Config {
     ///
     /// Any [`enum@Error`] that might happen while running the command.
     pub fn run(&self) -> Result<(), Error> {
+        tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Validate => {
-                log::info!("Configuration is valid.")
+                tracing::info!("configuration is valid")
             }
             Command::Backup { hoards } => {
                 let hoards = self.get_hoards(&hoards);
                 for name in hoards {
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
-                    log::info!("Backing up hoard {}", name);
+
+                    tracing::info!(hoard = %name, "backing up hoard");
+                    let _span = tracing::info_span!("backup", hoard = %name).entered();
                     hoard.backup(&prefix).map_err(|error| Error::Backup {
                         name: name.clone(),
                         error,
@@ -164,7 +164,9 @@ impl Config {
                 for name in hoards {
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
-                    log::info!("Restoring hoard {}", name);
+
+                    tracing::info!(hoard = %name, "restoring hoard");
+                    let _span = tracing::info_span!("restore", hoard = %name).entered();
                     hoard.restore(&prefix).map_err(|error| Error::Restore {
                         name: name.clone(),
                         error,

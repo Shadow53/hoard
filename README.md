@@ -36,13 +36,11 @@ starting the file name with a dot (`.`).
 - `-V/--version`: Print the version of `hoard`.
 - `-c/--config-file`: Path to (non-default) configuration file.
 - `-h/--hoards-root`: Path to (non-default) hoards root directory.
-- `-l/--log-level`: Logging level to use.
 
 ### Verbosity
 
 Output verbosity is controlled by the logging level. You can set the logging level with the
-`-l/--log-level` flag or the `HOARD_LOG` environment variable. In both cases, valid values
-(in decreasing verbosity) are:
+`HOARD_LOG` environment variable. Valid values (in decreasing verbosity) are:
 
 - `trace`
 - `debug`

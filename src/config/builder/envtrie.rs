@@ -58,18 +58,30 @@ fn merge_two_trees(
     mut acc: BTreeMap<String, Node>,
     other: BTreeMap<String, Node>,
 ) -> Result<BTreeMap<String, Node>, Error> {
+    let _span = tracing::trace_span!("merge_two_trees", left = ?acc, right = ?other).entered();
+    tracing::trace!("merging two trees");
     for (key, val) in other {
+        let _span = tracing::trace_span!("merge_tree_node", %key).entered();
         let prev = acc.remove(&key);
         let node = match prev {
-            None => val,
-            Some(prev) => prev.merge_with(val)?,
+            None => {
+                tracing::trace!("key only exists in other tree: moving",);
+                val
+            }
+            Some(prev) => {
+                tracing::trace!("key exists in both trees: merging");
+                prev.merge_with(val)?
+            }
         };
+        tracing::trace!(?node, "inserting merged node for key {} into tree", key);
         acc.insert(key, node);
     }
 
     Ok(acc)
 }
 
+#[derive(Clone, Debug, PartialEq)]
+#[allow(single_use_lifetimes)]
 struct Evaluation<'a> {
     name: String,
     path: Option<&'a Path>,
@@ -79,6 +91,7 @@ struct Evaluation<'a> {
 
 impl Node {
     fn merge_with(self, other: Node) -> Result<Node, Error> {
+        let _span = tracing::trace_span!("merge_nodes", left = ?self, right = ?other).entered();
         if let (Some(first), Some(second)) = (&self.value, &other.value) {
             // Make order of paths deterministic
             #[cfg(test)]
@@ -91,17 +104,26 @@ impl Node {
             return Err(Error::DoubleDefine(first.clone(), second.clone()));
         }
 
+        tracing::trace!("getting merged value, preferring left");
         let value = self.value.or(other.value);
 
         let tree = if self.tree.is_none() || other.tree.is_none() {
+            tracing::trace!(
+                left_tree = ?self.tree,
+                right_tree = ?other.tree,
+                "do not need to merge subtrees"
+            );
             self.tree.or(other.tree)
         } else {
+            tracing::trace!("both nodes have subtrees: merging");
+            // Unwrap is safe because the above if checked for None
             let self_tree = self.tree.unwrap();
             let other_tree = other.tree.unwrap();
 
             Some(merge_two_trees(self_tree, other_tree)?)
         };
 
+        tracing::trace!("nodes are merged");
         Ok(Node {
             name: self.name,
             score: self.score,
@@ -111,6 +133,9 @@ impl Node {
     }
 
     fn get_evaluation(&self, envs: &BTreeMap<String, bool>) -> Result<Evaluation, Error> {
+        let _span = tracing::trace_span!("evaluate_node", node = ?self, ?envs).entered();
+
+        // Default evaluation if subtree does not exist
         let mut eval = Evaluation {
             name: self.name.clone(),
             path: self.value.as_ref().map(PathBuf::as_ref),
@@ -119,17 +144,26 @@ impl Node {
         };
 
         if let Some(tree) = &self.tree {
+            let _span = tracing::trace_span!("evaluating_subtree", subtree = ?tree).entered();
             for (name, node) in tree {
+                let _span = tracing::trace_span!(
+                    "evaluating_subtree_node",
+                    %name,
+                    ?node
+                )
+                .entered();
                 // Ignore non-matching envs.
                 // Error on environments that don't exist.
                 if !envs
                     .get(name)
-                    .cloned()
+                    .copied()
                     .ok_or_else(|| Error::EnvironmentNotExist(name.clone()))?
                 {
+                    tracing::trace!("environment {} does not match; skipping", name);
                     continue;
                 }
 
+                // Get evaluation of child node
                 let node_eval = match node.get_evaluation(envs) {
                     Ok(node_eval) => node_eval,
                     Err(err) => match err {
@@ -159,12 +193,26 @@ impl Node {
                         if node_eval.len > eval.len
                             || (node_eval.len == eval.len && node_eval.score > eval.score)
                         {
+                            tracing::trace!(
+                                old_eval = ?eval,
+                                new_eval = ?node_eval,
+                                "found child node with a better match"
+                            );
+
                             // Greater length takes precedence, otherwise use score.
                             eval.path = node_eval.path;
                             eval.score = node_eval.score + self.score;
-                            eval.len += node_eval.len;
+                            // Add this node to the chain
+                            eval.len = node_eval.len + 1;
                         } else if node_eval.len == eval.len && node_eval.score == eval.score {
                             // If length and score are same, cannot choose
+                            tracing::error!(
+                                left_eval = ?node_eval,
+                                right_eval = ?eval,
+                                "cannot choose between {} and {}",
+                                node_eval.name,
+                                eval.name
+                            );
                             return Err(Error::Indecision(eval.name, name.clone()));
                         }
                         // Otherwise, keep current one.
@@ -177,6 +225,7 @@ impl Node {
     }
 
     fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+        tracing::trace!("evaluating envtrie for best matching path");
         let Evaluation { path, .. } = self.get_evaluation(envs)?;
         Ok(path)
     }
@@ -196,13 +245,17 @@ pub struct EnvTrie(Node);
 const ENV_SEPARATOR: char = '|';
 
 fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(), Error> {
+    let _span = tracing::trace_span!("validate_environment_strings", ?environments).entered();
     for (key, _) in environments.iter() {
+        tracing::trace_span!("check_env_str", env_str = %key);
         if key.is_empty() {
+            tracing::error!("environment string is empty");
             return Err(Error::NoEnvironments);
         }
 
         for env in key.split(ENV_SEPARATOR) {
             if env.is_empty() {
+                tracing::error!("environment string contains empty component");
                 return Err(Error::EmptyEnvironment(key.to_string()));
             }
         }
@@ -212,6 +265,13 @@ fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(),
 }
 
 fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, usize>, Error> {
+    let _span = tracing::trace_span!(
+        "get_weighted_map",
+        exclusivity = ?exclusive_list
+    )
+    .entered();
+
+    tracing::trace!("calculating environment weights from exclusivity lists");
     let mut score_dag = DiGraph::<String, ()>::new();
 
     for list in exclusive_list.iter() {
@@ -248,7 +308,7 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
         })
 }
 
-fn merge_hashmaps(
+fn merge_maps(
     mut map1: BTreeMap<String, HashSet<String>>,
     map2: BTreeMap<String, HashSet<String>>,
 ) -> BTreeMap<String, HashSet<String>> {
@@ -265,6 +325,15 @@ fn merge_hashmaps(
 }
 
 fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, HashSet<String>> {
+    let _span = tracing::trace_span!(
+        "get_exclusivity_map",
+        exclusivity = ?exclusivity_list
+    )
+    .entered();
+
+    tracing::trace!(
+        "creating a mapping of environment names to mutually exclusive other environments"
+    );
     exclusivity_list
         .iter()
         .map(|list| {
@@ -272,7 +341,7 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, Has
                 .map(|item| (item.clone(), list.iter().cloned().collect()))
                 .collect()
         })
-        .reduce(merge_hashmaps)
+        .reduce(merge_maps)
         .unwrap_or_else(BTreeMap::new)
 }
 
@@ -286,18 +355,26 @@ impl EnvTrie {
         environments: &BTreeMap<String, PathBuf>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
+        let _span =
+            tracing::trace_span!("create_envtrie", ?environments, ?exclusive_list).entered();
+        tracing::trace!("creating a new envtrie");
+
         validate_environments(environments)?;
         let weighted_map = get_weighted_map(exclusive_list)?;
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
+        tracing::trace!("building trees for each environment string");
         let trees: Vec<_> = environments
             .iter()
             .map(|(env_str, path)| {
+                let _span =
+                    tracing::trace_span!("process_env_string", string = %env_str, path = path.to_string_lossy().as_ref()).entered();
                 let mut envs: Vec<&str> = env_str.split(ENV_SEPARATOR).collect();
                 envs.sort_unstable();
 
                 // Check for mutually exclusive items
+                tracing::trace!("checking for mutually exclusive items");
                 for (i, env1) in envs.iter().enumerate() {
                     for env2 in envs.iter().skip(i + 1) {
                         if let Some(set) = exclusivity_map.get(*env1) {
@@ -317,10 +394,11 @@ impl EnvTrie {
                 };
 
                 // Reverse-build a linked list
+                tracing::trace!("building environment tree");
                 for segment in envs.into_iter().rev() {
                     let segment = segment.to_string();
 
-                    let score = weighted_map.get(&segment).cloned().unwrap_or(1);
+                    let score = weighted_map.get(&segment).copied().unwrap_or(1);
                     prev_node.name = segment.clone();
                     let tree = {
                         let mut tree = BTreeMap::new();
@@ -343,6 +421,7 @@ impl EnvTrie {
         let mut tree_iter = trees.into_iter();
         let first = tree_iter.next().ok_or(Error::NoEnvironments);
 
+        tracing::trace!("merging trees into a single trie");
         tree_iter
             .fold(first, |acc, node| {
                 // TODO: Use result flattening when stable
@@ -361,6 +440,11 @@ impl EnvTrie {
     /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
     ///   `environments` argument.
     pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+        tracing::trace!(
+            trie = ?self,
+            ?environments,
+            "getting best matching path with given environments"
+        );
         let EnvTrie(node) = self;
         node.get_highest_path(environments)
     }

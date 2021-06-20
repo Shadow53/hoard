@@ -20,14 +20,14 @@ impl TryInto<bool> for EnvVariable {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let EnvVariable { var, expected } = self;
-        log::trace!("Checking ENV variable: {}", var);
+        tracing::trace!(%var, "checking if environment variable exists");
         let result = match std::env::var_os(&var) {
             None => false,
             Some(val) => match expected {
                 None => true,
-                Some(expected_val) => {
-                    log::trace!("Checking if ${} == {}", var, expected_val);
-                    val == expected_val.as_str()
+                Some(expected) => {
+                    tracing::trace!(%var, %expected, "checking if variable matches expected value");
+                    val == expected.as_str()
                 }
             },
         };
@@ -39,35 +39,38 @@ impl TryInto<bool> for EnvVariable {
 impl fmt::Display for EnvVariable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.expected {
-            None => write!(f, "ENV ${} IS SET", self.var),
-            Some(expected) => write!(f, "ENV ${} == \"{}\"", self.var, expected),
+            None => write!(f, "ENV ${{{}}} IS SET", self.var),
+            Some(expected) => write!(f, "ENV ${{{}}} == \"{}\"", self.var, expected),
         }
     }
 }
 
-#[cfg(all(test, feature = "single-threaded-tests"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    #[serial_test::serial]
     fn test_display_env_no_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
             expected: None,
         };
-        assert_eq!("ENV $TESTING_VAR IS SET", env.to_string());
+        assert_eq!("ENV ${TESTING_VAR} IS SET", env.to_string());
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_display_env_with_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
             expected: Some("testing value".to_string()),
         };
-        assert_eq!("ENV $TESTING_VAR == \"testing value\"", env.to_string());
+        assert_eq!("ENV ${TESTING_VAR} == \"testing value\"", env.to_string());
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_set() {
         for (var, _) in std::env::vars() {
             let is_set: bool = EnvVariable {
@@ -81,6 +84,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_set_to_value() {
         for (var, val) in std::env::vars() {
             let is_set: bool = EnvVariable {
@@ -94,6 +98,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_not_set() {
         for (var, val) in std::env::vars() {
             std::env::remove_var(&var);
@@ -109,6 +114,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_not_set_to_value() {
         for (var, val) in std::env::vars() {
             std::env::set_var(&var, format!("{}_invalid", val));

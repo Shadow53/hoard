@@ -16,6 +16,7 @@ pub use self::hostname::Hostname;
 pub use self::os::OperatingSystem;
 pub use self::path::PathExists;
 use std::convert::{Infallible, TryInto};
+use std::fmt;
 
 /// Errors that may occur while evaluating an [`Environment`].
 #[derive(Debug, Error)]
@@ -76,6 +77,49 @@ pub struct Environment {
     path_exists: Option<Combinator<PathExists>>,
 }
 
+impl fmt::Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut has_previous = false;
+
+        if let Some(hostname) = &self.hostname {
+            has_previous = true;
+            write!(f, "({})", hostname)?;
+        }
+
+        if let Some(os) = &self.os {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            has_previous = true;
+            write!(f, "({})", os)?;
+        }
+
+        if let Some(env) = &self.env {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            has_previous = true;
+            write!(f, "({})", env)?;
+        }
+
+        if let Some(exe_exists) = &self.exe_exists {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            has_previous = true;
+            write!(f, "({})", exe_exists)?;
+        }
+
+        if let Some(path_exists) = &self.path_exists {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            write!(f, "({})", path_exists)?;
+        }
+
+        Ok(())
+    }
+}
 // Note to self: this is a good candidate for a derive macro
 // if Combinator is put into its own library
 impl TryInto<bool> for Environment {
@@ -148,6 +192,46 @@ impl Default for Environment {
 mod tests {
     use super::*;
     use crate::combinator::Inner;
+
+    mod display {
+        use super::*;
+
+        #[test]
+        fn test_display_with_none() {
+            assert_eq!(Environment::default().to_string(), String::new());
+        }
+
+        #[test]
+        fn test_display_with_all() {
+            let hostname = Hostname("hostname.one".into());
+            let os = OperatingSystem("linux".into());
+            let env_var = EnvVariable {
+                var: "TEST_VARIABLE".to_string(),
+                expected: None,
+            };
+            let exe_exists = ExeExists("test".into());
+            let path_exists = PathExists("/test/path".into());
+
+            let env = Environment {
+                hostname: Some(Combinator(vec![Inner::Single(hostname.clone())])),
+                os: Some(Combinator(vec![Inner::Single(os.clone())])),
+                env: Some(Combinator(vec![Inner::Single(env_var.clone())])),
+                exe_exists: Some(Combinator(vec![Inner::Single(exe_exists.clone())])),
+                path_exists: Some(Combinator(vec![Inner::Single(path_exists.clone())])),
+            };
+
+            let expected = vec![
+                format!("({})", hostname),
+                format!("({})", os),
+                format!("({})", env_var),
+                format!("({})", exe_exists),
+                format!("({})", path_exists),
+            ]
+            .join(" AND ");
+
+            assert_eq!(env.to_string(), expected);
+        }
+    }
 
     mod validate_hostname {
         use super::*;

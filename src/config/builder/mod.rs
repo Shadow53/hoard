@@ -5,9 +5,6 @@ use std::convert::TryInto;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use log::Level;
-use serde::de::{Deserializer, Error as DeserializeError, Visitor};
-use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -24,55 +21,6 @@ use super::Config;
 pub mod environment;
 pub mod envtrie;
 pub mod hoard;
-
-struct LevelVisitor;
-
-impl<'de> Visitor<'de> for LevelVisitor {
-    type Value = Option<Level>;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(formatter, "A valid log level")
-    }
-
-    fn visit_str<E: DeserializeError>(self, s: &str) -> Result<Self::Value, E> {
-        Ok(Some(
-            s.parse::<Level>()
-                .map_err(|err| E::custom(err.to_string()))?,
-        ))
-    }
-
-    fn visit_none<E: DeserializeError>(self) -> Result<Option<Level>, E> {
-        Ok(None)
-    }
-
-    fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        deserializer.deserialize_str(self)
-    }
-}
-
-#[allow(single_use_lifetimes)]
-fn deserialize_level<'de, D>(deserializer: D) -> Result<Option<Level>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    deserializer.deserialize_option(LevelVisitor)
-}
-
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn serialize_level<S>(level: &Option<Level>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match level {
-        None => serializer.serialize_none(),
-        Some(level) => serializer.serialize_str(level.to_string().as_str()),
-    }
-}
-
-#[allow(clippy::unnecessary_wraps)]
-fn default_level() -> Option<Level> {
-    Some(Level::Info)
-}
 
 /// Errors that can happen when using a [`Builder`].
 #[derive(Debug, Error)]
@@ -107,13 +55,6 @@ pub struct Builder {
     #[structopt(short, long)]
     #[serde(skip)]
     config_file: Option<PathBuf>,
-    #[structopt(short, long)]
-    #[serde(
-        deserialize_with = "deserialize_level",
-        serialize_with = "serialize_level",
-        default = "default_level"
-    )]
-    log_level: Option<Level>,
     #[serde(skip)]
     #[structopt(subcommand)]
     command: Option<Command>,
@@ -130,11 +71,13 @@ impl Default for Builder {
 impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
+        tracing::debug!("getting default configuration file");
         super::get_dirs().config_dir().join(CONFIG_FILE_NAME)
     }
 
     /// Returns the default location for storing hoards.
     fn default_hoard_root() -> PathBuf {
+        tracing::debug!("getting default hoard root");
         super::get_dirs().data_dir().join(HOARDS_DIR_SLUG)
     }
 
@@ -144,12 +87,11 @@ impl Builder {
     /// [`Config`] will have all default values.
     #[must_use]
     pub fn new() -> Self {
-        log::trace!("Creating new config builder");
+        tracing::trace!("creating new config builder");
         Self {
             hoards: None,
             hoards_root: None,
             config_file: None,
-            log_level: None,
             command: None,
             environments: None,
             exclusivity: None,
@@ -162,7 +104,7 @@ impl Builder {
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
-        log::debug!("Reading configuration from \"{}\"", path.to_string_lossy());
+        tracing::debug!("reading configuration from \"{}\"", path.to_string_lossy());
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
         toml::from_str(&s).map_err(Error::DeserializeConfig)
     }
@@ -174,39 +116,43 @@ impl Builder {
     ///
     /// See [`Builder::from_file`]
     pub fn from_args_then_file() -> Result<Self, Error> {
-        log::debug!("Loading configuration from CLI arguments");
+        tracing::debug!("loading configuration from cli arguments");
         let from_args = Self::from_args();
 
-        log::trace!("Attempting to get configuration file from CLI arguments or use default");
+        tracing::trace!("attempting to get configuration file from cli arguments or use default");
         let config_file = from_args
             .config_file
             .clone()
             .unwrap_or_else(Self::default_config_file);
 
-        log::trace!(
-            "Configuration file is \"{}\"",
+        tracing::trace!(
+            ?config_file,
+            "configuration file is \"{}\"",
             config_file.to_string_lossy()
         );
 
         let from_file = Self::from_file(&config_file)?;
 
-        log::debug!("Merging configuration file and CLI arguments");
+        tracing::debug!("merging configuration file and cli arguments");
         Ok(from_file.layer(from_args))
     }
 
     /// Applies all configured values in `other` over those in *this* `ConfigBuilder`.
     #[must_use]
     pub fn layer(mut self, other: Self) -> Self {
+        let _span = tracing::trace_span!(
+            "layering_config_builders",
+            top_layer = ?other,
+            bottom_layer = ?self
+        )
+        .entered();
+
         if let Some(path) = other.hoards_root {
             self = self.set_hoards_root(path);
         }
 
         if let Some(path) = other.config_file {
             self = self.set_config_file(path);
-        }
-
-        if let Some(path) = other.log_level {
-            self = self.set_log_level(path);
         }
 
         if let Some(path) = other.command {
@@ -219,6 +165,7 @@ impl Builder {
     /// Set the hoards map.
     #[must_use]
     pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
+        tracing::trace!(?hoards, "setting hoards");
         self.hoards = Some(hoards);
         self
     }
@@ -226,6 +173,10 @@ impl Builder {
     /// Set the directory that will contain all game save data.
     #[must_use]
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
+        tracing::trace!(
+            hoards_root = ?path,
+            "setting hoards root",
+        );
         self.hoards_root = Some(path);
         self
     }
@@ -236,20 +187,18 @@ impl Builder {
     /// instead, which will actually read and parse the file.
     #[must_use]
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
+        tracing::trace!(
+            config_file = ?path,
+            "setting config file",
+        );
         self.config_file = Some(path);
-        self
-    }
-
-    /// Set the log level.
-    #[must_use]
-    pub fn set_log_level(mut self, level: Level) -> Self {
-        self.log_level = Some(level);
         self
     }
 
     /// Set the command that will be run.
     #[must_use]
     pub fn set_command(mut self, cmd: Command) -> Self {
+        tracing::trace!(command = ?cmd, "setting command");
         self.command = Some(cmd);
         self
     }
@@ -257,6 +206,7 @@ impl Builder {
     /// Unset the hoards map
     #[must_use]
     pub fn unset_hoards(mut self) -> Self {
+        tracing::trace!("unsetting hoards");
         self.hoards = None;
         self
     }
@@ -264,6 +214,7 @@ impl Builder {
     /// Unset the directory that will contain all game save data.
     #[must_use]
     pub fn unset_hoards_root(mut self) -> Self {
+        tracing::trace!("unsetting hoards root");
         self.hoards_root = None;
         self
     }
@@ -271,20 +222,15 @@ impl Builder {
     /// Unset the file that contains configuration.
     #[must_use]
     pub fn unset_config_file(mut self) -> Self {
+        tracing::trace!("unsetting config file");
         self.config_file = None;
-        self
-    }
-
-    /// Unset the log level.
-    #[must_use]
-    pub fn unset_log_level(mut self) -> Self {
-        self.log_level = None;
         self
     }
 
     /// Unset the command that will be run.
     #[must_use]
     pub fn unset_command(mut self) -> Self {
+        tracing::trace!("unsetting command");
         self.command = None;
         self
     }
@@ -298,7 +244,13 @@ impl Builder {
     fn evaluated_environments(
         &self,
     ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
-        log::trace!("Evaluating raw environments: {:#?}", self.environments);
+        let _span = tracing::trace_span!("eval_env").entered();
+        if let Some(envs) = &self.environments {
+            for (key, env) in envs {
+                tracing::trace!(%key, %env);
+            }
+        }
+
         self.environments.as_ref().map_or_else(
             || Ok(BTreeMap::new()),
             |map| {
@@ -315,26 +267,30 @@ impl Builder {
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
     pub fn build(self) -> Result<Config, Error> {
-        log::trace!("Building configuration from {:#?}", self);
+        tracing::debug!("building configuration from builder");
         let environments = self.evaluated_environments()?;
-        log::trace!("--> environments: {:#?}", environments);
+        tracing::debug!(?environments);
         let exclusivity = self.exclusivity.unwrap_or_else(Vec::new);
-        log::trace!("--> exclusivity: {:#?}", exclusivity);
+        tracing::debug!(?exclusivity);
         let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
-        log::trace!("--> config file: {}", hoards_root.to_string_lossy());
+        tracing::debug!(?hoards_root);
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
-        log::trace!("--> config file: {}", config_file.to_string_lossy());
-        let log_level = self.log_level.unwrap_or(log::Level::Info);
+        tracing::debug!(?config_file);
         let command = self.command.unwrap_or_else(Command::default);
+
+        tracing::debug!("processing hoards...");
         let hoards = self
             .hoards
             .unwrap_or_else(BTreeMap::new)
             .into_iter()
-            .map(|(name, hoard)| Ok((name, hoard.process_with(&environments, &exclusivity)?)))
+            .map(|(name, hoard)| {
+                let _span = tracing::debug_span!("processing_hoard", %name).entered();
+                Ok((name, hoard.process_with(&environments, &exclusivity)?))
+            })
             .collect::<Result<_, Error>>()?;
+        tracing::debug!("processed hoards");
 
         Ok(Config {
-            log_level,
             command,
             hoards_root,
             config_file,
@@ -354,7 +310,6 @@ mod tests {
             Builder {
                 hoards_root: Some(Builder::default_hoard_root()),
                 config_file: Some(Builder::default_config_file()),
-                log_level: Some(Level::Info),
                 command: Some(Command::Validate),
                 environments: None,
                 exclusivity: None,
@@ -366,7 +321,6 @@ mod tests {
             Builder {
                 hoards_root: Some(PathBuf::from("/testing/saves")),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
-                log_level: Some(Level::Debug),
                 command: Some(Command::Restore {
                     hoards: vec!["test".into()],
                 }),
@@ -386,7 +340,6 @@ mod tests {
             let expected = Builder {
                 hoards_root: None,
                 config_file: None,
-                log_level: None,
                 command: None,
                 environments: None,
                 hoards: None,
@@ -466,19 +419,6 @@ mod tests {
         }
 
         #[test]
-        fn builder_log_level_sets_correctly() {
-            let mut builder = Builder::new();
-            assert_eq!(None, builder.log_level, "log_level should start as None");
-            let level = Level::Debug;
-            builder = builder.set_log_level(level);
-            assert_eq!(
-                Some(level),
-                builder.log_level,
-                "log_level should now be set"
-            );
-        }
-
-        #[test]
         fn builder_command_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(None, builder.command, "command should start as None");
@@ -516,20 +456,6 @@ mod tests {
         }
 
         #[test]
-        fn builder_log_level_unsets_correctly() {
-            let mut builder = Builder::new();
-            let level = Level::Debug;
-            builder = builder.set_log_level(level);
-            assert_eq!(
-                Some(level),
-                builder.log_level,
-                "log_level should start as set"
-            );
-            builder = builder.unset_log_level();
-            assert_eq!(None, builder.log_level, "log_level should now be None");
-        }
-
-        #[test]
         fn builder_command_unsets_correctly() {
             let mut builder = Builder::new();
             let cmd = Command::Validate;
@@ -548,7 +474,6 @@ mod tests {
 
             assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
-            assert_eq!(Some(config.log_level), builder.log_level);
             assert_eq!(Some(config.command), builder.command);
         }
 
@@ -559,7 +484,6 @@ mod tests {
 
             assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
-            assert_eq!(Some(config.log_level), builder.log_level);
             assert_eq!(Some(config.command), builder.command);
         }
     }

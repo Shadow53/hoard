@@ -1,32 +1,58 @@
-use env_logger::Builder;
-use hoard::config::Error;
 use hoard::Config;
-use log::LevelFilter;
+use std::io::Stdout;
+use tracing::level_filters::LevelFilter;
+use tracing::Level;
+use tracing_subscriber::fmt::format::{Format, Pretty};
+use tracing_subscriber::fmt::SubscriberBuilder;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-fn error_and_exit(err: Error) -> ! {
-    log::error!("{}", err);
+const LOG_ENV: &str = "HOARD_LOG";
+
+fn error_and_exit<E: std::error::Error>(err: E) -> ! {
+    // Ignore error if default subscriber already exists
+    // This just helps ensure that logging happens and is
+    // consistent.
+    let _ = get_subscriber().try_init();
+    tracing::error!("{}", err);
     std::process::exit(1);
+}
+
+type Subscriber = SubscriberBuilder<Pretty, Format<Pretty, ()>, LevelFilter, fn() -> Stdout>;
+fn get_subscriber() -> Subscriber {
+    FmtSubscriber::builder()
+        .pretty()
+        .with_ansi(true)
+        .with_level(true)
+        .with_target(false)
+        .without_time()
+        .with_max_level(if cfg!(debug_assertions) {
+            Level::DEBUG
+        } else {
+            Level::INFO
+        })
 }
 
 fn main() {
     // Set up default logging
-    let mut builder = Builder::new();
-    builder.filter_level(if cfg!(debug_assertions) {
-        LevelFilter::Debug
-    } else {
-        LevelFilter::Info
-    });
-    builder.parse_env("HOARD_LOG");
-    builder.init();
+    // There is no obvious way to set up a default logging level in case the env
+    // isn't set, so use this match thing instead.
+    let subscriber = get_subscriber();
+    match std::env::var_os(LOG_ENV) {
+        Some(_) => match EnvFilter::try_from_env(LOG_ENV) {
+            Err(err) => error_and_exit(err),
+            Ok(filter) => subscriber
+                .with_env_filter(filter)
+                .with_filter_reloading()
+                .init(),
+        },
+        None => subscriber.init(),
+    };
 
     // Get configuration
     let config = match Config::load() {
         Ok(config) => config,
         Err(err) => error_and_exit(err),
     };
-
-    // Use configured log level
-    log::set_max_level(config.log_level.to_level_filter());
 
     // Run command with config
     if let Err(err) = config.run() {

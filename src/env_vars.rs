@@ -39,9 +39,12 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, env::VarError> {
     let mut start: usize = 0;
     let mut old_start: usize;
 
+    let _span = tracing::debug_span!("expand_env_in_path", %path).entered();
+
     while let Some(mat) = ENV_REGEX.find(&new_path[start..]) {
         let var = mat.as_str();
         let var = &var[2..var.len() - 1];
+        tracing::trace!(var, "found environment variable {}", var,);
         let value = env::var(var)?;
 
         old_start = start;
@@ -51,6 +54,12 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, env::VarError> {
         }
 
         let range = mat.range();
+        tracing::trace!(
+            var,
+            path = %new_path,
+            %value,
+            "expanding first instance of variable in path"
+        );
         new_path.replace_range(range.start + old_start..range.end + old_start, &value);
         if start >= new_path.len() {
             break;

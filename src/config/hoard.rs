@@ -69,6 +69,13 @@ impl Pile {
     ///
     /// Various sorts of I/O errors as the different [`Error`] variants.
     fn copy(src: &Path, dest: &Path) -> Result<(), Error> {
+        let _span = tracing::trace_span!(
+            "copy",
+            source = ?src,
+            destination = ?dest
+        )
+        .entered();
+
         // Fail if src and dest exist but are not both file or directory.
         if src.exists() == dest.exists()
             && src.is_dir() != dest.is_dir()
@@ -81,7 +88,7 @@ impl Pile {
         }
 
         if src.is_dir() {
-            log::trace!("{} is a directory", src.to_string_lossy());
+            let _span = tracing::trace_span!("is_directory").entered();
 
             let dir_contents = fs::read_dir(src).map_err(|err| Error::ReadDir {
                 path: src.to_owned(),
@@ -95,25 +102,29 @@ impl Pile {
                 })?;
 
                 let dest = dest.join(item.file_name());
+                // No tracing event here because we are recursing
                 Self::copy(&item.path(), &dest)?;
             }
         } else if src.is_file() {
-            log::trace!("{} is a file", src.to_string_lossy());
+            let _span = tracing::trace_span!("is_file").entered();
 
             // Create parent directory only if there is an actual file to copy.
             // Avoids unnecessarily creating empty directories.
             if let Some(parent) = dest.parent() {
-                log::trace!("creating parent directories: {}", parent.to_string_lossy());
+                tracing::trace!(
+                    destination = src.to_string_lossy().as_ref(),
+                    "ensuring parent directories for destination",
+                );
                 fs::create_dir_all(parent).map_err(|err| Error::CreateDir {
                     path: dest.to_owned(),
                     error: err,
                 })?;
             }
 
-            log::trace!(
-                "Copying {} to {}",
-                src.to_string_lossy(),
-                dest.to_string_lossy()
+            tracing::debug!(
+                source = src.to_string_lossy().as_ref(),
+                destination = dest.to_string_lossy().as_ref(),
+                "copying",
             );
 
             fs::copy(src.to_owned(), dest).map_err(|err| Error::CopyFile {
@@ -122,7 +133,10 @@ impl Pile {
                 error: err,
             })?;
         } else {
-            log::warn!("{} is not a file or directory", src.to_string_lossy());
+            tracing::warn!(
+                source = src.to_string_lossy().as_ref(),
+                "source is not a file or directory",
+            );
         }
 
         Ok(())
@@ -137,12 +151,18 @@ impl Pile {
     ///
     /// Various sorts of I/O errors as the different [`enum@Error`] variants.
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
-        // TODO: do stuff with config
+        // TODO: do stuff with pile config
         if let Some(path) = &self.path {
-            log::trace!("Backing up {}", path.to_string_lossy());
+            let _span = tracing::debug_span!(
+                "backup_pile",
+                path = path.to_string_lossy().as_ref(),
+                prefix = prefix.to_string_lossy().as_ref()
+            )
+            .entered();
+
             Self::copy(path, prefix)?;
         } else {
-            log::warn!("Pile has no associated path -- perhaps no environment matched");
+            tracing::warn!("pile has no associated path -- perhaps no environment matched?");
         }
 
         Ok(())
@@ -154,12 +174,18 @@ impl Pile {
     ///
     /// Various sorts of I/O errors as the different [`enum@Error`] variants.
     pub fn restore(&self, prefix: &Path) -> Result<(), Error> {
-        // TODO: do stuff with config
+        // TODO: do stuff with pile config
         if let Some(path) = &self.path {
-            log::trace!("Restoring {}", path.to_string_lossy());
+            let _span = tracing::debug_span!(
+                "restore_pile",
+                path = path.to_string_lossy().as_ref(),
+                prefix = prefix.to_string_lossy().as_ref()
+            )
+            .entered();
+
             Self::copy(prefix, path)?;
         } else {
-            log::warn!("Pile has no associated path -- perhaps no environment matched");
+            tracing::warn!("pile has no associated path -- perhaps no environment matched");
         }
 
         Ok(())
@@ -181,7 +207,12 @@ impl MultipleEntries {
     /// See [`Pile::backup`].
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
         for (name, entry) in &self.piles {
-            log::trace!("Backing up pile {}", name);
+            let _span = tracing::info_span!(
+                "backup_multi_pile",
+                pile = %name
+            )
+            .entered();
+
             let sub_prefix = prefix.join(name);
             entry.backup(&sub_prefix)?;
         }
@@ -196,7 +227,12 @@ impl MultipleEntries {
     /// See [`Pile::restore`].
     pub fn restore(&self, prefix: &Path) -> Result<(), Error> {
         for (name, entry) in &self.piles {
-            log::trace!("Restoring pile {}", name);
+            let _span = tracing::info_span!(
+                "restore_multi_pile",
+                pile = %name
+            )
+            .entered();
+
             let sub_prefix = prefix.join(name);
             entry.restore(&sub_prefix)?;
         }
@@ -222,6 +258,10 @@ impl Hoard {
     ///
     /// See [`Pile::backup`].
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
+        let _span =
+            tracing::trace_span!("backup_hoard", prefix = prefix.to_string_lossy().as_ref())
+                .entered();
+
         match self {
             Hoard::Single(single) => single.backup(prefix),
             Hoard::Multiple(multiple) => multiple.backup(prefix),
@@ -234,6 +274,10 @@ impl Hoard {
     ///
     /// See [`Pile::restore`].
     pub fn restore(&self, prefix: &Path) -> Result<(), Error> {
+        let _span =
+            tracing::trace_span!("restore_hoard", prefix = prefix.to_string_lossy().as_ref(),)
+                .entered();
+
         match self {
             Hoard::Single(single) => single.restore(prefix),
             Hoard::Multiple(multiple) => multiple.restore(prefix),
