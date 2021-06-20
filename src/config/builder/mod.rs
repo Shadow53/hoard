@@ -244,8 +244,8 @@ impl Builder {
     fn evaluated_environments(
         &self,
     ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
+        let _span = tracing::trace_span!("eval_env").entered();
         if let Some(envs) = &self.environments {
-            tracing::trace_span!("eval_env");
             for (key, env) in envs {
                 tracing::trace!(%key, %env);
             }
