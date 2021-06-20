@@ -45,29 +45,32 @@ impl fmt::Display for EnvVariable {
     }
 }
 
-#[cfg(all(test, feature = "single-threaded-tests"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    #[serial_test::serial]
     fn test_display_env_no_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
             expected: None,
         };
-        assert_eq!("ENV $TESTING_VAR IS SET", env.to_string());
+        assert_eq!("ENV ${TESTING_VAR} IS SET", env.to_string());
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_display_env_with_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
             expected: Some("testing value".to_string()),
         };
-        assert_eq!("ENV $TESTING_VAR == \"testing value\"", env.to_string());
+        assert_eq!("ENV ${TESTING_VAR} == \"testing value\"", env.to_string());
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_set() {
         for (var, _) in std::env::vars() {
             let is_set: bool = EnvVariable {
@@ -81,6 +84,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_set_to_value() {
         for (var, val) in std::env::vars() {
             let is_set: bool = EnvVariable {
@@ -94,6 +98,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_not_set() {
         for (var, val) in std::env::vars() {
             std::env::remove_var(&var);
@@ -109,6 +114,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_env_variable_is_not_set_to_value() {
         for (var, val) in std::env::vars() {
             std::env::set_var(&var, format!("{}_invalid", val));
