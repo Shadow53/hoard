@@ -193,6 +193,46 @@ mod tests {
     use super::*;
     use crate::combinator::Inner;
 
+    mod display {
+        use super::*;
+
+        #[test]
+        fn test_display_with_none() {
+            assert_eq!(Environment::default().to_string(), String::new());
+        }
+
+        #[test]
+        fn test_display_with_all() {
+            let hostname = Hostname("hostname.one".into());
+            let os = OperatingSystem("linux".into());
+            let env_var = EnvVariable {
+                var: "TEST_VARIABLE".to_string(),
+                expected: None,
+            };
+            let exe_exists = ExeExists("test".into());
+            let path_exists = PathExists("/test/path".into());
+
+            let env = Environment {
+                hostname: Some(Combinator(vec![Inner::Single(hostname.clone())])),
+                os: Some(Combinator(vec![Inner::Single(os.clone())])),
+                env: Some(Combinator(vec![Inner::Single(env_var.clone())])),
+                exe_exists: Some(Combinator(vec![Inner::Single(exe_exists.clone())])),
+                path_exists: Some(Combinator(vec![Inner::Single(path_exists.clone())])),
+            };
+
+            let expected = vec![
+                format!("({})", hostname),
+                format!("({})", os),
+                format!("({})", env_var),
+                format!("({})", exe_exists),
+                format!("({})", path_exists),
+            ]
+            .join(" AND ");
+
+            assert_eq!(env.to_string(), expected);
+        }
+    }
+
     mod validate_hostname {
         use super::*;
 
