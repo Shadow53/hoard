@@ -16,6 +16,7 @@ pub use self::hostname::Hostname;
 pub use self::os::OperatingSystem;
 pub use self::path::PathExists;
 use std::convert::{Infallible, TryInto};
+use std::fmt;
 
 /// Errors that may occur while evaluating an [`Environment`].
 #[derive(Debug, Error)]
@@ -76,6 +77,49 @@ pub struct Environment {
     path_exists: Option<Combinator<PathExists>>,
 }
 
+impl fmt::Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut has_previous = false;
+
+        if let Some(hostname) = &self.hostname {
+            has_previous = true;
+            write!(f, "({})", hostname)?;
+        }
+
+        if let Some(os) = &self.os {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            has_previous = true;
+            write!(f, "({})", os)?;
+        }
+
+        if let Some(env) = &self.env {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            has_previous = true;
+            write!(f, "({})", env)?;
+        }
+
+        if let Some(exe_exists) = &self.exe_exists {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            has_previous = true;
+            write!(f, "({})", exe_exists)?;
+        }
+
+        if let Some(path_exists) = &self.path_exists {
+            if has_previous {
+                write!(f, " AND ")?;
+            }
+            write!(f, "({})", path_exists)?;
+        }
+
+        Ok(())
+    }
+}
 // Note to self: this is a good candidate for a derive macro
 // if Combinator is put into its own library
 impl TryInto<bool> for Environment {
@@ -170,7 +214,7 @@ mod tests {
 
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {:?}", err),
             }
         }
 
@@ -194,7 +238,7 @@ mod tests {
                 .expect_err("expecting two hostnames at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {:?}", err),
             }
         }
 
@@ -236,7 +280,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {:?}", err),
             }
         }
 
@@ -260,7 +304,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {:?}", err),
             }
         }
 

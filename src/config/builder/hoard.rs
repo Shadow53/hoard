@@ -87,10 +87,17 @@ impl Pile {
         envs: &BTreeMap<String, bool>,
         exclusivity: &[Vec<String>],
     ) -> Result<ConfigSingle, Error> {
+        let _span = tracing::debug_span!(
+            "process_pile",
+            pile = ?self
+        )
+        .entered();
+
         let Pile { config, items } = self;
         let items = items
             .into_iter()
             .map(|(key, path)| {
+                let _span = tracing::debug_span!("process_pile_paths", %key, %path).entered();
                 let path = expand_env_in_path(&path).map_err(|err| Error::ExpandEnv {
                     path: path.to_string(),
                     error: err,
@@ -99,6 +106,7 @@ impl Pile {
                 Ok((key, path))
             })
             .collect::<Result<_, Error>>()?;
+
         let trie = EnvTrie::new(&items, exclusivity)?;
         let path = trie.get_path(envs)?.map(Path::to_owned);
 
@@ -124,7 +132,7 @@ impl MultipleEntries {
         let items = items
             .into_iter()
             .map(|(pile, entry)| {
-                tracing::trace!("Processing pile \"{}\"", pile);
+                tracing::debug!(%pile, "processing pile");
                 let mut entry = entry.process_with(envs, exclusivity)?;
                 entry.config = entry.config.or_else(|| config.clone());
                 Ok((pile, entry))
@@ -161,11 +169,15 @@ impl Hoard {
     ) -> Result<crate::config::hoard::Hoard, Error> {
         match self {
             Hoard::Single(single) => {
+                tracing::debug!("processing anonymous pile");
                 Ok(ConfigHoard::Single(single.process_with(envs, exclusivity)?))
             }
-            Hoard::Multiple(multiple) => Ok(ConfigHoard::Multiple(
-                multiple.process_with(envs, exclusivity)?,
-            )),
+            Hoard::Multiple(multiple) => {
+                tracing::debug!("processing named pile(s)");
+                Ok(ConfigHoard::Multiple(
+                    multiple.process_with(envs, exclusivity)?,
+                ))
+            }
         }
     }
 }

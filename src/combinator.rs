@@ -346,6 +346,7 @@ mod tests {
         typ: CombinatorType,
     }
 
+    #[allow(clippy::too_many_lines)]
     static CASES: Lazy<Vec<TestItem>> = Lazy::new(|| {
         vec![
             // BEGIN: Empty combinators

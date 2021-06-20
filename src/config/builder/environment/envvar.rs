@@ -20,14 +20,14 @@ impl TryInto<bool> for EnvVariable {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let EnvVariable { var, expected } = self;
-        tracing::trace!("Checking ENV variable: {}", var);
+        tracing::trace!(%var, "checking if environment variable exists");
         let result = match std::env::var_os(&var) {
             None => false,
             Some(val) => match expected {
                 None => true,
-                Some(expected_val) => {
-                    tracing::trace!("Checking if ${} == {}", var, expected_val);
-                    val == expected_val.as_str()
+                Some(expected) => {
+                    tracing::trace!(%var, %expected, "checking if variable matches expected value");
+                    val == expected.as_str()
                 }
             },
         };
@@ -39,8 +39,8 @@ impl TryInto<bool> for EnvVariable {
 impl fmt::Display for EnvVariable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.expected {
-            None => write!(f, "ENV ${} IS SET", self.var),
-            Some(expected) => write!(f, "ENV ${} == \"{}\"", self.var, expected),
+            None => write!(f, "ENV ${{{}}} IS SET", self.var),
+            Some(expected) => write!(f, "ENV ${{{}}} == \"{}\"", self.var, expected),
         }
     }
 }

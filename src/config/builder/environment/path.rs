@@ -21,7 +21,7 @@ impl TryInto<bool> for PathExists {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let PathExists(path) = self;
-        tracing::trace!("Checking if path \"{}\" exists", path.to_string_lossy());
+        tracing::trace!("checking if path \"{}\" exists", path.to_string_lossy());
         Ok(path.exists())
     }
 }

@@ -18,9 +18,9 @@ impl TryInto<bool> for Hostname {
         let host = hostname::get().map_err(super::Error::Hostname)?;
 
         tracing::trace!(
-            "checking if system hostname ({}) is {}",
-            host.to_string_lossy(),
-            expected
+            hostname = host.to_string_lossy().as_ref(),
+            %expected,
+            "checking if system hostname matches expected",
         );
 
         Ok(host == expected.as_str())

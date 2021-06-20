@@ -23,9 +23,9 @@ impl TryInto<bool> for OperatingSystem {
     fn try_into(self) -> Result<bool, Self::Error> {
         let OperatingSystem(expected) = self;
         tracing::trace!(
-            "Comparing current operating system ({}) to {}",
-            std::env::consts::OS,
-            expected
+            os = std::env::consts::OS,
+            %expected,
+            "checking if current operating system matches expected",
         );
         Ok(expected == std::env::consts::OS)
     }

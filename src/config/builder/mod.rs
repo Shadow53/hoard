@@ -71,11 +71,13 @@ impl Default for Builder {
 impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
+        tracing::debug!("getting default configuration file");
         super::get_dirs().config_dir().join(CONFIG_FILE_NAME)
     }
 
     /// Returns the default location for storing hoards.
     fn default_hoard_root() -> PathBuf {
+        tracing::debug!("getting default hoard root");
         super::get_dirs().data_dir().join(HOARDS_DIR_SLUG)
     }
 
@@ -85,7 +87,7 @@ impl Builder {
     /// [`Config`] will have all default values.
     #[must_use]
     pub fn new() -> Self {
-        tracing::trace!("Creating new config builder");
+        tracing::trace!("creating new config builder");
         Self {
             hoards: None,
             hoards_root: None,
@@ -102,7 +104,7 @@ impl Builder {
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
-        tracing::debug!("Reading configuration from \"{}\"", path.to_string_lossy());
+        tracing::debug!("reading configuration from \"{}\"", path.to_string_lossy());
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
         toml::from_str(&s).map_err(Error::DeserializeConfig)
     }
@@ -114,29 +116,37 @@ impl Builder {
     ///
     /// See [`Builder::from_file`]
     pub fn from_args_then_file() -> Result<Self, Error> {
-        tracing::debug!("Loading configuration from CLI arguments");
+        tracing::debug!("loading configuration from cli arguments");
         let from_args = Self::from_args();
 
-        tracing::trace!("Attempting to get configuration file from CLI arguments or use default");
+        tracing::trace!("attempting to get configuration file from cli arguments or use default");
         let config_file = from_args
             .config_file
             .clone()
             .unwrap_or_else(Self::default_config_file);
 
         tracing::trace!(
-            "Configuration file is \"{}\"",
+            ?config_file,
+            "configuration file is \"{}\"",
             config_file.to_string_lossy()
         );
 
         let from_file = Self::from_file(&config_file)?;
 
-        tracing::debug!("Merging configuration file and CLI arguments");
+        tracing::debug!("merging configuration file and cli arguments");
         Ok(from_file.layer(from_args))
     }
 
     /// Applies all configured values in `other` over those in *this* `ConfigBuilder`.
     #[must_use]
     pub fn layer(mut self, other: Self) -> Self {
+        let _span = tracing::trace_span!(
+            "layering_config_builders",
+            top_layer = ?other,
+            bottom_layer = ?self
+        )
+        .entered();
+
         if let Some(path) = other.hoards_root {
             self = self.set_hoards_root(path);
         }
@@ -155,6 +165,7 @@ impl Builder {
     /// Set the hoards map.
     #[must_use]
     pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
+        tracing::trace!(?hoards, "setting hoards");
         self.hoards = Some(hoards);
         self
     }
@@ -162,6 +173,10 @@ impl Builder {
     /// Set the directory that will contain all game save data.
     #[must_use]
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
+        tracing::trace!(
+            hoards_root = ?path,
+            "setting hoards root",
+        );
         self.hoards_root = Some(path);
         self
     }
@@ -172,6 +187,10 @@ impl Builder {
     /// instead, which will actually read and parse the file.
     #[must_use]
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
+        tracing::trace!(
+            config_file = ?path,
+            "setting config file",
+        );
         self.config_file = Some(path);
         self
     }
@@ -179,6 +198,7 @@ impl Builder {
     /// Set the command that will be run.
     #[must_use]
     pub fn set_command(mut self, cmd: Command) -> Self {
+        tracing::trace!(command = ?cmd, "setting command");
         self.command = Some(cmd);
         self
     }
@@ -186,6 +206,7 @@ impl Builder {
     /// Unset the hoards map
     #[must_use]
     pub fn unset_hoards(mut self) -> Self {
+        tracing::trace!("unsetting hoards");
         self.hoards = None;
         self
     }
@@ -193,6 +214,7 @@ impl Builder {
     /// Unset the directory that will contain all game save data.
     #[must_use]
     pub fn unset_hoards_root(mut self) -> Self {
+        tracing::trace!("unsetting hoards root");
         self.hoards_root = None;
         self
     }
@@ -200,6 +222,7 @@ impl Builder {
     /// Unset the file that contains configuration.
     #[must_use]
     pub fn unset_config_file(mut self) -> Self {
+        tracing::trace!("unsetting config file");
         self.config_file = None;
         self
     }
@@ -207,6 +230,7 @@ impl Builder {
     /// Unset the command that will be run.
     #[must_use]
     pub fn unset_command(mut self) -> Self {
+        tracing::trace!("unsetting command");
         self.command = None;
         self
     }
@@ -220,7 +244,13 @@ impl Builder {
     fn evaluated_environments(
         &self,
     ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
-        tracing::trace!("Evaluating raw environments: {:#?}", self.environments);
+        if let Some(envs) = &self.environments {
+            tracing::trace_span!("eval_env");
+            for (key, env) in envs {
+                tracing::trace!(%key, %env);
+            }
+        }
+
         self.environments.as_ref().map_or_else(
             || Ok(BTreeMap::new()),
             |map| {
@@ -237,22 +267,28 @@ impl Builder {
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
     pub fn build(self) -> Result<Config, Error> {
-        tracing::trace!("Building configuration from {:#?}", self);
+        tracing::debug!("building configuration from builder");
         let environments = self.evaluated_environments()?;
-        tracing::trace!("--> environments: {:#?}", environments);
+        tracing::debug!(?environments);
         let exclusivity = self.exclusivity.unwrap_or_else(Vec::new);
-        tracing::trace!("--> exclusivity: {:#?}", exclusivity);
+        tracing::debug!(?exclusivity);
         let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
-        tracing::trace!("--> config file: {}", hoards_root.to_string_lossy());
+        tracing::debug!(?hoards_root);
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
-        tracing::trace!("--> config file: {}", config_file.to_string_lossy());
+        tracing::debug!(?config_file);
         let command = self.command.unwrap_or_else(Command::default);
+
+        tracing::debug!("processing hoards...");
         let hoards = self
             .hoards
             .unwrap_or_else(BTreeMap::new)
             .into_iter()
-            .map(|(name, hoard)| Ok((name, hoard.process_with(&environments, &exclusivity)?)))
+            .map(|(name, hoard)| {
+                let _span = tracing::debug_span!("processing_hoard", %name).entered();
+                Ok((name, hoard.process_with(&environments, &exclusivity)?))
+            })
             .collect::<Result<_, Error>>()?;
+        tracing::debug!("processed hoards");
 
         Ok(Config {
             command,
