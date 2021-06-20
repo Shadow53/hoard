@@ -70,10 +70,14 @@ Any new code should be logged appropriately:
 
 These are some general rules used for writing log statements.
 
-1. If a `hoard` library function may call another `hoard` library function and/or contains a loop, create a new span
+1. Logged messages must start with lowercase letters and remain lowercase unless there is a specific reason to have
+   capital letters.
+2. If a `hoard` library function may call another `hoard` library function and/or contains a loop, create a new span
    before that point with the necesssary context.
-2. A span's context should only contain anything used in the immediate context. Items passed through to other library
+3. A span's context should only contain anything used in the immediate context. Items passed through to other library
    functions should be part of that more specific context, instead.
-3. Let `hoard` library functions log themselves being called; create spans before calling for context, if necessary.
+4. Let `hoard` library functions log themselves being called; create spans before calling for context, if necessary.
    That is, if there is a function call to `do_a_thing()`, the log message `"Doing a thing"` should come from *inside*
    `do_a_thing()`.
+5. If there must be an event logged with the creation of a span, log the event first so that the context logged with it
+   remains minimal.
