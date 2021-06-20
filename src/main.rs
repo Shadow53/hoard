@@ -2,8 +2,7 @@ use hoard::Config;
 use std::io::Stdout;
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
-use tracing_subscriber::fmt::format::{Compact, DefaultFields, Format, Full, Pretty};
-use tracing_subscriber::fmt::time::SystemTime;
+use tracing_subscriber::fmt::format::{Format, Pretty};
 use tracing_subscriber::fmt::SubscriberBuilder;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -18,7 +17,8 @@ fn error_and_exit<E: std::error::Error>(err: E) -> ! {
     std::process::exit(1);
 }
 
-fn get_subscriber() -> SubscriberBuilder<Pretty, Format<Pretty, ()>, LevelFilter, fn() -> Stdout> {
+type Subscriber = SubscriberBuilder<Pretty, Format<Pretty, ()>, LevelFilter, fn() -> Stdout>;
+fn get_subscriber() -> Subscriber {
     FmtSubscriber::builder()
         .pretty()
         .with_ansi(true)

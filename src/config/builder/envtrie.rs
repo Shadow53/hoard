@@ -398,7 +398,7 @@ impl EnvTrie {
                 for segment in envs.into_iter().rev() {
                     let segment = segment.to_string();
 
-                    let score = weighted_map.get(&segment).cloned().unwrap_or(1);
+                    let score = weighted_map.get(&segment).copied().unwrap_or(1);
                     prev_node.name = segment.clone();
                     let tree = {
                         let mut tree = BTreeMap::new();
