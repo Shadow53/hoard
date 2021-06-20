@@ -254,7 +254,7 @@ mod tests {
 
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {:?}", err),
+                err => panic!("unexpected error: {}", err),
             }
         }
 
@@ -278,7 +278,7 @@ mod tests {
                 .expect_err("expecting two hostnames at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {:?}", err),
+                err => panic!("unexpected error: {}", err),
             }
         }
 
@@ -320,7 +320,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {:?}", err),
+                err => panic!("unexpected error: {}", err),
             }
         }
 
@@ -344,7 +344,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {:?}", err),
+                err => panic!("unexpected error: {}", err),
             }
         }
 
