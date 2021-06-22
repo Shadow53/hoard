@@ -69,6 +69,7 @@ pub mod combinator;
 pub mod command;
 pub mod config;
 pub mod env_vars;
+pub mod history;
 
 /// The default file name of the configuration file.
 pub const CONFIG_FILE_NAME: &str = "config.toml";
