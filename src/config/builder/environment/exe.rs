@@ -61,7 +61,7 @@ mod tests {
                 .try_into()
                 .expect("failed to check if exe exists");
 
-            assert!(exists)
+            assert!(exists, "exe {} should exist", exe);
         }
     }
 
