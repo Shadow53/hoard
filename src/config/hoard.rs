@@ -3,7 +3,8 @@
 //! for more details.
 
 pub use super::builder::hoard::Config;
-use std::collections::BTreeMap;
+use crate::history::last_paths::HoardPaths;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
@@ -64,6 +65,8 @@ pub struct Pile {
 
 impl Pile {
     /// Helper function for copying files and directories.
+    ///
+    /// The returned [`PilePaths`] has items inserted as (src, dest).
     ///
     /// # Errors
     ///
@@ -281,6 +284,20 @@ impl Hoard {
         match self {
             Hoard::Single(single) => single.restore(prefix),
             Hoard::Multiple(multiple) => multiple.restore(prefix),
+        }
+    }
+
+    /// Returns a [`HoardPaths`] based on this `Hoard`.
+    #[must_use]
+    pub fn get_paths(&self) -> HoardPaths {
+        match self {
+            Hoard::Single(pile) => pile.path.clone().into(),
+            Hoard::Multiple(piles) => piles
+                .piles
+                .iter()
+                .filter_map(|(key, val)| val.path.clone().map(|path| (key.clone(), path)))
+                .collect::<HashMap<_, _>>()
+                .into(),
         }
     }
 }

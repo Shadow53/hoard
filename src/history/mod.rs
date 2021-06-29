@@ -1,12 +1,29 @@
+//! Keep records of previous operations (including on other system) to prevent inconsistencies
+//! and accidental overwrites or deletions.
+//!
+//! This module currently focuses on the [`last_paths`] submodule, which gives a warning and
+//! aborts an operation if the paths being used differ from the previous operation.
+
 use crate::config::get_dirs;
 use std::path::PathBuf;
 use std::{fs, io};
 use uuid::Uuid;
 
+pub mod last_paths;
+
 const UUID_FILE_NAME: &str = "uuid";
+const HISTORY_DIR_NAME: &str = "history";
 
 fn get_uuid_file() -> PathBuf {
     get_dirs().config_dir().join(UUID_FILE_NAME)
+}
+
+fn get_history_root_dir() -> PathBuf {
+    get_dirs().data_dir().join(HISTORY_DIR_NAME)
+}
+
+fn get_history_dir_for_id(id: Uuid) -> PathBuf {
+    get_history_root_dir().join(id.to_string())
 }
 
 /// Get this machine's unique UUID, creating if necessary.

@@ -3,6 +3,7 @@
 pub use self::builder::Builder;
 use self::hoard::Hoard;
 use crate::command::Command;
+use crate::history::last_paths::{Error as LastPathsError, HoardPaths, LastPaths};
 use directories::ProjectDirs;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -46,6 +47,9 @@ pub enum Error {
         #[source]
         error: hoard::Error,
     },
+    /// An error occurred while comparing paths for this run to the previous one.
+    #[error("error while comparing previous run to current run: {0}")]
+    LastPaths(#[from] LastPathsError),
 }
 
 /// A (processed) configuration.
@@ -61,6 +65,8 @@ pub struct Config {
     config_file: PathBuf,
     /// All of the configured hoards.
     hoards: BTreeMap<String, Hoard>,
+    /// Whether to force the operation to continue despite possible inconsistencies.
+    force: bool,
 }
 
 impl Default for Config {
@@ -112,14 +118,14 @@ impl Config {
     }
 
     #[must_use]
-    fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a String> {
+    fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a str> {
         if hoards.is_empty() {
             tracing::debug!("no hoard names provided, acting on all of them.");
-            self.hoards.keys().collect()
+            self.hoards.keys().map(String::as_str).collect()
         } else {
             tracing::debug!("using hoard names provided on cli");
             tracing::trace!(?hoards);
-            hoards.iter().collect()
+            hoards.iter().map(String::as_str).collect()
         }
     }
 
@@ -132,6 +138,38 @@ impl Config {
         self.hoards
             .get(name)
             .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
+    }
+
+    /// Checks for inconsistencies between previous run and current run's paths.
+    ///
+    /// Returns error if inconsistencies are found. If none are found or `self.force == true`,
+    /// the paths are overwritten in `last_paths` and persisted to disk.
+    ///
+    /// This function should be run *before* doing any file operations on a hoard. It persists the
+    /// paths used before the fallible file operations to prevent confusion (I would expect the
+    /// "last paths used" file to have the paths that caused the error, not the run before).
+    fn check_and_set_same_paths(
+        &self,
+        name: &str,
+        last_paths: &mut LastPaths,
+    ) -> Result<(), Error> {
+        let _span = tracing::info_span!("checking for inconsistencies against previous operation", hoard=%name).entered();
+        let hoard_paths = self.get_hoard(name)?.get_paths();
+        // If forcing the operation, don't bother checking.
+        if !self.force {
+            // Previous paths being none means we've never worked with this hoard before.
+            if let Some(prev_paths) = last_paths.hoard(name) {
+                // This function logs any warnings from differences.
+                HoardPaths::enforce_old_and_new_piles_are_same(prev_paths, &hoard_paths)?;
+            }
+        }
+
+        // If no error occurred, set to new paths
+        last_paths.set_hoard(name.to_string(), hoard_paths);
+        // Then save to disk.
+        last_paths.save_to_disk()?;
+
+        Ok(())
     }
 
     /// Run the stored [`Command`] using this [`Config`].
@@ -147,28 +185,32 @@ impl Config {
             }
             Command::Backup { hoards } => {
                 let hoards = self.get_hoards(&hoards);
+                let mut last_paths = LastPaths::from_default_file()?;
                 for name in hoards {
+                    self.check_and_set_same_paths(name, &mut last_paths)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
                     tracing::info!(hoard = %name, "backing up hoard");
                     let _span = tracing::info_span!("backup", hoard = %name).entered();
                     hoard.backup(&prefix).map_err(|error| Error::Backup {
-                        name: name.clone(),
+                        name: name.to_string(),
                         error,
                     })?;
                 }
             }
             Command::Restore { hoards } => {
                 let hoards = self.get_hoards(&hoards);
+                let mut last_paths = LastPaths::from_default_file()?;
                 for name in hoards {
+                    self.check_and_set_same_paths(name, &mut last_paths)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
                     tracing::info!(hoard = %name, "restoring hoard");
                     let _span = tracing::info_span!("restore", hoard = %name).entered();
                     hoard.restore(&prefix).map_err(|error| Error::Restore {
-                        name: name.clone(),
+                        name: name.to_string(),
                         error,
                     })?;
                 }

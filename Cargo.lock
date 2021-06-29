@@ -102,6 +102,8 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
+ "serde",
+ "time",
  "winapi",
 ]
 
@@ -233,6 +235,7 @@ dependencies = [
 name = "hoard"
 version = "0.2.0"
 dependencies = [
+ "chrono",
  "directories",
  "hostname",
  "maplit",
@@ -241,6 +244,7 @@ dependencies = [
  "rand",
  "regex",
  "serde",
+ "serde_json",
  "serde_test",
  "serial_test",
  "structopt",
@@ -776,6 +780,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8018d24e04c95ac8790716a5987d0fec4f8b27249ffa0f7d33f1369bdfb88cbd"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "time"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]

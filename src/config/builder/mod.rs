@@ -58,6 +58,9 @@ pub struct Builder {
     #[serde(skip)]
     #[structopt(subcommand)]
     command: Option<Command>,
+    #[serde(skip)]
+    #[structopt(short, long)]
+    force: bool,
     #[structopt(skip)]
     hoards: Option<BTreeMap<String, Hoard>>,
 }
@@ -95,6 +98,7 @@ impl Builder {
             command: None,
             environments: None,
             exclusivity: None,
+            force: false,
         }
     }
 
@@ -159,6 +163,8 @@ impl Builder {
             self = self.set_command(path);
         }
 
+        self.force = self.force || other.force;
+
         self
     }
 
@@ -203,6 +209,14 @@ impl Builder {
         self
     }
 
+    /// Set whether to force the command to run despite possible failed checks.
+    #[must_use]
+    pub fn set_force(mut self, force: bool) -> Self {
+        tracing::trace!(?force, "setting force");
+        self.force = force;
+        self
+    }
+
     /// Unset the hoards map
     #[must_use]
     pub fn unset_hoards(mut self) -> Self {
@@ -232,6 +246,14 @@ impl Builder {
     pub fn unset_command(mut self) -> Self {
         tracing::trace!("unsetting command");
         self.command = None;
+        self
+    }
+
+    /// Set whether to force the command to run despite possible failed checks.
+    #[must_use]
+    pub fn unset_force(mut self) -> Self {
+        tracing::trace!("unsetting force");
+        self.force = false;
         self
     }
 
@@ -277,6 +299,9 @@ impl Builder {
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
         tracing::debug!(?config_file);
         let command = self.command.unwrap_or_else(Command::default);
+        tracing::debug!(?command);
+        let force = self.force;
+        tracing::debug!(?force);
 
         tracing::debug!("processing hoards...");
         let hoards = self
@@ -295,6 +320,7 @@ impl Builder {
             hoards_root,
             config_file,
             hoards,
+            force,
         })
     }
 }
@@ -314,6 +340,7 @@ mod tests {
                 environments: None,
                 exclusivity: None,
                 hoards: None,
+                force: false,
             }
         }
 
@@ -327,6 +354,7 @@ mod tests {
                 environments: None,
                 exclusivity: None,
                 hoards: None,
+                force: false,
             }
         }
 
@@ -344,6 +372,7 @@ mod tests {
                 environments: None,
                 hoards: None,
                 exclusivity: None,
+                force: false,
             };
 
             assert_eq!(
