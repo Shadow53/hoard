@@ -254,8 +254,6 @@ impl HoardPaths {
                         return Err(Error::HoardPathsMismatch);
                     }
                 }
-
-                return Err(Error::HoardPathsMismatch);
             }
             (PilePaths::Anonymous(_), PilePaths::Named(_)) => {
                 tracing::warn!("hoard previously with anonymous pile now has named pile(s)");
@@ -309,5 +307,206 @@ impl HoardPaths {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use maplit::hashmap;
+
+    const NAMED_PILE_1: &str = "test1";
+    const NAMED_PILE_2: &str = "test2";
+
+    fn anonymous_hoard_paths() -> HoardPaths {
+        HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path"))))
+    }
+
+    fn named_hoard_paths() -> HoardPaths {
+        HoardPaths::from(PilePaths::Named(hashmap! {
+            NAMED_PILE_1.into() => PathBuf::from("/test/path"),
+            NAMED_PILE_2.into() => PathBuf::from("/test/other/path"),
+        }))
+    }
+
+    #[test]
+    fn new_lastpaths_is_empty() {
+        let last_paths = LastPaths::new();
+        assert_eq!(last_paths.0.len(), 0);
+    }
+
+    #[test]
+    fn last_paths_new_is_default() {
+        assert_eq!(LastPaths::new(), LastPaths::default());
+    }
+
+    #[test]
+    fn test_lastpaths_get_set_hoard() {
+        let hoard_paths = anonymous_hoard_paths();
+        let mut last_paths = LastPaths::new();
+        let key = "testkey";
+        last_paths.set_hoard(key.to_string(), hoard_paths.clone());
+        let got_hoard_paths = last_paths.hoard(key);
+        assert_eq!(got_hoard_paths, Some(&hoard_paths));
+    }
+
+    #[test]
+    fn test_hoard_paths_time_returns_timestamp_reference() {
+        let hoard_paths = anonymous_hoard_paths();
+        assert_eq!(hoard_paths.time(), &hoard_paths.timestamp);
+    }
+
+    #[test]
+    fn test_hoard_paths_named_pile() {
+        let anonymous = anonymous_hoard_paths();
+        assert_eq!(anonymous.named_pile(NAMED_PILE_1), None);
+        let named = named_hoard_paths();
+        assert_eq!(named.named_pile("no exist"), None);
+        assert!(named.named_pile(NAMED_PILE_1).is_some());
+    }
+
+    #[test]
+    fn test_hoard_paths_anonymous_pile() {
+        let anonymous = anonymous_hoard_paths();
+        assert!(anonymous.anonymous_pile().is_some());
+        let named = named_hoard_paths();
+        assert_eq!(named.anonymous_pile(), None);
+    }
+
+    #[test]
+    fn test_named_and_anonymous_paths_not_same() {
+        let anonymous = anonymous_hoard_paths();
+        let named = named_hoard_paths();
+
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&anonymous, &named),
+                Err(Error::HoardPathsMismatch)
+            ),
+            "anonymous and named paths are not the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named, &anonymous),
+                Err(Error::HoardPathsMismatch)
+            ),
+            "swapping parameter order should make no difference"
+        );
+    }
+
+    #[test]
+    fn test_compare_anonymous_paths() {
+        let anon_none = HoardPaths::from(PilePaths::Anonymous(None));
+        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path1"))));
+        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path2"))));
+        // Create dupe of 1 to get different timestamp
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path1"))));
+
+        // Test none/none and some/some are the same.
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&anon_none, &anon_none),
+                Ok(())
+            ),
+            "two Anonymous(None) paths are the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&anon_1, &anon_3),
+                Ok(())
+            ),
+            "two Some(_) paths with same path are the same"
+        );
+
+        // none/some doesn't match
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&anon_none, &anon_1),
+                Err(Error::HoardPathsMismatch),
+            ),
+            "None/Some(_) are not the same"
+        );
+        // some/some with different paths are different
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&anon_1, &anon_2),
+                Err(Error::HoardPathsMismatch),
+            ),
+            "Some(path1)/Some(path2) are not the same when different paths"
+        );
+    }
+
+    #[test]
+    fn test_compare_named_paths() {
+        let named_empty = HoardPaths::from(PilePaths::Named(hashmap! {}));
+        let named_with_1 = HoardPaths::from(PilePaths::Named(hashmap! {
+            NAMED_PILE_1.into() => PathBuf::from("/test/path1"),
+        }));
+        let named_with_2 = HoardPaths::from(PilePaths::Named(hashmap! {
+            NAMED_PILE_2.into() => PathBuf::from("/test/path2"),
+        }));
+        let named_with_both = HoardPaths::from(PilePaths::Named(hashmap! {
+            NAMED_PILE_1.into() => PathBuf::from("/test/path1"),
+            NAMED_PILE_2.into() => PathBuf::from("/test/path2"),
+        }));
+        // Create dupe of 1 to get different timestamp
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let named_with_1_again = HoardPaths::from(PilePaths::Named(hashmap! {
+            NAMED_PILE_1.into() => PathBuf::from("/test/path1"),
+        }));
+
+        // Test the same
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_empty, &named_empty),
+                Ok(()),
+            ),
+            "empty paths are the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_1),
+                Ok(()),
+            ),
+            "single (same) paths are the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_1_again),
+                Ok(()),
+            ),
+            "single (same) paths are the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_with_both, &named_with_both),
+                Ok(()),
+            ),
+            "same path maps are the same"
+        );
+
+        // Test are different
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_empty, &named_with_1),
+                Err(Error::HoardPathsMismatch)
+            ),
+            "empty paths and single path are not the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_2),
+                Err(Error::HoardPathsMismatch)
+            ),
+            "single different paths are not the same"
+        );
+        assert!(
+            matches!(
+                HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_both),
+                Err(Error::HoardPathsMismatch)
+            ),
+            "single path and two paths containing that single are different"
+        );
     }
 }
