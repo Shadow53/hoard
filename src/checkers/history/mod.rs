@@ -10,6 +10,7 @@ use std::{fs, io};
 use uuid::Uuid;
 
 pub mod last_paths;
+pub mod operation;
 
 const UUID_FILE_NAME: &str = "uuid";
 const HISTORY_DIR_NAME: &str = "history";

@@ -2,8 +2,8 @@
 
 pub use self::builder::Builder;
 use self::hoard::Hoard;
+use crate::checkers::history::last_paths::{Error as LastPathsError, HoardPaths, LastPaths};
 use crate::command::Command;
-use crate::history::last_paths::{Error as LastPathsError, HoardPaths, LastPaths};
 use directories::ProjectDirs;
 use std::collections::BTreeMap;
 use std::path::PathBuf;

@@ -3,7 +3,7 @@
 //! for more details.
 
 pub use super::builder::hoard::Config;
-use crate::history::last_paths::HoardPaths;
+use crate::checkers::history::last_paths::HoardPaths;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::{fs, io};

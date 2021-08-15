@@ -4,6 +4,8 @@
 //! See the documentation for [`HoardPaths::enforce_old_and_new_piles_are_same`] for an
 //! explanation of why this is useful.
 
+use crate::config::hoard::Hoard;
+use super::super::Checker;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -54,6 +56,18 @@ fn save_last_paths_to_file(paths: &LastPaths) -> Result<(), Error> {
     tracing::trace!("writing lastpaths file");
     fs::write(path, content)?;
     Ok(())
+}
+
+impl Checker for LastPaths {
+    type Error = Error;
+    fn check(&mut self, name: &str, hoard: &Hoard) -> Result<(), Error> {
+        let new_hoard = HoardPaths::from(hoard.clone());
+        if let Some(old_hoard) = self.hoard(name) {
+            HoardPaths::enforce_old_and_new_piles_are_same(old_hoard, &new_hoard)?;
+        }
+        self.set_hoard(name.to_owned(), new_hoard);
+        Ok(())
+    }
 }
 
 impl LastPaths {
@@ -150,6 +164,19 @@ impl From<Option<PathBuf>> for PilePaths {
 impl From<HashMap<String, PathBuf>> for PilePaths {
     fn from(other: HashMap<String, PathBuf>) -> Self {
         Self::Named(other)
+    }
+}
+
+impl From<Hoard> for PilePaths {
+    fn from(other: Hoard) -> Self {
+        match other {
+            Hoard::Single(pile) => PilePaths::Anonymous(pile.path),
+            Hoard::Multiple(named) => PilePaths::Named(
+                named.piles.into_iter()
+                .filter_map(|(key, pile)| pile.path.map(|path| (key, path)))
+                .collect()
+            ),
+        }
     }
 }
 
