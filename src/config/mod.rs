@@ -181,10 +181,10 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Validate => {
-                tracing::info!("configuration is valid")
+                tracing::info!("configuration is valid");
             }
             Command::Backup { hoards } => {
-                let hoards = self.get_hoards(&hoards);
+                let hoards = self.get_hoards(hoards);
                 let mut last_paths = LastPaths::from_default_file()?;
                 for name in hoards {
                     self.check_and_set_same_paths(name, &mut last_paths)?;
@@ -200,7 +200,7 @@ impl Config {
                 }
             }
             Command::Restore { hoards } => {
-                let hoards = self.get_hoards(&hoards);
+                let hoards = self.get_hoards(hoards);
                 let mut last_paths = LastPaths::from_default_file()?;
                 for name in hoards {
                     self.check_and_set_same_paths(name, &mut last_paths)?;
