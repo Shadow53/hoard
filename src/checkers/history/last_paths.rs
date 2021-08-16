@@ -4,8 +4,8 @@
 //! See the documentation for [`HoardPaths::enforce_old_and_new_piles_are_same`] for an
 //! explanation of why this is useful.
 
-use crate::config::hoard::Hoard;
 use super::super::Checker;
+use crate::config::hoard::Hoard;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -172,9 +172,11 @@ impl From<Hoard> for PilePaths {
         match other {
             Hoard::Single(pile) => PilePaths::Anonymous(pile.path),
             Hoard::Multiple(named) => PilePaths::Named(
-                named.piles.into_iter()
-                .filter_map(|(key, pile)| pile.path.map(|path| (key, path)))
-                .collect()
+                named
+                    .piles
+                    .into_iter()
+                    .filter_map(|(key, pile)| pile.path.map(|path| (key, path)))
+                    .collect(),
             ),
         }
     }

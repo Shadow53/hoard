@@ -15,7 +15,7 @@ pub trait Checker {
     /// The error type returned from the check.
     type Error: std::error::Error;
     /// Returns an error if it is not safe to operate on the given [`Hoard`].
-    /// 
+    ///
     /// # Errors
     ///
     /// Any error that prevents operations on the given [`Hoard`], or any errors that
