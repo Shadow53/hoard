@@ -49,7 +49,7 @@ def setup():
         pass
 
     try:
-        shutil.rmtree(config_file_path().parent())
+        shutil.rmtree(config_file_path().parent)
     except FileNotFoundError:
         pass
 
@@ -64,7 +64,7 @@ def setup():
             with open(f"{home}/{env}_{item}", "wb") as file:
                 content = secrets.token_bytes(2048)
                 file.write(content)
-    os.makedirs(config_file_path().parent())
+    os.makedirs(config_file_path().parent)
     shutil.copy2("ci-tests/config.toml", config_file_path())
 
 
