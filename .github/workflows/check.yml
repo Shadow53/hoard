@@ -116,3 +116,46 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ steps.coverage.outputs.report }}
+
+  integration-tests:
+    name: "Integration Tests"
+    needs: check-stable
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-stable-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-stable-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo binaries
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-stable-bin-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      - name: Test Last Paths
+        run: ./ci-tests/test.py last_paths
+        shell: python
