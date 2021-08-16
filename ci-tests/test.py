@@ -117,7 +117,7 @@ def test_last_paths():
 
 
 if __name__ == "__main__":
-    if len(sys.args) == 1:
+    if len(sys.argv) == 1:
         raise RuntimeError("One argument - the test - is required")
-    if sys.args[1] == "last_paths":
+    if sys.argv[1] == "last_paths":
         test_last_paths()
