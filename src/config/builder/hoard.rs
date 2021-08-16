@@ -9,10 +9,9 @@
 //! used.
 
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
-use crate::env_vars::expand_env_in_path;
+use crate::env_vars::{expand_env_in_path, Error as EnvError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::env::VarError;
 use std::path::Path;
 use thiserror::Error;
 
@@ -34,7 +33,7 @@ pub enum Error {
         path: String,
         /// The original error.
         #[source]
-        error: VarError,
+        error: EnvError,
     },
 }
 
