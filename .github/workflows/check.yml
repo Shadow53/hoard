@@ -158,3 +158,6 @@ jobs:
 
       - name: Test Last Paths
         run: python ci-tests/test.py last_paths
+        env:
+            HOME: /tmp/github
+            HOMEPATH: 'C:\Users\github'
