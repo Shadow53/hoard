@@ -158,6 +158,13 @@ jobs:
 
       - name: Test Last Paths
         run: python ci-tests/test.py last_paths
+        if: ${{ matrix.os != "macos-latest" }}
         env:
-            HOME: /tmp/github
+            HOME: '/home/runner'
             HOMEPATH: 'C:\Users\github'
+
+      - name: Test Last Paths
+        run: python ci-tests/test.py last_paths
+        if: ${{ matrix.os == "macos-latest" }}
+        env:
+            HOME: '/Users/runner'
