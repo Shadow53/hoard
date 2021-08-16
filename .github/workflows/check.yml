@@ -157,5 +157,4 @@ jobs:
           command: build
 
       - name: Test Last Paths
-        run: ./ci-tests/test.py last_paths
-        shell: python
+        run: python ci-tests/test.py last_paths
