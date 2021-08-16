@@ -101,7 +101,7 @@ def assert_second_tree():
 def run_hoard(command, targets=[], env=None):
     # Run the specified hoard command
     # Should automatically operate on all hoards when targets is empty
-    subprocess.run("target/debug/hoard", command, *targets, check=True, env=env)
+    subprocess.run(["target/debug/hoard", command, *targets], check=True, env=env)
 
 
 def test_last_paths():
