@@ -42,8 +42,13 @@ def data_dir_path():
 
 def setup():
     home = Path.home()
+
     try:
         shutil.rmtree(data_dir_path())
+    except FileNotFoundError:
+        pass
+
+    try:
         shutil.rmtree(config_file_path().parent())
     except FileNotFoundError:
         pass
@@ -51,6 +56,7 @@ def setup():
     for env in ["first", "second"]:
         for item in ["anon_dir", "named_dir"]:
             for file in [1, 2, 3]:
+                os.makedirs(f"{home}/{env}_{item}", exist_ok=True)
                 with open(f"{home}/{env}_{item}/{file}", "wb") as file:
                     content = secrets.token_bytes(file * 1024)
                     file.write(content)
@@ -58,6 +64,7 @@ def setup():
             with open(f"{home}/{env}_{item}", "wb") as file:
                 content = secrets.token_bytes(2048)
                 file.write(content)
+    os.makedirs(config_file_path().parent())
     shutil.copy2("ci-tests/config.toml", config_file_path())
 
 
