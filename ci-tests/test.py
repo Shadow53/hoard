@@ -1,6 +1,6 @@
 from pathlib import Path
 import filecmp
-import os.environ
+import os
 import platform
 import secrets
 import shutil
