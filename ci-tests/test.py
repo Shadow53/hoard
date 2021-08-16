@@ -42,8 +42,12 @@ def data_dir_path():
 
 def setup():
     home = Path.home()
-    shutil.rmtree(data_dir_path())
-    shutil.rmtree(config_file_path().parent())
+    try:
+        shutil.rmtree(data_dir_path())
+        shutil.rmtree(config_file_path().parent())
+    except FileNotFoundError:
+        pass
+
     for env in ["first", "second"]:
         for item in ["anon_dir", "named_dir"]:
             for file in [1, 2, 3]:
