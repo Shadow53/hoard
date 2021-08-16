@@ -55,10 +55,10 @@ def setup():
 
     for env in ["first", "second"]:
         for item in ["anon_dir", "named_dir"]:
-            for file in [1, 2, 3]:
+            for num in [1, 2, 3]:
                 os.makedirs(f"{home}/{env}_{item}", exist_ok=True)
-                with open(f"{home}/{env}_{item}/{file}", "wb") as file:
-                    content = secrets.token_bytes(file * 1024)
+                with open(f"{home}/{env}_{item}/{num}", "wb") as file:
+                    content = secrets.token_bytes(num * 1024)
                     file.write(content)
         for item in ["anon_file", "named_file"]:
             with open(f"{home}/{env}_{item}", "wb") as file:
