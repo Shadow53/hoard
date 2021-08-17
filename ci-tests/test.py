@@ -110,21 +110,21 @@ def test_last_paths():
     # Do setup
     setup()
     # Run hoard with env "first"
-    run_hoard("backup", env={"USE_ENV": "first"})
+    run_hoard("backup", env={"USE_ENV": "1"})
     # Doing it again should still succeed
-    run_hoard("backup", env={"USE_ENV": "first"})
+    run_hoard("backup", env={"USE_ENV": "1"})
     # Run hoard with env "second" - this should fail
     try:
-        run_hoard("backup", env={"USE_ENV": "second"})
+        run_hoard("backup", env={"USE_ENV": "2"})
         raise RuntimeError("Changing environment should have caused last_paths to fail")
     except subprocess.CalledProcessError:
         pass
     # Doing it again with "first" should still succeed
-    run_hoard("backup", env={"USE_ENV": "first"})
+    run_hoard("backup", env={"USE_ENV": "2"})
     # Make sure the files are consistent with backing up "first"
     assert_first_tree()
     # Doing it with "second" but forced should succeed
-    run_hoard("backup", env={"USE_ENV": "second"})
+    run_hoard("backup", env={"USE_ENV": "2"})
     # Make sure the files were overwritten
     assert_second_tree()
 
