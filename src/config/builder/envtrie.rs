@@ -8,7 +8,6 @@
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use std::collections::{BTreeMap, HashSet};
-use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Errors that may occur while building or evaluating an [`EnvTrie`].
@@ -22,7 +21,7 @@ pub enum Error {
     /// One [`Pile`](super::hoard::Pile) has the same combination of environments defined
     /// multiple times.
     #[error("The same condition is defined twice with paths {0} and {1}")]
-    DoubleDefine(PathBuf, PathBuf),
+    DoubleDefine(String, String),
     /// No environment exists with the given name, but a [`Pile`](super::hoard::Pile) thinks
     /// one does.
     #[error("\"{0}\" is not an environment that exists")]
@@ -50,7 +49,7 @@ pub enum Error {
 struct Node {
     score: usize,
     tree: Option<BTreeMap<String, Node>>,
-    value: Option<PathBuf>,
+    value: Option<String>,
     name: String,
 }
 
@@ -84,7 +83,7 @@ fn merge_two_trees(
 #[allow(single_use_lifetimes)]
 struct Evaluation<'a> {
     name: String,
-    path: Option<&'a Path>,
+    path: Option<&'a str>,
     score: usize,
     len: usize,
 }
@@ -138,7 +137,7 @@ impl Node {
         // Default evaluation if subtree does not exist
         let mut eval = Evaluation {
             name: self.name.clone(),
-            path: self.value.as_ref().map(PathBuf::as_ref),
+            path: self.value.as_deref(),
             score: 0,
             len: 1, // this node
         };
@@ -224,7 +223,7 @@ impl Node {
         Ok(eval)
     }
 
-    fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+    fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&str>, Error> {
         tracing::trace!("evaluating envtrie for best matching path");
         let Evaluation { path, .. } = self.get_evaluation(envs)?;
         Ok(path)
@@ -244,7 +243,7 @@ pub struct EnvTrie(Node);
 
 const ENV_SEPARATOR: char = '|';
 
-fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(), Error> {
+fn validate_environments(environments: &BTreeMap<String, String>) -> Result<(), Error> {
     let _span = tracing::trace_span!("validate_environment_strings", ?environments).entered();
     for (key, _) in environments.iter() {
         tracing::trace_span!("check_env_str", env_str = %key);
@@ -352,7 +351,7 @@ impl EnvTrie {
     ///
     /// Any [`enum@Error`] relating to parsing or validating environment condition strings.
     pub fn new(
-        environments: &BTreeMap<String, PathBuf>,
+        environments: &BTreeMap<String, String>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
         let _span =
@@ -369,7 +368,7 @@ impl EnvTrie {
             .iter()
             .map(|(env_str, path)| {
                 let _span =
-                    tracing::trace_span!("process_env_string", string = %env_str, path = path.to_string_lossy().as_ref()).entered();
+                    tracing::trace_span!("process_env_string", string = %env_str, %path).entered();
                 let mut envs: Vec<&str> = env_str.split(ENV_SEPARATOR).collect();
                 envs.sort_unstable();
 
@@ -439,7 +438,7 @@ impl EnvTrie {
     ///
     /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
     ///   `environments` argument.
-    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&str>, Error> {
         tracing::trace!(
             trie = ?self,
             ?environments,
@@ -456,7 +455,6 @@ mod tests {
     use maplit::btreemap;
     use once_cell::sync::Lazy;
     use std::collections::BTreeMap;
-    use std::path::PathBuf;
 
     // Every const has a name of the form `LABEL_<char>_<int>`.
     // All consts with the same `<char>` are mutually exclusive for the purposes of testing.
@@ -469,9 +467,9 @@ mod tests {
     const LABEL_C_1: &str = "c1";
     const LABEL_C_2: &str = "c2";
 
-    static PATH_1: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path1"));
-    static PATH_2: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path2"));
-    static PATH_3: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path3"));
+    static PATH_1: Lazy<String> = Lazy::new(|| String::from("/tmp/path1"));
+    static PATH_2: Lazy<String> = Lazy::new(|| String::from("/tmp/path2"));
+    static PATH_3: Lazy<String> = Lazy::new(|| String::from("/tmp/path3"));
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {
@@ -506,7 +504,7 @@ mod tests {
         (name: $name:ident, environments: $envs:expr, exclusivity: $excl:expr, expected: $result:expr) => {
             #[test]
             fn $name() {
-                let environments: BTreeMap<String, PathBuf> = $envs;
+                let environments: BTreeMap<String, String> = $envs;
                 let exclusivity: Vec<Vec<String>> = $excl;
 
                 let res: Result<EnvTrie, Error> = EnvTrie::new(&environments, &exclusivity);

@@ -12,7 +12,6 @@ use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{expand_env_in_path, Error as EnvError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
 use thiserror::Error;
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
@@ -27,14 +26,8 @@ pub enum Error {
     #[error("error while processing environment requirements: {0}")]
     EnvTrie(#[from] TrieError),
     /// Error while expanding environment variables in a path.
-    #[error("error while expanding environment variables in {path}: {error}")]
-    ExpandEnv {
-        /// The path being processed.
-        path: String,
-        /// The original error.
-        #[source]
-        error: EnvError,
-    },
+    #[error("error while expanding environment variables in path: {0}")]
+    ExpandEnv(#[from] EnvError),
 }
 
 /// Configuration for symmetric (password) encryption.
@@ -93,21 +86,10 @@ impl Pile {
         .entered();
 
         let Pile { config, items } = self;
-        let items = items
-            .into_iter()
-            .map(|(key, path)| {
-                let _span = tracing::debug_span!("process_pile_paths", %key, %path).entered();
-                let path = expand_env_in_path(&path).map_err(|err| Error::ExpandEnv {
-                    path: path.to_string(),
-                    error: err,
-                })?;
-
-                Ok((key, path))
-            })
-            .collect::<Result<_, Error>>()?;
-
         let trie = EnvTrie::new(&items, exclusivity)?;
-        let path = trie.get_path(envs)?.map(Path::to_owned);
+        let path = trie.get_path(envs)?
+            .map(expand_env_in_path)
+            .transpose()?;
 
         Ok(ConfigSingle { config, path })
     }
