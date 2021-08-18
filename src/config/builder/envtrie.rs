@@ -175,7 +175,7 @@ impl Node {
 
         // Default evaluation if subtree does not exist
         let mut eval = Evaluation {
-            name: self.name.clone(),
+            name: String::new(),
             path: self.value.as_deref(),
             scores: vec![],
         };
@@ -234,7 +234,11 @@ impl Node {
             }
         }
 
-        // Found best match, add self score
+        if eval.name.is_empty() {
+            eval.name = self.name.clone();
+        } else {
+            eval.name = format!("{}|{}", self.name, eval.name);
+        }
         eval.scores.push(self.score);
         // Sort largest values first
         eval.scores.sort_unstable_by(|left, right| right.cmp(left));
@@ -381,7 +385,7 @@ impl EnvTrie {
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
-        tracing::trace!("building trees for each environment string");
+        tracing::trace!(?exclusivity_map, ?weighted_map, "building trees for each environment string");
         let trees: Vec<_> = environments
             .iter()
             .map(|(env_str, path)| {
@@ -405,7 +409,7 @@ impl EnvTrie {
                 // Last node, then building up to the root.
                 let mut prev_node = Node {
                     name: String::new(),
-                    score: 1,
+                    score: 0,
                     tree: None,
                     value: Some(path.clone()),
                 };
