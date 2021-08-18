@@ -158,5 +158,3 @@ jobs:
 
       - name: Test Last Paths
         run: python ci-tests/test.py last_paths
-        env:
-          HOARD_LOG: "trace"
