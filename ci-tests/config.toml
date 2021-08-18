@@ -1,6 +1,6 @@
 exclusivity = [
     ["first", "second"],
-    ["windows", "linux", "macos"]
+    ["unix", "windows"]
 ]
 
 [envs]
@@ -10,12 +10,10 @@ exclusivity = [
     env = [{ var = "USE_ENV", value = "2"}]
 [envs.windows]
     os = ["windows"]
-[envs.linux]
-    os = ["linux"]
-[envs.macos]
-    os = ["macos"]
+    env = [{ var = "HOMEPATH" }]
 [envs.unix]
     os = ["linux", "macos"]
+    env = [{ var = "HOME" }]
 
 [hoards]
 [hoards.anon_dir]
