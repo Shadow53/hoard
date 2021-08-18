@@ -87,9 +87,7 @@ impl Pile {
 
         let Pile { config, items } = self;
         let trie = EnvTrie::new(&items, exclusivity)?;
-        let path = trie.get_path(envs)?
-            .map(expand_env_in_path)
-            .transpose()?;
+        let path = trie.get_path(envs)?.map(expand_env_in_path).transpose()?;
 
         Ok(ConfigSingle { config, path })
     }

@@ -87,42 +87,42 @@ struct Evaluation<'a> {
     scores: Vec<usize>,
 }
 
-impl <'a> Evaluation<'a> {
+impl<'a> Evaluation<'a> {
     fn is_better_match_than(&self, other: &Evaluation<'a>) -> Result<bool, Error> {
         match (self.path, other.path) {
             (_, None) => Ok(true),
             (None, Some(_)) => Ok(false),
-            (Some(_), Some(_)) => {
-                match self.scores.len().cmp(&other.scores.len()) {
-                    std::cmp::Ordering::Less => Ok(false),
-                    std::cmp::Ordering::Greater => Ok(true),
-                    std::cmp::Ordering::Equal => {
-                        let rel_score: i32 = self.scores.iter()
-                            .zip(other.scores.iter())
-                            .map(|(s, o)| match s.cmp(o) {
-                                std::cmp::Ordering::Less => -1,
-                                std::cmp::Ordering::Equal => 0,
-                                std::cmp::Ordering::Greater => 1,
-                            })
-                            .sum();
+            (Some(_), Some(_)) => match self.scores.len().cmp(&other.scores.len()) {
+                std::cmp::Ordering::Less => Ok(false),
+                std::cmp::Ordering::Greater => Ok(true),
+                std::cmp::Ordering::Equal => {
+                    let rel_score: i32 = self
+                        .scores
+                        .iter()
+                        .zip(other.scores.iter())
+                        .map(|(s, o)| match s.cmp(o) {
+                            std::cmp::Ordering::Less => -1,
+                            std::cmp::Ordering::Equal => 0,
+                            std::cmp::Ordering::Greater => 1,
+                        })
+                        .sum();
 
-                        match rel_score.cmp(&0) {
-                            std::cmp::Ordering::Less => Ok(false),
-                            std::cmp::Ordering::Greater => Ok(true),
-                            std::cmp::Ordering::Equal => {
-                                tracing::error!(
-                                    left_eval = ?self,
-                                    right_eval = ?other,
-                                    "cannot choose between {} and {}",
-                                    self.name,
-                                    other.name
-                                );
-                                Err(Error::Indecision(self.name.clone(), other.name.clone()))
-                            },
+                    match rel_score.cmp(&0) {
+                        std::cmp::Ordering::Less => Ok(false),
+                        std::cmp::Ordering::Greater => Ok(true),
+                        std::cmp::Ordering::Equal => {
+                            tracing::error!(
+                                left_eval = ?self,
+                                right_eval = ?other,
+                                "cannot choose between {} and {}",
+                                self.name,
+                                other.name
+                            );
+                            Err(Error::Indecision(self.name.clone(), other.name.clone()))
                         }
-                    },
+                    }
                 }
-            }
+            },
         }
     }
 }
