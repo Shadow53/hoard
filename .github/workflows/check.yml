@@ -3,9 +3,31 @@ on: [push]
 name: Commit Checks
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      cargo: ${{ steps.filter.outputs.cargo }}
+      pytests: ${{ steps.filter.outputs.pytests }}}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dorny/paths-filter
+        id: filter
+        with:
+          filters: |
+            cargo:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            rust:
+              - '**/*.rs'
+            pytests:
+              - 'ci-tests/**'
+
   fmt:
     name: Cargo fmt
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -26,6 +48,8 @@ jobs:
   check-stable:
     name: Check Commit
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -68,6 +92,8 @@ jobs:
   check-nightly:
     name: Check Commit
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -119,7 +145,8 @@ jobs:
 
   integration-tests:
     name: "Integration Tests"
-    needs: check-stable
+    needs: [check-stable, changes]
+    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
