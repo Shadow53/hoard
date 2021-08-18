@@ -291,9 +291,9 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
     )
     .entered();
 
-    tracing::trace!("calculating environment weights from exclusivity lists");
+    // Check for cycles, then discard graph
+    tracing::trace!("checking for cycles");
     let mut score_dag = DiGraph::<String, ()>::new();
-
     for list in exclusive_list.iter() {
         let mut prev_idx = None;
 
@@ -314,18 +314,25 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
     }
 
     toposort(&score_dag, None)
-        .map(|v| {
-            // Toposort returns least to highest priority, so the enumerated index
-            // suffices as relative weight
-            v.into_iter()
-                .enumerate()
-                .map(|(i, id)| (score_dag[id].clone(), i + 1))
-                .collect()
-        })
         .map_err(|cycle| {
             let node: &str = &score_dag[cycle.node_id()];
             Error::WeightCycle(node.to_owned())
-        })
+        })?;
+
+    // Actually calculate map
+    tracing::trace!("calculating environment weights from exclusivity lists");
+    let mut weighted_map: BTreeMap<String, usize> = BTreeMap::new();
+    
+    for list in exclusive_list {
+        for (score, item) in list.iter().rev().enumerate() {
+            let weight = weighted_map
+                .get(item.as_str())
+                .map_or(score, |val| if *val > score {*val} else {score});
+            weighted_map.insert(item.clone(), weight);
+        }
+    }
+
+    Ok(weighted_map)
 }
 
 fn merge_maps(
