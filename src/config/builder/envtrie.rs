@@ -84,8 +84,47 @@ fn merge_two_trees(
 struct Evaluation<'a> {
     name: String,
     path: Option<&'a str>,
-    score: usize,
-    len: usize,
+    scores: Vec<usize>,
+}
+
+impl <'a> Evaluation<'a> {
+    fn is_better_match_than(&self, other: &Evaluation<'a>) -> Result<bool, Error> {
+        match (self.path, other.path) {
+            (_, None) => Ok(true),
+            (None, Some(_)) => Ok(false),
+            (Some(_), Some(_)) => {
+                match self.scores.len().cmp(&other.scores.len()) {
+                    std::cmp::Ordering::Less => Ok(false),
+                    std::cmp::Ordering::Greater => Ok(true),
+                    std::cmp::Ordering::Equal => {
+                        let rel_score: i32 = self.scores.iter()
+                            .zip(other.scores.iter())
+                            .map(|(s, o)| match s.cmp(o) {
+                                std::cmp::Ordering::Less => -1,
+                                std::cmp::Ordering::Equal => 0,
+                                std::cmp::Ordering::Greater => 1,
+                            })
+                            .sum();
+
+                        match rel_score.cmp(&0) {
+                            std::cmp::Ordering::Less => Ok(false),
+                            std::cmp::Ordering::Greater => Ok(true),
+                            std::cmp::Ordering::Equal => {
+                                tracing::error!(
+                                    left_eval = ?self,
+                                    right_eval = ?other,
+                                    "cannot choose between {} and {}",
+                                    self.name,
+                                    other.name
+                                );
+                                Err(Error::Indecision(self.name.clone(), other.name.clone()))
+                            },
+                        }
+                    },
+                }
+            }
+        }
+    }
 }
 
 impl Node {
@@ -138,8 +177,7 @@ impl Node {
         let mut eval = Evaluation {
             name: self.name.clone(),
             path: self.value.as_deref(),
-            score: 0,
-            len: 1, // this node
+            scores: vec![],
         };
 
         if let Some(tree) = &self.tree {
@@ -184,42 +222,22 @@ impl Node {
                     },
                 };
 
-                // Path must exist
-                match (eval.path, node_eval.path) {
-                    (_, None) => {}
-                    (None, Some(_)) => eval = node_eval,
-                    (Some(_), Some(_)) => {
-                        if node_eval.len > eval.len
-                            || (node_eval.len == eval.len && node_eval.score > eval.score)
-                        {
-                            tracing::trace!(
-                                old_eval = ?eval,
-                                new_eval = ?node_eval,
-                                "found child node with a better match"
-                            );
+                if node_eval.is_better_match_than(&eval)? {
+                    tracing::trace!(
+                        old_eval = ?eval,
+                        new_eval = ?node_eval,
+                        "found child node with a better match"
+                    );
 
-                            // Greater length takes precedence, otherwise use score.
-                            eval.path = node_eval.path;
-                            eval.score = node_eval.score + self.score;
-                            // Add this node to the chain
-                            eval.len = node_eval.len + 1;
-                        } else if node_eval.len == eval.len && node_eval.score == eval.score {
-                            // If length and score are same, cannot choose
-                            tracing::error!(
-                                left_eval = ?node_eval,
-                                right_eval = ?eval,
-                                "cannot choose between {} and {}",
-                                node_eval.name,
-                                eval.name
-                            );
-                            return Err(Error::Indecision(eval.name, name.clone()));
-                        }
-                        // Otherwise, keep current one.
-                    }
+                    eval = node_eval;
                 }
             }
         }
 
+        // Found best match, add self score
+        eval.scores.push(self.score);
+        // Sort largest values first
+        eval.scores.sort_unstable_by(|left, right| right.cmp(left));
         Ok(eval)
     }
 
