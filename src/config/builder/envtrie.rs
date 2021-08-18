@@ -1,6 +1,5 @@
 //! Notes
 //! - Length of matching path takes precedence over the strength of any one segment.
-//! - If two paths have the same length and score, the first one is taken.
 //! - Weights of each segment are determined by taking sets of mutually exclusive
 //!   segments and creating a DAG to determine weights.
 //! - No current design for making a short path win out over a longer one.
@@ -320,7 +319,7 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
             // suffices as relative weight
             v.into_iter()
                 .enumerate()
-                .map(|(i, id)| (score_dag[id].clone(), i))
+                .map(|(i, id)| (score_dag[id].clone(), i + 1))
                 .collect()
         })
         .map_err(|cycle| {
@@ -419,7 +418,7 @@ impl EnvTrie {
                 for segment in envs.into_iter().rev() {
                     let segment = segment.to_string();
 
-                    let score = weighted_map.get(&segment).copied().unwrap_or(1);
+                    prev_node.score = weighted_map.get(&segment).copied().unwrap_or(1);
                     prev_node.name = segment.clone();
                     let tree = {
                         let mut tree = BTreeMap::new();
@@ -428,7 +427,7 @@ impl EnvTrie {
                     };
 
                     prev_node = Node {
-                        score,
+                        score: 0,
                         tree,
                         value: None,
                         name: String::new(),
