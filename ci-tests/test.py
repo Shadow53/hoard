@@ -98,11 +98,13 @@ def assert_second_tree():
     assert_same_tree(f"{home}/second_named_file", f"{data_dir}/hoards/named/file")
 
 
-def run_hoard(command, targets=[], env=None):
+def run_hoard(command, force=False, targets=[], env=None):
     # Run the specified hoard command
     # Should automatically operate on all hoards when targets is empty
     for key, val in env.items():
         os.environ[key] = val
+    if force:
+        targets.insert(0, "--force")
     subprocess.run(["target/debug/hoard", command, *targets], check=True)
 
 
@@ -120,11 +122,11 @@ def test_last_paths():
     except subprocess.CalledProcessError:
         pass
     # Doing it again with "first" should still succeed
-    run_hoard("backup", env={"USE_ENV": "2"})
+    run_hoard("backup", env={"USE_ENV": "1"})
     # Make sure the files are consistent with backing up "first"
     assert_first_tree()
     # Doing it with "second" but forced should succeed
-    run_hoard("backup", env={"USE_ENV": "2"})
+    run_hoard("backup", force=True, env={"USE_ENV": "2"})
     # Make sure the files were overwritten
     assert_second_tree()
 
