@@ -5,9 +5,9 @@ exclusivity = [
 
 [envs]
 [envs.first]
-    env = [{ var = "USE_ENV", value = "1" }]
+    env = [{ var = "USE_ENV", expected = "1" }]
 [envs.second]
-    env = [{ var = "USE_ENV", value = "2"}]
+    env = [{ var = "USE_ENV", expected = "2" }]
 [envs.windows]
     os = ["windows"]
     env = [{ var = "HOMEPATH" }]
