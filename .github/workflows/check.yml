@@ -11,7 +11,7 @@ jobs:
       pytests: ${{ steps.filter.outputs.pytests }}}
     steps:
       - uses: actions/checkout@v2
-      - uses: dorny/paths-filter
+      - uses: dorny/paths-filter@v2
         id: filter
         with:
           filters: |
