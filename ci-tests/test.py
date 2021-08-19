@@ -59,7 +59,7 @@ def setup():
 
     for env in ["first", "second"]:
         for item in ["anon_dir", "named_dir"]:
-            for num in [1, 2, 3]:
+            for num in ["1", "2", "3"]:
                 os.makedirs(f"{home}/{env}_{item}", exist_ok=True)
                 with open(f"{home}/{env}_{item}/{num}", "wb") as file:
                     content = secrets.token_bytes(num * 1024)
@@ -96,7 +96,7 @@ def assert_first_tree():
     assert_same_tree(
         f"{home}/first_anon_dir",
         f"{data_dir}/hoards/anon_dir",
-        direntries=[1, 2, 3]
+        direntries=["1", "2", "3"]
     )
     assert_same_tree(
         f"{home}/first_anon_file",
@@ -105,7 +105,7 @@ def assert_first_tree():
     assert_same_tree(
         f"{home}/first_named_dir",
         f"{data_dir}/hoards/named/dir",
-        direntries=[1, 2, 3]
+        direntries=["1", "2", "3"]
     )
     assert_same_tree(
         f"{home}/first_named_file",
@@ -119,7 +119,7 @@ def assert_second_tree():
     assert_same_tree(
         f"{home}/second_anon_dir",
         f"{data_dir}/hoards/anon_dir",
-        direntries=[1, 2, 3]
+        direntries=["1", "2", "3"]
     )
     assert_same_tree(
         f"{home}/second_anon_file",
@@ -128,7 +128,7 @@ def assert_second_tree():
     assert_same_tree(
         f"{home}/second_named_dir",
         f"{data_dir}/hoards/named/dir",
-        direntries=[1, 2, 3]
+        direntries=["1", "2", "3"]
     )
     assert_same_tree(
         f"{home}/second_named_file",
