@@ -72,7 +72,7 @@ def setup():
     shutil.copy2("ci-tests/config.toml", config_file_path())
 
 
-def assert_same_tree(path1, path2, direntries=None):
+def assert_same_tree(path1, path2, *, direntries=None):
     if direntries is None:
         if not filecmp.cmp(path1, path2, shallow=False):
             raise RuntimeError(f"content of files {path1} and {path2} differ")
@@ -136,7 +136,7 @@ def assert_second_tree():
     )
 
 
-def run_hoard(command, force=False, targets=[], env=None):
+def run_hoard(command, *, force=False, targets=[], env=None):
     # Run the specified hoard command
     # Should automatically operate on all hoards when targets is empty
     for key, val in env.items():
