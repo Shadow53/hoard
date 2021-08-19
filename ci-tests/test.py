@@ -145,6 +145,7 @@ def run_hoard(command, *, force=False, targets=[], env=None):
     args = ["target/debug/hoard"]
     if force:
         args.append("--force")
+    args.append(command)
     args += targets
 
     subprocess.run(args, check=True)

@@ -152,7 +152,8 @@ impl Config {
         &self,
         name: &str,
     ) -> Result<(), Error> {
-        let _span = tracing::info_span!("checking for inconsistencies against previous operation", hoard=%name).entered();
+        let _span = tracing::info_span!("consistency_checks", hoard=%name).entered();
+        tracing::info!("checking for inconsistencies against previous operation");
         let mut last_paths = LastPaths::from_default_file()?;
         let hoard_paths = self.get_hoard(name)?.get_paths();
         // If forcing the operation, don't bother checking.
