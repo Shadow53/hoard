@@ -141,9 +141,13 @@ def run_hoard(command, force=False, targets=[], env=None):
     # Should automatically operate on all hoards when targets is empty
     for key, val in env.items():
         os.environ[key] = val
+
+    args = ["target/debug/hoard"]
     if force:
-        targets.insert(0, "--force")
-    subprocess.run(["target/debug/hoard", command, *targets], check=True)
+        args.append("--force")
+    args += targets
+
+    subprocess.run(args, check=True)
 
 
 def test_last_paths():
