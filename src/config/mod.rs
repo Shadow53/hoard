@@ -151,9 +151,9 @@ impl Config {
     fn check_and_set_same_paths(
         &self,
         name: &str,
-        last_paths: &mut LastPaths,
     ) -> Result<(), Error> {
         let _span = tracing::info_span!("checking for inconsistencies against previous operation", hoard=%name).entered();
+        let mut last_paths = LastPaths::from_default_file()?;
         let hoard_paths = self.get_hoard(name)?.get_paths();
         // If forcing the operation, don't bother checking.
         if !self.force {
@@ -185,9 +185,8 @@ impl Config {
             }
             Command::Backup { hoards } => {
                 let hoards = self.get_hoards(hoards);
-                let mut last_paths = LastPaths::from_default_file()?;
                 for name in hoards {
-                    self.check_and_set_same_paths(name, &mut last_paths)?;
+                    self.check_and_set_same_paths(name)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
@@ -201,9 +200,8 @@ impl Config {
             }
             Command::Restore { hoards } => {
                 let hoards = self.get_hoards(hoards);
-                let mut last_paths = LastPaths::from_default_file()?;
                 for name in hoards {
-                    self.check_and_set_same_paths(name, &mut last_paths)?;
+                    self.check_and_set_same_paths(name)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
