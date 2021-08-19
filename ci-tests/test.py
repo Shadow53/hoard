@@ -20,9 +20,13 @@ def config_file_path():
     if system == 'Linux':
         return Path(f"{home}/.config/hoard/config.toml")
     elif system == 'Darwin':
-        return Path(f"{home}/Library/Application Support/com.shadow53.hoard/config.toml")
+        return Path(
+           f"{home}/Library/Application Support/com.shadow53.hoard/config.toml"
+        )
     elif system == 'Windows':
-        return Path(f"{home}/AppData/Roaming/shadow53/hoard/config/config.toml")
+        return Path(
+            f"{home}/AppData/Roaming/shadow53/hoard/config/config.toml"
+        )
     else:
         raise OSError("could not determine system for CI tests")
 
@@ -73,29 +77,63 @@ def assert_same_tree(path1, path2, direntries=None):
         if not filecmp.cmp(path1, path2, shallow=False):
             raise RuntimeError(f"content of files {path1} and {path2} differ")
     else:
-        matches, mismatches, errors = filecmp.cmpfiles(path1, path2, direntries, shallow=False)
+        matches, mismatches, errors = filecmp.cmpfiles(
+            path1, path2, direntries, shallow=False
+        )
         if errors:
-            raise RuntimeError(f"could not check {errors} inside {path1} and/or {path2}")
+            raise RuntimeError(
+                f"could not check {errors} inside {path1} and/or {path2}"
+            )
         if mismatches:
-            raise RuntimeError(f"contents of files {mismatches} in {path1} and {path2} differ")
+            raise RuntimeError(
+                f"contents of files {mismatches} in {path1} and {path2} differ"
+            )
 
 
 def assert_first_tree():
     home = Path.home()
     data_dir = data_dir_path()
-    assert_same_tree(f"{home}/first_anon_dir", f"{data_dir}/hoards/anon_dir")
-    assert_same_tree(f"{home}/first_anon_file", f"{data_dir}/hoards/anon_file")
-    assert_same_tree(f"{home}/first_named_dir", f"{data_dir}/hoards/named/dir")
-    assert_same_tree(f"{home}/first_named_file", f"{data_dir}/hoards/named/file")
+    assert_same_tree(
+        f"{home}/first_anon_dir",
+        f"{data_dir}/hoards/anon_dir",
+        direntries=[1, 2, 3]
+    )
+    assert_same_tree(
+        f"{home}/first_anon_file",
+        f"{data_dir}/hoards/anon_file"
+    )
+    assert_same_tree(
+        f"{home}/first_named_dir",
+        f"{data_dir}/hoards/named/dir",
+        direntries=[1, 2, 3]
+    )
+    assert_same_tree(
+        f"{home}/first_named_file",
+        f"{data_dir}/hoards/named/file"
+    )
 
 
 def assert_second_tree():
     home = Path.home()
     data_dir = data_dir_path()
-    assert_same_tree(f"{home}/second_anon_dir", f"{data_dir}/hoards/anon_dir")
-    assert_same_tree(f"{home}/second_anon_file", f"{data_dir}/hoards/anon_file")
-    assert_same_tree(f"{home}/second_named_dir", f"{data_dir}/hoards/named/dir")
-    assert_same_tree(f"{home}/second_named_file", f"{data_dir}/hoards/named/file")
+    assert_same_tree(
+        f"{home}/second_anon_dir",
+        f"{data_dir}/hoards/anon_dir",
+        direntries=[1, 2, 3]
+    )
+    assert_same_tree(
+        f"{home}/second_anon_file",
+        f"{data_dir}/hoards/anon_file"
+    )
+    assert_same_tree(
+        f"{home}/second_named_dir",
+        f"{data_dir}/hoards/named/dir",
+        direntries=[1, 2, 3]
+    )
+    assert_same_tree(
+        f"{home}/second_named_file",
+        f"{data_dir}/hoards/named/file"
+    )
 
 
 def run_hoard(command, force=False, targets=[], env=None):
@@ -118,7 +156,9 @@ def test_last_paths():
     # Run hoard with env "second" - this should fail
     try:
         run_hoard("backup", env={"USE_ENV": "2"})
-        raise RuntimeError("Changing environment should have caused last_paths to fail")
+        raise RuntimeError(
+            "Changing environment should have caused last_paths to fail"
+        )
     except subprocess.CalledProcessError:
         pass
     # Doing it again with "first" should still succeed
