@@ -183,5 +183,10 @@ jobs:
         with:
           command: build
 
+      - name: Install Python
+        uses: actions/setup-python
+        with:
+          python-version: "3.9"
+
       - name: Test Last Paths
         run: python ci-tests/test.py last_paths
