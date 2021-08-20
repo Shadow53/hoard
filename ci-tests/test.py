@@ -184,7 +184,7 @@ if __name__ == "__main__":
             test_last_paths()
         except Exception:
             print("\nHoards:")
-            subprocess.run(["tree", data_dir_path()])
+            subprocess.run(["tree", str(data_dir_path())])
             print("\nHome:")
-            subprocess.run(["tree", Path.home()])
+            subprocess.run(["tree", str(Path.home())])
             raise
