@@ -180,4 +180,11 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         raise RuntimeError("One argument - the test - is required")
     if sys.argv[1] == "last_paths":
-        test_last_paths()
+        try:
+            test_last_paths()
+        except Exception:
+            print("\nHoards:")
+            subprocess.run(["tree", data_dir_path()])
+            print("\nHome:")
+            subprocess.run(["tree", Path.home()])
+            raise
