@@ -184,7 +184,7 @@ jobs:
           command: build
 
       - name: Install Python
-        uses: actions/setup-python
+        uses: actions/setup-python@v2
         with:
           python-version: "3.9"
 
