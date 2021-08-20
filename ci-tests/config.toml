@@ -19,21 +19,21 @@ exclusivity = [
 [hoards.anon_dir]
     "unix|first"  = "${HOME}/first_anon_dir"
     "unix|second" = "${HOME}/second_anon_dir"
-    "windows|first"  = "${HOMEPATH}/first_anon_dir"
-    "windows|second" = "${HOMEPATH}/second_anon_dir"
+    "windows|first"  = "C:/${HOMEPATH}/first_anon_dir"
+    "windows|second" = "C:/${HOMEPATH}/second_anon_dir"
 [hoards.anon_file]
     "unix|first"  = "${HOME}/first_anon_file"
     "unix|second" = "${HOME}/second_anon_file"
-    "windows|first"  = "${HOMEPATH}/first_anon_file"
-    "windows|second" = "${HOMEPATH}/second_anon_file"
+    "windows|first"  = "C:/${HOMEPATH}/first_anon_file"
+    "windows|second" = "C:/${HOMEPATH}/second_anon_file"
 [hoards.named]
     [hoards.named.file]
         "unix|first"  = "${HOME}/first_named_file"
         "unix|second" = "${HOME}/second_named_file"
-        "windows|first"  = "${HOMEPATH}/first_named_file"
-        "windows|second" = "${HOMEPATH}/second_named_file"
+        "windows|first"  = "C:/${HOMEPATH}/first_named_file"
+        "windows|second" = "C:/${HOMEPATH}/second_named_file"
     [hoards.named.dir]
         "unix|first"  = "${HOME}/first_named_dir"
         "unix|second" = "${HOME}/second_named_dir"
-        "windows|first"  = "${HOMEPATH}/first_named_dir"
-        "windows|second" = "${HOMEPATH}/second_named_dir"
+        "windows|first"  = "C:/${HOMEPATH}/first_named_dir"
+        "windows|second" = "C:/${HOMEPATH}/second_named_dir"
