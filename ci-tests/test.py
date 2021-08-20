@@ -18,11 +18,11 @@ def config_file_path():
     system = platform.system()
     home = Path.home()
     if system == 'Linux':
-        return home.join(".config", "hoard", "config.toml")
+        return home.joinpath(".config", "hoard", "config.toml")
     elif system == 'Darwin':
-        return home.join("Library", "Application Support", "com.shadow53.hoard", "config.toml")
+        return home.joinpath("Library", "Application Support", "com.shadow53.hoard", "config.toml")
     elif system == 'Windows':
-        return home.join("AppData", "Roaming", "shadow53", "hoard", "config", "config.toml")
+        return home.joinpath("AppData", "Roaming", "shadow53", "hoard", "config", "config.toml")
     else:
         raise OSError("could not determine system for CI tests")
 
@@ -31,11 +31,11 @@ def data_dir_path():
     system = platform.system()
     home = Path.home()
     if system == 'Linux':
-        return home.join(".local", "share", "hoard")
+        return home.joinpath(".local", "share", "hoard")
     elif system == 'Darwin':
-        return home.join("Library", "Application Support", "com.shadow53.hoard")
+        return home.joinpath("Library", "Application Support", "com.shadow53.hoard")
     elif system == 'Windows':
-        return home.join("AppData", "Roaming", "shadow53", "hoard", "data")
+        return home.joinpath("AppData", "Roaming", "shadow53", "hoard", "data")
     else:
         raise OSError("could not determine system for CI tests")
 
@@ -56,16 +56,16 @@ def setup():
     for env in ["first", "second"]:
         for item in ["anon_dir", "named_dir"]:
             for num in [1, 2, 3]:
-                os.makedirs(home.join(f"{env}_{item}"), exist_ok=True)
-                with open(home.join("{env}_{item}", "{num}"), "wb") as file:
+                os.makedirs(home.joinpath(f"{env}_{item}"), exist_ok=True)
+                with open(home.joinpath(f"{env}_{item}", str(num)), "wb") as file:
                     content = secrets.token_bytes(num * 1024)
                     file.write(content)
         for item in ["anon_file", "named_file"]:
-            with open(home.join(f"{env}_{item}"), "wb") as file:
+            with open(home.joinpath(f"{env}_{item}"), "wb") as file:
                 content = secrets.token_bytes(2048)
                 file.write(content)
     os.makedirs(config_file_path().parent)
-    shutil.copy2(Path.cwd().join("ci-tests", "config.toml"), config_file_path())
+    shutil.copy2(Path.cwd().joinpath("ci-tests", "config.toml"), config_file_path())
 
 
 def assert_same_tree(path1, path2, *, direntries=None):
@@ -90,22 +90,22 @@ def assert_first_tree():
     home = Path.home()
     data_dir = data_dir_path()
     assert_same_tree(
-        home.join("first_anon_dir"),
-        data_dir.join("hoards", "anon_dir"),
+        home.joinpath("first_anon_dir"),
+        data_dir.joinpath("hoards", "anon_dir"),
         direntries=["1", "2", "3"]
     )
     assert_same_tree(
-        home.join("first_anon_file"),
-        data_dir.join("hoards", "anon_file")
+        home.joinpath("first_anon_file"),
+        data_dir.joinpath("hoards", "anon_file")
     )
     assert_same_tree(
-        home.join("first_named_dir"),
-        data_dir.join("hoards", "named", "dir"),
+        home.joinpath("first_named_dir"),
+        data_dir.joinpath("hoards", "named", "dir"),
         direntries=["1", "2", "3"]
     )
     assert_same_tree(
-        home.join("first_named_file"),
-        data_dir.join("hoards", "named", "file")
+        home.joinpath("first_named_file"),
+        data_dir.joinpath("hoards", "named", "file")
     )
 
 
@@ -113,22 +113,22 @@ def assert_second_tree():
     home = Path.home()
     data_dir = data_dir_path()
     assert_same_tree(
-        home.join("second_anon_dir"),
-        data_dir.join("hoards", "anon_dir"),
+        home.joinpath("second_anon_dir"),
+        data_dir.joinpath("hoards", "anon_dir"),
         direntries=["1", "2", "3"]
     )
     assert_same_tree(
-        home.join("second_anon_file"),
-        data_dir.join("hoards", "anon_file")
+        home.joinpath("second_anon_file"),
+        data_dir.joinpath("hoards", "anon_file")
     )
     assert_same_tree(
-        home.join("second_named_dir"),
-        data_dir.join("hoards", "named", "dir"),
+        home.joinpath("second_named_dir"),
+        data_dir.joinpath("hoards", "named", "dir"),
         direntries=["1", "2", "3"]
     )
     assert_same_tree(
-        home.join("second_named_file"),
-        data_dir.join("hoards", "named", "file")
+        home.joinpath("second_named_file"),
+        data_dir.joinpath("hoards", "named", "file")
     )
 
 
