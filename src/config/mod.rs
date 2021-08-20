@@ -148,10 +148,7 @@ impl Config {
     /// This function should be run *before* doing any file operations on a hoard. It persists the
     /// paths used before the fallible file operations to prevent confusion (I would expect the
     /// "last paths used" file to have the paths that caused the error, not the run before).
-    fn check_and_set_same_paths(
-        &self,
-        name: &str,
-    ) -> Result<(), Error> {
+    fn check_and_set_same_paths(&self, name: &str) -> Result<(), Error> {
         let _span = tracing::info_span!("consistency_checks", hoard=%name).entered();
         tracing::info!("checking for inconsistencies against previous operation");
         let mut last_paths = LastPaths::from_default_file()?;

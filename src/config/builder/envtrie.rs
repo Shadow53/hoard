@@ -313,21 +313,24 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
         }
     }
 
-    toposort(&score_dag, None)
-        .map_err(|cycle| {
-            let node: &str = &score_dag[cycle.node_id()];
-            Error::WeightCycle(node.to_owned())
-        })?;
+    toposort(&score_dag, None).map_err(|cycle| {
+        let node: &str = &score_dag[cycle.node_id()];
+        Error::WeightCycle(node.to_owned())
+    })?;
 
     // Actually calculate map
     tracing::trace!("calculating environment weights from exclusivity lists");
     let mut weighted_map: BTreeMap<String, usize> = BTreeMap::new();
-    
+
     for list in exclusive_list {
         for (score, item) in list.iter().rev().enumerate() {
-            let weight = weighted_map
-                .get(item.as_str())
-                .map_or(score, |val| if *val > score {*val} else {score});
+            let weight = weighted_map.get(item.as_str()).map_or(score, |val| {
+                if *val > score {
+                    *val
+                } else {
+                    score
+                }
+            });
             weighted_map.insert(item.clone(), weight);
         }
     }
@@ -391,7 +394,11 @@ impl EnvTrie {
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
-        tracing::trace!(?exclusivity_map, ?weighted_map, "building trees for each environment string");
+        tracing::trace!(
+            ?exclusivity_map,
+            ?weighted_map,
+            "building trees for each environment string"
+        );
         let trees: Vec<_> = environments
             .iter()
             .map(|(env_str, path)| {
