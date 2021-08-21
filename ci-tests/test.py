@@ -147,7 +147,7 @@ def run_hoard(command, *, force=False, targets=[], env=None):
     subprocess.run(args, check=True)
 
 
-def test_last_paths():
+def test_last_paths_checker():
     # Do setup
     setup()
     # Run hoard with env "first"
@@ -157,7 +157,7 @@ def test_last_paths():
     # Run hoard with env "second" - this should fail
     try:
         run_hoard("backup", env={"USE_ENV": "2"})
-        raise RuntimeError(
+        raise AssertionError(
             "Changing environment should have caused last_paths to fail"
         )
     except subprocess.CalledProcessError:
@@ -172,15 +172,62 @@ def test_last_paths():
     assert_second_tree()
 
 
+def test_operation_checker():
+    # Do setup
+    setup()
+    # We are not changing env on this test
+    env = {"USE_ENV": "1"}
+    # Run hoard
+    run_hoard("backup",  env=env)
+    # Read UUID and delete file
+    uuid_path = config_file_path().parent.joinpath("uuid")
+    with open(uuid_path, "r") as file:
+        uuid = file.readline()
+    os.remove(uuid_path)
+    # Go again, this time with a different uuid
+    # This should still succeed because the files have the same checksum
+    run_hoard("backup", env=env)
+    # Modify a file and backup again so checksums are different the next time
+    # This should succeed because this UUID had the last backup
+    with open(Path.home().joinpath("anon_file"), "wb") as file:
+        content = secrets.token_bytes(1024)
+        file.write(content)
+    run_hoard("backup", env=env)
+    # Swap UUIDs and change the file again and try to back up
+    # Should fail because a different machine has the most recent backup
+    with open(uuid_path, "w") as file:
+        file.truncate(0)
+        file.write(uuid)
+    try:
+        run_hoard("backup", env=env)
+        raise AssertionError("Using the first UUID should have failed")
+    except subprocess.CalledProcessError:
+        pass
+    # Once more to verify it should always fail
+    try:
+        run_hoard("backup", env=env)
+        raise AssertionError("Using the first UUID should have failed")
+    except subprocess.CalledProcessError:
+        pass
+    # Do it again but forced, and it should succeed
+    run_hoard("backup", env=env, force=True)
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         raise RuntimeError("One argument - the test - is required")
-    if sys.argv[1] == "last_paths":
-        try:
-            test_last_paths()
-        except Exception:
-            print("\nHoards:")
-            subprocess.run(["tree", str(data_dir_path())])
-            print("\nHome:")
-            subprocess.run(["tree", str(Path.home())])
-            raise
+    try:
+        if sys.argv[1] == "last_paths":
+            print("Running last_paths test")
+            test_last_paths_checker()
+        elif sys.argv[1] == "operation":
+            print("Running operation test")
+            test_operation_checker()
+        else:
+            raise RuntimeError(f"Invalid argument {sys.argv[1]}")
+    except Exception:
+        print("\nHoards:")
+        subprocess.run(["tree", str(data_dir_path())])
+        print("\nHome:")
+        subprocess.run(["tree", str(Path.home())])
+        raise
