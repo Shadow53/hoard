@@ -4,8 +4,8 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::env;
 use std::path::PathBuf;
+use std::{env, fmt};
 
 // Following the example of `std::env::set_var`, the only things disallowed are
 // the equals sign and the NUL character.
@@ -14,6 +14,31 @@ use std::path::PathBuf;
 static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"\$\{[^(=|\x{0}|$)]+?}"#).expect("failed to compile regular expression")
 });
+
+/// An error that may occur during expansion.
+///
+/// This is a wrapper for [`std::env::VarError`] that shows what environment variable
+/// could not be found.
+#[derive(Debug)]
+pub struct Error {
+    error: env::VarError,
+    var: String,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.error {
+            env::VarError::NotPresent => write!(f, "{}: {}", self.error, self.var),
+            env::VarError::NotUnicode(_) => self.error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
+}
 
 /// Takes the input string, expands all environment variables, and returns the
 /// expanded string as a [`PathBuf`].
@@ -34,7 +59,7 @@ static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// # Errors
 ///
 /// - Any [`VarError`](env::VarError) from looking up the environment variable's value.
-pub fn expand_env_in_path(path: &str) -> Result<PathBuf, env::VarError> {
+pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
     let mut new_path = path.to_owned();
     let mut start: usize = 0;
     let mut old_start: usize;
@@ -45,7 +70,10 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, env::VarError> {
         let var = mat.as_str();
         let var = &var[2..var.len() - 1];
         tracing::trace!(var, "found environment variable {}", var,);
-        let value = env::var(var)?;
+        let value = env::var(var).map_err(|error| Error {
+            error,
+            var: var.to_owned(),
+        })?;
 
         old_start = start;
         start += value.len();

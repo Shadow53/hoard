@@ -1,0 +1,39 @@
+exclusivity = [
+    ["first", "second"],
+    ["unix", "windows"]
+]
+
+[envs]
+[envs.first]
+    env = [{ var = "USE_ENV", expected = "1" }]
+[envs.second]
+    env = [{ var = "USE_ENV", expected = "2" }]
+[envs.windows]
+    os = ["windows"]
+    env = [{ var = "HOMEPATH" }]
+[envs.unix]
+    os = ["linux", "macos"]
+    env = [{ var = "HOME" }]
+
+[hoards]
+[hoards.anon_dir]
+    "unix|first"  = "${HOME}/first_anon_dir"
+    "unix|second" = "${HOME}/second_anon_dir"
+    "windows|first"  = "C:/${HOMEPATH}/first_anon_dir"
+    "windows|second" = "C:/${HOMEPATH}/second_anon_dir"
+[hoards.anon_file]
+    "unix|first"  = "${HOME}/first_anon_file"
+    "unix|second" = "${HOME}/second_anon_file"
+    "windows|first"  = "C:/${HOMEPATH}/first_anon_file"
+    "windows|second" = "C:/${HOMEPATH}/second_anon_file"
+[hoards.named]
+    [hoards.named.file]
+        "unix|first"  = "${HOME}/first_named_file"
+        "unix|second" = "${HOME}/second_named_file"
+        "windows|first"  = "C:/${HOMEPATH}/first_named_file"
+        "windows|second" = "C:/${HOMEPATH}/second_named_file"
+    [hoards.named.dir]
+        "unix|first"  = "${HOME}/first_named_dir"
+        "unix|second" = "${HOME}/second_named_dir"
+        "windows|first"  = "C:/${HOMEPATH}/first_named_dir"
+        "windows|second" = "C:/${HOMEPATH}/second_named_dir"

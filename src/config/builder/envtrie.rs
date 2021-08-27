@@ -1,6 +1,5 @@
 //! Notes
 //! - Length of matching path takes precedence over the strength of any one segment.
-//! - If two paths have the same length and score, the first one is taken.
 //! - Weights of each segment are determined by taking sets of mutually exclusive
 //!   segments and creating a DAG to determine weights.
 //! - No current design for making a short path win out over a longer one.
@@ -8,7 +7,6 @@
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use std::collections::{BTreeMap, HashSet};
-use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Errors that may occur while building or evaluating an [`EnvTrie`].
@@ -22,7 +20,7 @@ pub enum Error {
     /// One [`Pile`](super::hoard::Pile) has the same combination of environments defined
     /// multiple times.
     #[error("The same condition is defined twice with paths {0} and {1}")]
-    DoubleDefine(PathBuf, PathBuf),
+    DoubleDefine(String, String),
     /// No environment exists with the given name, but a [`Pile`](super::hoard::Pile) thinks
     /// one does.
     #[error("\"{0}\" is not an environment that exists")]
@@ -50,7 +48,7 @@ pub enum Error {
 struct Node {
     score: usize,
     tree: Option<BTreeMap<String, Node>>,
-    value: Option<PathBuf>,
+    value: Option<String>,
     name: String,
 }
 
@@ -84,9 +82,48 @@ fn merge_two_trees(
 #[allow(single_use_lifetimes)]
 struct Evaluation<'a> {
     name: String,
-    path: Option<&'a Path>,
-    score: usize,
-    len: usize,
+    path: Option<&'a str>,
+    scores: Vec<usize>,
+}
+
+impl<'a> Evaluation<'a> {
+    fn is_better_match_than(&self, other: &Evaluation<'a>) -> Result<bool, Error> {
+        match (self.path, other.path) {
+            (_, None) => Ok(true),
+            (None, Some(_)) => Ok(false),
+            (Some(_), Some(_)) => match self.scores.len().cmp(&other.scores.len()) {
+                std::cmp::Ordering::Less => Ok(false),
+                std::cmp::Ordering::Greater => Ok(true),
+                std::cmp::Ordering::Equal => {
+                    let rel_score: i32 = self
+                        .scores
+                        .iter()
+                        .zip(other.scores.iter())
+                        .map(|(s, o)| match s.cmp(o) {
+                            std::cmp::Ordering::Less => -1,
+                            std::cmp::Ordering::Equal => 0,
+                            std::cmp::Ordering::Greater => 1,
+                        })
+                        .sum();
+
+                    match rel_score.cmp(&0) {
+                        std::cmp::Ordering::Less => Ok(false),
+                        std::cmp::Ordering::Greater => Ok(true),
+                        std::cmp::Ordering::Equal => {
+                            tracing::error!(
+                                left_eval = ?self,
+                                right_eval = ?other,
+                                "cannot choose between {} and {}",
+                                self.name,
+                                other.name
+                            );
+                            Err(Error::Indecision(self.name.clone(), other.name.clone()))
+                        }
+                    }
+                }
+            },
+        }
+    }
 }
 
 impl Node {
@@ -137,10 +174,9 @@ impl Node {
 
         // Default evaluation if subtree does not exist
         let mut eval = Evaluation {
-            name: self.name.clone(),
-            path: self.value.as_ref().map(PathBuf::as_ref),
-            score: 0,
-            len: 1, // this node
+            name: String::new(),
+            path: self.value.as_deref(),
+            scores: vec![],
         };
 
         if let Some(tree) = &self.tree {
@@ -185,46 +221,30 @@ impl Node {
                     },
                 };
 
-                // Path must exist
-                match (eval.path, node_eval.path) {
-                    (_, None) => {}
-                    (None, Some(_)) => eval = node_eval,
-                    (Some(_), Some(_)) => {
-                        if node_eval.len > eval.len
-                            || (node_eval.len == eval.len && node_eval.score > eval.score)
-                        {
-                            tracing::trace!(
-                                old_eval = ?eval,
-                                new_eval = ?node_eval,
-                                "found child node with a better match"
-                            );
+                if node_eval.is_better_match_than(&eval)? {
+                    tracing::trace!(
+                        old_eval = ?eval,
+                        new_eval = ?node_eval,
+                        "found child node with a better match"
+                    );
 
-                            // Greater length takes precedence, otherwise use score.
-                            eval.path = node_eval.path;
-                            eval.score = node_eval.score + self.score;
-                            // Add this node to the chain
-                            eval.len = node_eval.len + 1;
-                        } else if node_eval.len == eval.len && node_eval.score == eval.score {
-                            // If length and score are same, cannot choose
-                            tracing::error!(
-                                left_eval = ?node_eval,
-                                right_eval = ?eval,
-                                "cannot choose between {} and {}",
-                                node_eval.name,
-                                eval.name
-                            );
-                            return Err(Error::Indecision(eval.name, name.clone()));
-                        }
-                        // Otherwise, keep current one.
-                    }
+                    eval = node_eval;
                 }
             }
         }
 
+        if eval.name.is_empty() {
+            eval.name = self.name.clone();
+        } else {
+            eval.name = format!("{}|{}", self.name, eval.name);
+        }
+        eval.scores.push(self.score);
+        // Sort largest values first
+        eval.scores.sort_unstable_by(|left, right| right.cmp(left));
         Ok(eval)
     }
 
-    fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+    fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&str>, Error> {
         tracing::trace!("evaluating envtrie for best matching path");
         let Evaluation { path, .. } = self.get_evaluation(envs)?;
         Ok(path)
@@ -244,7 +264,7 @@ pub struct EnvTrie(Node);
 
 const ENV_SEPARATOR: char = '|';
 
-fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(), Error> {
+fn validate_environments(environments: &BTreeMap<String, String>) -> Result<(), Error> {
     let _span = tracing::trace_span!("validate_environment_strings", ?environments).entered();
     for (key, _) in environments.iter() {
         tracing::trace_span!("check_env_str", env_str = %key);
@@ -271,9 +291,9 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
     )
     .entered();
 
-    tracing::trace!("calculating environment weights from exclusivity lists");
+    // Check for cycles, then discard graph
+    tracing::trace!("checking for cycles");
     let mut score_dag = DiGraph::<String, ()>::new();
-
     for list in exclusive_list.iter() {
         let mut prev_idx = None;
 
@@ -293,19 +313,29 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
         }
     }
 
-    toposort(&score_dag, None)
-        .map(|v| {
-            // Toposort returns least to highest priority, so the enumerated index
-            // suffices as relative weight
-            v.into_iter()
-                .enumerate()
-                .map(|(i, id)| (score_dag[id].clone(), i))
-                .collect()
-        })
-        .map_err(|cycle| {
-            let node: &str = &score_dag[cycle.node_id()];
-            Error::WeightCycle(node.to_owned())
-        })
+    toposort(&score_dag, None).map_err(|cycle| {
+        let node: &str = &score_dag[cycle.node_id()];
+        Error::WeightCycle(node.to_owned())
+    })?;
+
+    // Actually calculate map
+    tracing::trace!("calculating environment weights from exclusivity lists");
+    let mut weighted_map: BTreeMap<String, usize> = BTreeMap::new();
+
+    for list in exclusive_list {
+        for (score, item) in list.iter().rev().enumerate() {
+            let weight = weighted_map.get(item.as_str()).map_or(score, |val| {
+                if *val > score {
+                    *val
+                } else {
+                    score
+                }
+            });
+            weighted_map.insert(item.clone(), weight);
+        }
+    }
+
+    Ok(weighted_map)
 }
 
 fn merge_maps(
@@ -352,7 +382,7 @@ impl EnvTrie {
     ///
     /// Any [`enum@Error`] relating to parsing or validating environment condition strings.
     pub fn new(
-        environments: &BTreeMap<String, PathBuf>,
+        environments: &BTreeMap<String, String>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
         let _span =
@@ -364,12 +394,16 @@ impl EnvTrie {
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
-        tracing::trace!("building trees for each environment string");
+        tracing::trace!(
+            ?exclusivity_map,
+            ?weighted_map,
+            "building trees for each environment string"
+        );
         let trees: Vec<_> = environments
             .iter()
             .map(|(env_str, path)| {
                 let _span =
-                    tracing::trace_span!("process_env_string", string = %env_str, path = path.to_string_lossy().as_ref()).entered();
+                    tracing::trace_span!("process_env_string", string = %env_str, %path).entered();
                 let mut envs: Vec<&str> = env_str.split(ENV_SEPARATOR).collect();
                 envs.sort_unstable();
 
@@ -388,7 +422,7 @@ impl EnvTrie {
                 // Last node, then building up to the root.
                 let mut prev_node = Node {
                     name: String::new(),
-                    score: 1,
+                    score: 0,
                     tree: None,
                     value: Some(path.clone()),
                 };
@@ -398,7 +432,7 @@ impl EnvTrie {
                 for segment in envs.into_iter().rev() {
                     let segment = segment.to_string();
 
-                    let score = weighted_map.get(&segment).copied().unwrap_or(1);
+                    prev_node.score = weighted_map.get(&segment).copied().unwrap_or(1);
                     prev_node.name = segment.clone();
                     let tree = {
                         let mut tree = BTreeMap::new();
@@ -407,7 +441,7 @@ impl EnvTrie {
                     };
 
                     prev_node = Node {
-                        score,
+                        score: 0,
                         tree,
                         value: None,
                         name: String::new(),
@@ -439,7 +473,7 @@ impl EnvTrie {
     ///
     /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
     ///   `environments` argument.
-    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&str>, Error> {
         tracing::trace!(
             trie = ?self,
             ?environments,
@@ -456,7 +490,6 @@ mod tests {
     use maplit::btreemap;
     use once_cell::sync::Lazy;
     use std::collections::BTreeMap;
-    use std::path::PathBuf;
 
     // Every const has a name of the form `LABEL_<char>_<int>`.
     // All consts with the same `<char>` are mutually exclusive for the purposes of testing.
@@ -469,9 +502,9 @@ mod tests {
     const LABEL_C_1: &str = "c1";
     const LABEL_C_2: &str = "c2";
 
-    static PATH_1: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path1"));
-    static PATH_2: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path2"));
-    static PATH_3: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path3"));
+    static PATH_1: Lazy<String> = Lazy::new(|| String::from("/tmp/path1"));
+    static PATH_2: Lazy<String> = Lazy::new(|| String::from("/tmp/path2"));
+    static PATH_3: Lazy<String> = Lazy::new(|| String::from("/tmp/path3"));
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {
@@ -506,7 +539,7 @@ mod tests {
         (name: $name:ident, environments: $envs:expr, exclusivity: $excl:expr, expected: $result:expr) => {
             #[test]
             fn $name() {
-                let environments: BTreeMap<String, PathBuf> = $envs;
+                let environments: BTreeMap<String, String> = $envs;
                 let exclusivity: Vec<Vec<String>> = $excl;
 
                 let res: Result<EnvTrie, Error> = EnvTrie::new(&environments, &exclusivity);

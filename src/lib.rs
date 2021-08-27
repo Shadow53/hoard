@@ -65,6 +65,7 @@
 )]
 pub use config::Config;
 
+pub mod checkers;
 pub mod combinator;
 pub mod command;
 pub mod config;

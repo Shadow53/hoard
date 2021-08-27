@@ -2,6 +2,8 @@
 
 pub use self::builder::Builder;
 use self::hoard::Hoard;
+use crate::checkers::history::last_paths::{Error as LastPathsError, HoardPaths, LastPaths};
+use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::command::Command;
 use directories::ProjectDirs;
 use std::collections::BTreeMap;
@@ -46,6 +48,15 @@ pub enum Error {
         #[source]
         error: hoard::Error,
     },
+    /// An error occurred while comparing paths for this run to the previous one.
+    #[error("error while comparing previous run to current run: {0}")]
+    LastPaths(#[from] LastPathsError),
+    /// An error occurred while checking against remote operations.
+    #[error("error while checking against recent remote operations: {0}")]
+    Operation(#[from] HoardOperationError),
+    /// There are unapplied changes from another system. A restore or forced backup is required.
+    #[error("found unapplied remote changes - restore this hoard to apply changes or force a backup with --force")]
+    RestoreRequired,
 }
 
 /// A (processed) configuration.
@@ -61,6 +72,8 @@ pub struct Config {
     config_file: PathBuf,
     /// All of the configured hoards.
     hoards: BTreeMap<String, Hoard>,
+    /// Whether to force the operation to continue despite possible inconsistencies.
+    force: bool,
 }
 
 impl Default for Config {
@@ -112,14 +125,14 @@ impl Config {
     }
 
     #[must_use]
-    fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a String> {
+    fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Vec<&'a str> {
         if hoards.is_empty() {
             tracing::debug!("no hoard names provided, acting on all of them.");
-            self.hoards.keys().collect()
+            self.hoards.keys().map(String::as_str).collect()
         } else {
             tracing::debug!("using hoard names provided on cli");
             tracing::trace!(?hoards);
-            hoards.iter().collect()
+            hoards.iter().map(String::as_str).collect()
         }
     }
 
@@ -134,6 +147,52 @@ impl Config {
             .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
     }
 
+    /// Checks for inconsistencies between previous run and current run's paths.
+    ///
+    /// Returns error if inconsistencies are found. If none are found or `self.force == true`,
+    /// the paths are overwritten in `last_paths` and persisted to disk.
+    ///
+    /// This function should be run *before* doing any file operations on a hoard. It persists the
+    /// paths used before the fallible file operations to prevent confusion (I would expect the
+    /// "last paths used" file to have the paths that caused the error, not the run before).
+    fn check_and_set_same_paths(&self, name: &str) -> Result<(), Error> {
+        let _span = tracing::info_span!("last_paths_check", hoard=%name).entered();
+        tracing::info!("checking for inconsistencies against previous operation");
+        let mut last_paths = LastPaths::from_default_file()?;
+        let hoard_paths = self.get_hoard(name)?.get_paths();
+        // If forcing the operation, don't bother checking.
+        if !self.force {
+            // Previous paths being none means we've never worked with this hoard before.
+            if let Some(prev_paths) = last_paths.hoard(name) {
+                // This function logs any warnings from differences.
+                HoardPaths::enforce_old_and_new_piles_are_same(prev_paths, &hoard_paths)?;
+            }
+        }
+
+        // If no error occurred, set to new paths
+        last_paths.set_hoard(name.to_string(), hoard_paths);
+        // Then save to disk.
+        last_paths.save_to_disk()?;
+
+        Ok(())
+    }
+
+    fn check_no_overwrite_remote_operations(
+        &self,
+        name: &str,
+        is_backup: bool,
+    ) -> Result<HoardOperation, Error> {
+        let _span = tracing::info_span!("remote_operation_check", hoard=%name).entered();
+        tracing::info!("ensuring no remote operations will be overwritten");
+        let current_operation = HoardOperation::new(is_backup, self.get_hoard(name)?)?;
+
+        if !self.force && !current_operation.is_valid_pending(name)? {
+            return Err(Error::RestoreRequired);
+        }
+
+        Ok(current_operation)
+    }
+
     /// Run the stored [`Command`] using this [`Config`].
     ///
     /// # Errors
@@ -143,34 +202,42 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Validate => {
-                tracing::info!("configuration is valid")
+                tracing::info!("configuration is valid");
             }
             Command::Backup { hoards } => {
-                let hoards = self.get_hoards(&hoards);
+                let hoards = self.get_hoards(hoards);
                 for name in hoards {
+                    tracing::info!(hoard=%name, "running pre-backup checks");
+                    self.check_and_set_same_paths(name)?;
+                    let operation = self.check_no_overwrite_remote_operations(name, true)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
                     tracing::info!(hoard = %name, "backing up hoard");
                     let _span = tracing::info_span!("backup", hoard = %name).entered();
                     hoard.backup(&prefix).map_err(|error| Error::Backup {
-                        name: name.clone(),
+                        name: name.to_string(),
                         error,
                     })?;
+                    operation.commit_to_disk(name)?;
                 }
             }
             Command::Restore { hoards } => {
-                let hoards = self.get_hoards(&hoards);
+                let hoards = self.get_hoards(hoards);
                 for name in hoards {
+                    tracing::info!(hoard=%name, "running pre-restore checks");
+                    self.check_and_set_same_paths(name)?;
+                    let operation = self.check_no_overwrite_remote_operations(name, false)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
                     tracing::info!(hoard = %name, "restoring hoard");
                     let _span = tracing::info_span!("restore", hoard = %name).entered();
                     hoard.restore(&prefix).map_err(|error| Error::Restore {
-                        name: name.clone(),
+                        name: name.to_string(),
                         error,
                     })?;
+                    operation.commit_to_disk(name)?;
                 }
             }
         }
