@@ -16,15 +16,47 @@ const UUID_FILE_NAME: &str = "uuid";
 const HISTORY_DIR_NAME: &str = "history";
 
 fn get_uuid_file() -> PathBuf {
+    let _span = tracing::debug_span!("get_uuid_file").entered();
     get_dirs().config_dir().join(UUID_FILE_NAME)
 }
 
 fn get_history_root_dir() -> PathBuf {
+    let _span = tracing::debug_span!("get_history_root_dir").entered();
     get_dirs().data_dir().join(HISTORY_DIR_NAME)
 }
 
 fn get_history_dir_for_id(id: Uuid) -> PathBuf {
+    let _span = tracing::debug_span!("get_history_dir_for_id", %id).entered();
     get_history_root_dir().join(id.to_string())
+}
+
+fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<PathBuf>, io::Error> {
+    let _span = tracing::debug_span!("get_history_dir_not_for_id", %id).entered();
+    let root = get_history_root_dir();
+    if !root.exists() {
+        tracing::trace!("history root dir does not exist");
+        return Ok(Vec::new());
+    }
+
+    fs::read_dir(root)?
+        .filter_map(|entry| {
+            match entry {
+                Err(err) => Some(Err(err)),
+                Ok(entry) => {
+                    let path = entry.path();
+                    path.file_name().and_then(|file_name| {
+                        file_name.to_str().and_then(|file_str| {
+                            // Only directories that have UUIDs for names and do not match "this"
+                            // id.
+                            Uuid::parse_str(file_str).ok().and_then(|other_id| {
+                                (&other_id != id).then(|| Ok(path.clone()))
+                            })
+                        })
+                    })
+                }
+            }
+        })
+        .collect()
 }
 
 /// Get this machine's unique UUID, creating if necessary.

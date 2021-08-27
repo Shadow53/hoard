@@ -249,9 +249,9 @@ impl MultipleEntries {
 #[allow(variant_size_differences)]
 pub enum Hoard {
     /// A single anonymous [`Pile`].
-    Single(Pile),
+    Anonymous(Pile),
     /// Multiple named [`Pile`]s.
-    Multiple(MultipleEntries),
+    Named(MultipleEntries),
 }
 
 impl Hoard {
@@ -266,8 +266,8 @@ impl Hoard {
                 .entered();
 
         match self {
-            Hoard::Single(single) => single.backup(prefix),
-            Hoard::Multiple(multiple) => multiple.backup(prefix),
+            Hoard::Anonymous(single) => single.backup(prefix),
+            Hoard::Named(multiple) => multiple.backup(prefix),
         }
     }
 
@@ -282,8 +282,8 @@ impl Hoard {
                 .entered();
 
         match self {
-            Hoard::Single(single) => single.restore(prefix),
-            Hoard::Multiple(multiple) => multiple.restore(prefix),
+            Hoard::Anonymous(single) => single.restore(prefix),
+            Hoard::Named(multiple) => multiple.restore(prefix),
         }
     }
 
@@ -291,8 +291,8 @@ impl Hoard {
     #[must_use]
     pub fn get_paths(&self) -> HoardPaths {
         match self {
-            Hoard::Single(pile) => pile.path.clone().into(),
-            Hoard::Multiple(piles) => piles
+            Hoard::Anonymous(pile) => pile.path.clone().into(),
+            Hoard::Named(piles) => piles
                 .piles
                 .iter()
                 .filter_map(|(key, val)| val.path.clone().map(|path| (key.clone(), path)))

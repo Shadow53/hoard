@@ -149,11 +149,11 @@ impl Hoard {
         match self {
             Hoard::Single(single) => {
                 tracing::debug!("processing anonymous pile");
-                Ok(ConfigHoard::Single(single.process_with(envs, exclusivity)?))
+                Ok(ConfigHoard::Anonymous(single.process_with(envs, exclusivity)?))
             }
             Hoard::Multiple(multiple) => {
                 tracing::debug!("processing named pile(s)");
-                Ok(ConfigHoard::Multiple(
+                Ok(ConfigHoard::Named(
                     multiple.process_with(envs, exclusivity)?,
                 ))
             }

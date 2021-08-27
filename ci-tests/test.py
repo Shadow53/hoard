@@ -178,6 +178,7 @@ def test_operation_checker():
     # We are not changing env on this test
     env = {"USE_ENV": "1"}
     # Run hoard
+    print("========= HOARD RUN #1 =========")
     run_hoard("backup",  env=env)
     # Read UUID and delete file
     uuid_path = config_file_path().parent.joinpath("uuid")
@@ -186,30 +187,48 @@ def test_operation_checker():
     os.remove(uuid_path)
     # Go again, this time with a different uuid
     # This should still succeed because the files have the same checksum
+
+    print("========= HOARD RUN #2 =========")
+    print("  After removing the UUID file  ")
     run_hoard("backup", env=env)
     # Modify a file and backup again so checksums are different the next time
     # This should succeed because this UUID had the last backup
-    with open(Path.home().joinpath("anon_file"), "wb") as file:
+    with open(Path.home().joinpath("first_anon_file"), "rb") as file:
+        old_content = file.read()
+    with open(Path.home().joinpath("first_anon_file"), "wb") as file:
         content = secrets.token_bytes(1024)
         file.write(content)
+
+    print("========= HOARD RUN #3 =========")
+    print(" After replacing a file content ")
     run_hoard("backup", env=env)
+
     # Swap UUIDs and change the file again and try to back up
     # Should fail because a different machine has the most recent backup
     with open(uuid_path, "w") as file:
         file.truncate(0)
         file.write(uuid)
+    with open(Path.home().joinpath("first_anon_file"), "wb") as file:
+        file.truncate(0)
+        file.write(old_content)
     try:
+        print("========= HOARD RUN #4 =========")
+        print("   After using first UUID/File  ")
         run_hoard("backup", env=env)
         raise AssertionError("Using the first UUID should have failed")
     except subprocess.CalledProcessError:
         pass
     # Once more to verify it should always fail
     try:
+        print("========= HOARD RUN #5 =========")
+        print("    Doing it again to be sure   ")
         run_hoard("backup", env=env)
         raise AssertionError("Using the first UUID should have failed")
     except subprocess.CalledProcessError:
         pass
     # Do it again but forced, and it should succeed
+    print("========= HOARD RUN #6 =========")
+    print("    Doing it again to be sure   ")
     run_hoard("backup", env=env, force=True)
 
 

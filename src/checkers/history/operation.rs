@@ -7,18 +7,20 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
+use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::DirEntry;
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
-use uuid::Uuid;
+use crate::config::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
 
+const TIME_FORMAT_STR: &str = "%Y_%m_%d-%H_%M_%S%.6f";
 static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new("^([0-9]{2}_){2}([0-9]{2}-[0-9]{2}_){2}([0-9]{2}).log$")
+    Regex::new("^[0-9]{4}(_[0-9]{2}){2}-([0-9]{2}_){2}([0-9]{2})\\.[0-9]{6}\\.log$")
         .expect("invalid log file regex")
 });
 
@@ -39,24 +41,43 @@ pub enum Error {
 /// all hoards involved in the operation (and the related [`HoardOperation`]), and a record
 /// of the latest operation log for each external system at the time of invocation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Operation {
+pub struct HoardOperation {
     /// Timestamp of last operation
     timestamp: chrono::DateTime<chrono::Utc>,
-    /// Maps name of hoard to mapping of files to their checksums
-    hoards: HashMap<String, Hoard>,
-    /// Maps UUID of device to name of previous log file
-    last_logs: HashMap<Uuid, String>,
+    /// Whether this operation was a backup
+    is_backup: bool,
+    /// Mapping of pile files to checksums
+    hoard: Hoard,
 }
 
 /// Operation log information for a single hoard.
 ///
-/// Really just a wrapper for [`PileOperation`] because piles may be anonymous or named.
+/// Really just a wrapper for [`Pile`] because piles may be anonymous or named.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Hoard {
     /// Information for a single, anonymous pile.
     Anonymous(Pile),
     /// Information for some number of named piles.
     Named(HashMap<String, Pile>),
+}
+
+impl TryFrom<&ConfigHoard> for Hoard {
+    type Error = Error;
+    fn try_from(hoard: &ConfigHoard) -> Result<Self, Self::Error> {
+        let _span = tracing::trace_span!("hoard_to_operation", ?hoard).entered();
+        match hoard {
+            ConfigHoard::Anonymous(pile) => {
+                Pile::try_from(pile).map(Hoard::Anonymous)
+            },
+            ConfigHoard::Named(map) => {
+                map.piles.iter().map(|(key, pile)| {
+                    Pile::try_from(pile).map(|pile| (key.to_owned(), pile))
+                })
+                .collect::<Result<HashMap<_, _>, _>>()
+                .map(Hoard::Named)
+            }
+        }
+    }
 }
 
 /// Enum to differentiate between different types of checksum.
@@ -72,40 +93,82 @@ pub enum Checksum {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pile(HashMap<PathBuf, String>);
 
-impl Operation {
+fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
+    let mut map = HashMap::new();
+    if path.is_file() {
+        tracing::trace!(file=%path.display(), "Hashing file");
+        let bytes = fs::read(path)?;
+        let digest = Md5::digest(&bytes);
+        let rel_path = path.strip_prefix(root)
+            .expect("paths in hash_path should always be children of the given root")
+            .to_path_buf();
+        map.insert(rel_path, format!("{:x}", digest));
+    } else if path.is_dir() {
+        tracing::trace!(dir=%path.display(), "Hashing all files in dir");
+        for item in fs::read_dir(path)? {
+            let item = item?;
+            let path = item.path();
+            map.extend(hash_path(&path, root)?);
+        }
+    } else {
+        tracing::warn!(path=%path.display(), "path is neither file nor directory, skipping");
+    }
+
+    Ok(map)
+}
+
+impl TryFrom<&ConfigPile> for Pile {
+    type Error = Error;
+    fn try_from(pile: &ConfigPile) -> Result<Self, Self::Error> {
+        let _span = tracing::trace_span!("pile_to_operation", ?pile).entered();
+        pile.path.as_ref()
+            .map(|path| hash_path(path, path).map(Self))
+            .unwrap_or_else(|| Ok(Self(HashMap::new())))
+    }
+}
+
+impl HoardOperation {
     fn file_is_log(path: &Path) -> bool {
-        path.is_file()
+        let _span = tracing::trace_span!("file_is_log", ?path).entered();
+        let result = path.is_file()
             && match path.file_name() {
                 None => false,
                 Some(name) => match name.to_str() {
                     None => false,
                     Some(name) => LOG_FILE_REGEX.is_match(name),
                 },
-            }
+            };
+        tracing::trace!(result, "determined if file is operation log");
+        result
     }
 
     /// Create a new `Operation` from the given hoards mappings and map of last logs.
     #[must_use]
-    pub fn new(hoards: HashMap<String, Hoard>, last_logs: HashMap<Uuid, String>) -> Self {
-        Self {
+    pub fn new(is_backup: bool, hoard: &ConfigHoard) -> Result<Self, Error> {
+        Ok(Self {
             timestamp: chrono::Utc::now(),
-            hoards,
-            last_logs,
-        }
+            is_backup,
+            hoard: Hoard::try_from(hoard)?,
+        })
     }
 
-    /// Returns the latest operation recorded on this machine (by UUID).
-    ///
-    /// # Errors
-    ///
-    /// - Any errors that occur while reading from the filesystem
-    /// - Any parsing errors from `serde_json` when parsing the file
-    pub fn latest() -> Result<Option<Self>, Error> {
-        tracing::debug!("finding latest Operation file for this machine");
-        let uuid = super::get_or_generate_uuid()?;
-        let self_folder = super::get_history_dir_for_id(uuid);
-        let latest_file = self_folder
-            .read_dir()?
+    /// Checks if files in both operations are the same.
+    #[must_use]
+    pub fn has_same_files(&self, other: &Self) -> bool {
+        self.hoard == other.hoard
+    }
+
+    /// Returns the latest operation for the given hoard from a system history root directory.
+    fn get_latest_hoard_operation_from_system_dir(dir: &Path, hoard: &str, backups_only: bool) -> Result<Option<Self>, Error> {
+        let _span = tracing::trace_span!("get_latest_hoard_operation", ?dir, %hoard).entered();
+        tracing::trace!("getting latest operation log for hoard in dir");
+        let root = dir.join(hoard);
+        if !root.exists() {
+            tracing::trace!(dir=?root, "hoard dir does not exist, no logs found");
+            return Ok(None);
+        }
+
+        root.read_dir()?
             .filter_map(|item| {
                 // Only keep errors and anything where path() returns Some
                 item.map(|item| {
@@ -114,72 +177,128 @@ impl Operation {
                 })
                 .transpose()
             })
-            .reduce(|acc, item| {
-                let acc = acc?;
-                let item = item?;
-                if acc.file_name() > item.file_name() {
-                    Ok(acc)
-                } else {
-                    Ok(item)
+            .map(|path| -> Result<HoardOperation, Error> {
+                path.map(|path| {
+                    tracing::trace!(path=%path.display(), "loading operation log from path");
+                    fs::File::open(path)
+                        .map(serde_json::from_reader)
+                        .map_err(Error::from)?
+                        .map_err(Error::from)
+                })?
+            })
+            .filter_map(|operation| {
+                match operation {
+                    Err(err) => Some(Err(err)),
+                    Ok(operation) =>
+                        (!backups_only || operation.is_backup).then(|| Ok(operation))
                 }
             })
-            .transpose()?;
-
-        latest_file
-            .map(|entry| fs::File::open(entry).map(serde_json::from_reader))
-            .transpose()?
+            .reduce(|left, right| {
+                let left = left?;
+                let right = right?;
+                if left.timestamp.timestamp() > right.timestamp.timestamp() {
+                    Ok(left)
+                } else {
+                    Ok(right)
+                }
+            })
             .transpose()
-            .map_err(Error::Serde)
     }
 
-    /// Returns a sorted list of all unseen operations since this one happened.
+    /// Returns the latest operation recorded on this machine (by UUID).
     ///
     /// # Errors
     ///
-    /// - Any I/O errors that occur while reading log files.
-    /// - Any `serde` errors that occur while parsing log files.
-    pub fn all_unseen_operations_since(&self) -> Result<Vec<Operation>, Error> {
-        //
-        let _span = tracing::debug_span!("loading unseen operation logs", since=%self.timestamp.format("%F %T")).entered();
-        let root = super::get_history_root_dir();
-        let mut result_vec = Vec::new();
-        for result in root.read_dir()? {
-            let entry = result?;
-            if let Ok(id) = entry.file_name().to_string_lossy().parse::<Uuid>() {
-                // Found a remote system log dir
-                tracing::debug!("checking logs for system: {}", id);
-                let _span = tracing::trace_span!("checking_logs", %id).entered();
+    /// - Any errors that occur while reading from the filesystem
+    /// - Any parsing errors from `serde_json` when parsing the file
+    pub fn latest_local(hoard: &str) -> Result<Option<Self>, Error> {
+        let _span = tracing::debug_span!("latest_local", %hoard).entered();
+        tracing::debug!("finding latest Operation file for this machine");
+        let uuid = super::get_or_generate_uuid()?;
+        let self_folder = super::get_history_dir_for_id(uuid);
+        Self::get_latest_hoard_operation_from_system_dir(&self_folder, hoard, false)
+    }
 
-                let last_log = self.last_logs.get(&id);
-                let last_log_os = last_log.as_ref().map(std::ffi::OsString::from);
+    /// Returns the latest backup operation recorded on any other machine (by UUID).
+    ///
+    /// # Errors
+    ///
+    /// - Any errors that occur while reading from the filesystem
+    /// - Any parsing errors from `serde_json` when parsing the file
+    pub fn latest_remote_backup(hoard: &str) -> Result<Option<Self>, Error> {
+        let _span = tracing::debug_span!("latest_remote_backup").entered();
+        tracing::debug!("finding latest Operation file from remote machines");
+        let uuid = super::get_or_generate_uuid()?;
+        let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
+        other_folders.into_iter()
+            .map(|dir| Self::get_latest_hoard_operation_from_system_dir(&dir, hoard, true))
+            .reduce(|left, right| {
+                match (left?, right?) {
+                    (Some(left), None) => Ok(Some(left)),
+                    (None, Some(right)) => Ok(Some(right)),
+                    (None, None) => Ok(None),
+                    (Some(left), Some(right)) => if left.timestamp.timestamp() > right.timestamp.timestamp() {
+                            Ok(Some(left))
+                        } else {
+                            Ok(Some(right))
+                        }
+                }
+            }).transpose().map(Option::flatten)
+    }
 
-                tracing::trace!("getting all unseen entries based on file name");
-                let mut entries: Vec<DirEntry> = entry
-                    .path()
-                    .read_dir()?
-                    .filter_map(Result::ok)
-                    .filter(|item| Self::file_is_log(&item.path()))
-                    .filter(|item| match &last_log_os {
-                        None => true,
-                        Some(file) => &item.file_name() > file,
-                    })
-                    .collect();
+    /// Returns whether this pending operation is safe to perform.
+    pub fn is_valid_pending(&self, hoard: &str) -> Result<bool, Error> {
+        let _span = tracing::debug_span!("is_pending_operation_valid", %hoard).entered();
+        tracing::debug!("checking if the hoard operation is safe to perform");
+        let last_local = Self::latest_local(hoard)?;
+        let last_remote = Self::latest_remote_backup(hoard)?;
 
-                // Order of items read with read_dir is not guaranteed to be sorted.
-                tracing::trace!("sorting entries by file name");
-                entries.sort_by_key(fs::DirEntry::file_name);
-
-                result_vec.append(&mut entries);
-            }
+        if !self.is_backup {
+            tracing::debug!("not backing up, is safe to continue");
+            return Ok(true);
         }
 
-        tracing::trace!("parsing all unseen logs");
-        result_vec
-            .into_iter()
-            .map(|entry| {
-                let file = fs::File::open(entry.path())?;
-                Ok(serde_json::from_reader(file)?)
-            })
-            .collect::<Result<Vec<_>, _>>()
+        match (last_local, last_remote) {
+            (_ , None) => {
+                tracing::debug!(%hoard, "no remote operations found for hoard, is safe to continue");
+                Ok(true)
+            },
+            (None, Some(last_remote)) => {
+                tracing::debug!(%hoard, "no local operations found, is not safe to continue");
+                Ok(self.has_same_files(&last_remote))
+            },
+            (Some(last_local), Some(last_remote)) => {
+                if last_local.timestamp > last_remote.timestamp {
+                    // Allow if the last operation on this machine 
+                    tracing::debug!(
+                        local=%last_local.timestamp,
+                        remote=%last_remote.timestamp,
+                        "latest local operation is more recent than last remote operation"
+                    );
+                    Ok(true)
+                } else {
+                    tracing::debug!(
+                        local=%last_local.timestamp,
+                        remote=%last_remote.timestamp,
+                        "latest local operation is less recent than last remote operation"
+                    );
+                    Ok(self.has_same_files(&last_remote))
+                }
+            }
+        }
+    }
+
+    /// Writes this operation log to disk for the given hoard.
+    pub fn commit_to_disk(&self, hoard: &str) -> Result<(), Error> {
+        let _span = tracing::trace_span!("commit_operation_to_disk", %hoard).entered();
+        let id = super::get_or_generate_uuid()?;
+        let path = super::get_history_dir_for_id(id)
+            .join(hoard)
+            .join(format!("{}.log", self.timestamp.format(TIME_FORMAT_STR)));
+        tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
+        path.parent().map(fs::create_dir_all).transpose()?;
+        let file = fs::File::create(path)?;
+        serde_json::to_writer(file, self)?;
+        Ok(())
     }
 }

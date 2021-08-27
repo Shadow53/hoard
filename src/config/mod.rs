@@ -8,6 +8,7 @@ use directories::ProjectDirs;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use thiserror::Error;
+use crate::checkers::history::operation::{HoardOperation, Error as HoardOperationError};
 
 pub mod builder;
 pub mod hoard;
@@ -50,6 +51,12 @@ pub enum Error {
     /// An error occurred while comparing paths for this run to the previous one.
     #[error("error while comparing previous run to current run: {0}")]
     LastPaths(#[from] LastPathsError),
+    /// An error occurred while checking against remote operations.
+    #[error("error while checking against recent remote operations: {0}")]
+    Operation(#[from] HoardOperationError),
+    /// There are unapplied changes from another system. A restore or forced backup is required.
+    #[error("found unapplied remote changes - restore this hoard to apply changes or force a backup with --force")]
+    RestoreRequired,
 }
 
 /// A (processed) configuration.
@@ -149,7 +156,7 @@ impl Config {
     /// paths used before the fallible file operations to prevent confusion (I would expect the
     /// "last paths used" file to have the paths that caused the error, not the run before).
     fn check_and_set_same_paths(&self, name: &str) -> Result<(), Error> {
-        let _span = tracing::info_span!("consistency_checks", hoard=%name).entered();
+        let _span = tracing::info_span!("last_paths_check", hoard=%name).entered();
         tracing::info!("checking for inconsistencies against previous operation");
         let mut last_paths = LastPaths::from_default_file()?;
         let hoard_paths = self.get_hoard(name)?.get_paths();
@@ -170,6 +177,19 @@ impl Config {
         Ok(())
     }
 
+
+    fn check_no_overwrite_remote_operations(&self, name: &str, is_backup: bool) -> Result<HoardOperation, Error> {
+        let _span = tracing::info_span!("remote_operation_check", hoard=%name).entered();
+        tracing::info!("ensuring no remote operations will be overwritten");
+        let current_operation = HoardOperation::new(is_backup, self.get_hoard(name)?)?;
+        
+        if !self.force && !current_operation.is_valid_pending(name)? {
+            return Err(Error::RestoreRequired);
+        }
+
+        Ok(current_operation)
+    }
+
     /// Run the stored [`Command`] using this [`Config`].
     ///
     /// # Errors
@@ -184,7 +204,9 @@ impl Config {
             Command::Backup { hoards } => {
                 let hoards = self.get_hoards(hoards);
                 for name in hoards {
+                    tracing::info!(hoard=%name, "running pre-backup checks");
                     self.check_and_set_same_paths(name)?;
+                    let operation = self.check_no_overwrite_remote_operations(name, true)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
@@ -194,12 +216,15 @@ impl Config {
                         name: name.to_string(),
                         error,
                     })?;
+                    operation.commit_to_disk(name)?;
                 }
             }
             Command::Restore { hoards } => {
                 let hoards = self.get_hoards(hoards);
                 for name in hoards {
+                    tracing::info!(hoard=%name, "running pre-restore checks");
                     self.check_and_set_same_paths(name)?;
+                    let operation = self.check_no_overwrite_remote_operations(name, false)?;
                     let prefix = self.get_prefix(name);
                     let hoard = self.get_hoard(name)?;
 
@@ -209,6 +234,7 @@ impl Config {
                         name: name.to_string(),
                         error,
                     })?;
+                    operation.commit_to_disk(name)?;
                 }
             }
         }

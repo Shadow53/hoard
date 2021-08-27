@@ -170,8 +170,8 @@ impl From<HashMap<String, PathBuf>> for PilePaths {
 impl From<Hoard> for PilePaths {
     fn from(other: Hoard) -> Self {
         match other {
-            Hoard::Single(pile) => PilePaths::Anonymous(pile.path),
-            Hoard::Multiple(named) => PilePaths::Named(
+            Hoard::Anonymous(pile) => PilePaths::Anonymous(pile.path),
+            Hoard::Named(named) => PilePaths::Named(
                 named
                     .piles
                     .into_iter()
