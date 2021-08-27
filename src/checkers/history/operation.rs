@@ -7,6 +7,7 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
+use crate::config::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
 use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -16,7 +17,6 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
-use crate::config::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
 
 const TIME_FORMAT_STR: &str = "%Y_%m_%d-%H_%M_%S%.6f";
 static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -41,6 +41,7 @@ pub enum Error {
 /// all hoards involved in the operation (and the related [`HoardOperation`]), and a record
 /// of the latest operation log for each external system at the time of invocation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::module_name_repetitions)]
 pub struct HoardOperation {
     /// Timestamp of last operation
     timestamp: chrono::DateTime<chrono::Utc>,
@@ -66,16 +67,13 @@ impl TryFrom<&ConfigHoard> for Hoard {
     fn try_from(hoard: &ConfigHoard) -> Result<Self, Self::Error> {
         let _span = tracing::trace_span!("hoard_to_operation", ?hoard).entered();
         match hoard {
-            ConfigHoard::Anonymous(pile) => {
-                Pile::try_from(pile).map(Hoard::Anonymous)
-            },
-            ConfigHoard::Named(map) => {
-                map.piles.iter().map(|(key, pile)| {
-                    Pile::try_from(pile).map(|pile| (key.to_owned(), pile))
-                })
+            ConfigHoard::Anonymous(pile) => Pile::try_from(pile).map(Hoard::Anonymous),
+            ConfigHoard::Named(map) => map
+                .piles
+                .iter()
+                .map(|(key, pile)| Pile::try_from(pile).map(|pile| (key.clone(), pile)))
                 .collect::<Result<HashMap<_, _>, _>>()
-                .map(Hoard::Named)
-            }
+                .map(Hoard::Named),
         }
     }
 }
@@ -99,7 +97,8 @@ fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error
         tracing::trace!(file=%path.display(), "Hashing file");
         let bytes = fs::read(path)?;
         let digest = Md5::digest(&bytes);
-        let rel_path = path.strip_prefix(root)
+        let rel_path = path
+            .strip_prefix(root)
             .expect("paths in hash_path should always be children of the given root")
             .to_path_buf();
         map.insert(rel_path, format!("{:x}", digest));
@@ -121,9 +120,10 @@ impl TryFrom<&ConfigPile> for Pile {
     type Error = Error;
     fn try_from(pile: &ConfigPile) -> Result<Self, Self::Error> {
         let _span = tracing::trace_span!("pile_to_operation", ?pile).entered();
-        pile.path.as_ref()
-            .map(|path| hash_path(path, path).map(Self))
-            .unwrap_or_else(|| Ok(Self(HashMap::new())))
+        pile.path.as_ref().map_or_else(
+            || Ok(Self(HashMap::new())),
+            |path| hash_path(path, path).map(Self),
+        )
     }
 }
 
@@ -143,7 +143,10 @@ impl HoardOperation {
     }
 
     /// Create a new `Operation` from the given hoards mappings and map of last logs.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Any I/O errors that occur while hashing files.
     pub fn new(is_backup: bool, hoard: &ConfigHoard) -> Result<Self, Error> {
         Ok(Self {
             timestamp: chrono::Utc::now(),
@@ -159,7 +162,11 @@ impl HoardOperation {
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
-    fn get_latest_hoard_operation_from_system_dir(dir: &Path, hoard: &str, backups_only: bool) -> Result<Option<Self>, Error> {
+    fn get_latest_hoard_operation_from_system_dir(
+        dir: &Path,
+        hoard: &str,
+        backups_only: bool,
+    ) -> Result<Option<Self>, Error> {
         let _span = tracing::trace_span!("get_latest_hoard_operation", ?dir, %hoard).entered();
         tracing::trace!("getting latest operation log for hoard in dir");
         let root = dir.join(hoard);
@@ -186,12 +193,9 @@ impl HoardOperation {
                         .map_err(Error::from)
                 })?
             })
-            .filter_map(|operation| {
-                match operation {
-                    Err(err) => Some(Err(err)),
-                    Ok(operation) =>
-                        (!backups_only || operation.is_backup).then(|| Ok(operation))
-                }
+            .filter_map(|operation| match operation {
+                Err(err) => Some(Err(err)),
+                Ok(operation) => (!backups_only || operation.is_backup).then(|| Ok(operation)),
             })
             .reduce(|left, right| {
                 let left = left?;
@@ -230,23 +234,30 @@ impl HoardOperation {
         tracing::debug!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid()?;
         let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
-        other_folders.into_iter()
+        other_folders
+            .into_iter()
             .map(|dir| Self::get_latest_hoard_operation_from_system_dir(&dir, hoard, true))
-            .reduce(|left, right| {
-                match (left?, right?) {
-                    (Some(left), None) => Ok(Some(left)),
-                    (None, Some(right)) => Ok(Some(right)),
-                    (None, None) => Ok(None),
-                    (Some(left), Some(right)) => if left.timestamp.timestamp() > right.timestamp.timestamp() {
-                            Ok(Some(left))
-                        } else {
-                            Ok(Some(right))
-                        }
+            .reduce(|left, right| match (left?, right?) {
+                (Some(left), None) => Ok(Some(left)),
+                (None, Some(right)) => Ok(Some(right)),
+                (None, None) => Ok(None),
+                (Some(left), Some(right)) => {
+                    if left.timestamp.timestamp() > right.timestamp.timestamp() {
+                        Ok(Some(left))
+                    } else {
+                        Ok(Some(right))
+                    }
                 }
-            }).transpose().map(Option::flatten)
+            })
+            .transpose()
+            .map(Option::flatten)
     }
 
     /// Returns whether this pending operation is safe to perform.
+    ///
+    /// # Errors
+    ///
+    /// Any I/O errors encountered while reading operation logs from disk.
     pub fn is_valid_pending(&self, hoard: &str) -> Result<bool, Error> {
         let _span = tracing::debug_span!("is_pending_operation_valid", %hoard).entered();
         tracing::debug!("checking if the hoard operation is safe to perform");
@@ -259,17 +270,17 @@ impl HoardOperation {
         }
 
         match (last_local, last_remote) {
-            (_ , None) => {
+            (_, None) => {
                 tracing::debug!(%hoard, "no remote operations found for hoard, is safe to continue");
                 Ok(true)
-            },
+            }
             (None, Some(last_remote)) => {
                 tracing::debug!(%hoard, "no local operations found, is not safe to continue");
                 Ok(self.has_same_files(&last_remote))
-            },
+            }
             (Some(last_local), Some(last_remote)) => {
                 if last_local.timestamp > last_remote.timestamp {
-                    // Allow if the last operation on this machine 
+                    // Allow if the last operation on this machine
                     tracing::debug!(
                         local=%last_local.timestamp,
                         remote=%last_remote.timestamp,
@@ -289,6 +300,10 @@ impl HoardOperation {
     }
 
     /// Writes this operation log to disk for the given hoard.
+    ///
+    /// # Errors
+    ///
+    /// Any I/O errors that may occur while writing the file to disk.
     pub fn commit_to_disk(&self, hoard: &str) -> Result<(), Error> {
         let _span = tracing::trace_span!("commit_operation_to_disk", %hoard).entered();
         let id = super::get_or_generate_uuid()?;

@@ -3,12 +3,12 @@
 pub use self::builder::Builder;
 use self::hoard::Hoard;
 use crate::checkers::history::last_paths::{Error as LastPathsError, HoardPaths, LastPaths};
+use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::command::Command;
 use directories::ProjectDirs;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use thiserror::Error;
-use crate::checkers::history::operation::{HoardOperation, Error as HoardOperationError};
 
 pub mod builder;
 pub mod hoard;
@@ -177,12 +177,15 @@ impl Config {
         Ok(())
     }
 
-
-    fn check_no_overwrite_remote_operations(&self, name: &str, is_backup: bool) -> Result<HoardOperation, Error> {
+    fn check_no_overwrite_remote_operations(
+        &self,
+        name: &str,
+        is_backup: bool,
+    ) -> Result<HoardOperation, Error> {
         let _span = tracing::info_span!("remote_operation_check", hoard=%name).entered();
         tracing::info!("ensuring no remote operations will be overwritten");
         let current_operation = HoardOperation::new(is_backup, self.get_hoard(name)?)?;
-        
+
         if !self.force && !current_operation.is_valid_pending(name)? {
             return Err(Error::RestoreRequired);
         }

@@ -48,9 +48,9 @@ fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<PathBuf>, io::Error> {
                         file_name.to_str().and_then(|file_str| {
                             // Only directories that have UUIDs for names and do not match "this"
                             // id.
-                            Uuid::parse_str(file_str).ok().and_then(|other_id| {
-                                (&other_id != id).then(|| Ok(path.clone()))
-                            })
+                            Uuid::parse_str(file_str)
+                                .ok()
+                                .and_then(|other_id| (&other_id != id).then(|| Ok(path.clone())))
                         })
                     })
                 }
