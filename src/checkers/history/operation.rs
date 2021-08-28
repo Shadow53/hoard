@@ -142,7 +142,7 @@ impl HoardOperation {
         result
     }
 
-    /// Create a new `Operation` from the given hoards mappings and map of last logs.
+    /// Create a new `Operation` from the given hoard.
     ///
     /// # Errors
     ///

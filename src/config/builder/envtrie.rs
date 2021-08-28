@@ -488,7 +488,6 @@ impl EnvTrie {
 mod tests {
     use super::*;
     use maplit::btreemap;
-    use once_cell::sync::Lazy;
     use std::collections::BTreeMap;
 
     // Every const has a name of the form `LABEL_<char>_<int>`.
@@ -502,9 +501,9 @@ mod tests {
     const LABEL_C_1: &str = "c1";
     const LABEL_C_2: &str = "c2";
 
-    static PATH_1: Lazy<String> = Lazy::new(|| String::from("/tmp/path1"));
-    static PATH_2: Lazy<String> = Lazy::new(|| String::from("/tmp/path2"));
-    static PATH_3: Lazy<String> = Lazy::new(|| String::from("/tmp/path3"));
+    const PATH_1: &str = "/tmp/path1";
+    const PATH_2: &str = "/tmp/path2";
+    const PATH_3: &str = "/tmp/path3";
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {
@@ -567,9 +566,9 @@ mod tests {
     trie_test_ignore_score! {
         name: test_valid_single_env,
         environments: btreemap! {
-            LABEL_A_1.into() => PATH_1.clone(),
-            LABEL_B_1.into() => PATH_2.clone(),
-            LABEL_C_1.into() => PATH_3.clone(),
+            LABEL_A_1.into() => PATH_1.into(),
+            LABEL_B_1.into() => PATH_2.into(),
+            LABEL_C_1.into() => PATH_3.into(),
         },
         exclusivity: vec![],
         expected: {
@@ -582,19 +581,19 @@ mod tests {
                         name: LABEL_A_1.to_owned(),
                         score: 1,
                         tree: None,
-                        value: Some(PATH_1.clone()),
+                        value: Some(PATH_1.into()),
                     },
                     LABEL_B_1.to_owned() => Node {
                         name: LABEL_B_1.to_owned(),
                         score: 1,
                         tree: None,
-                        value: Some(PATH_2.clone()),
+                        value: Some(PATH_2.into()),
                     },
                     LABEL_C_1.to_owned() => Node {
                         name: LABEL_C_1.to_owned(),
                         score: 1,
                         tree: None,
-                        value: Some(PATH_3.clone()),
+                        value: Some(PATH_3.into()),
                     },
                 })
             };
@@ -605,13 +604,13 @@ mod tests {
     trie_test_ignore_score! {
         name: test_valid_multi_env,
         environments: btreemap! {
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1) => PATH_1.clone(),
+            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1) => PATH_1.into(),
             // Testing merged trees
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1) => PATH_2.clone(),
+            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1) => PATH_2.into(),
             // The generated tree should be in sorted order
-            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2) => PATH_3.clone(),
+            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2) => PATH_3.into(),
             // Testing overlapping trees
-            format!("{}|{}", LABEL_A_3, LABEL_B_3) => PATH_2.clone(),
+            format!("{}|{}", LABEL_A_3, LABEL_B_3) => PATH_2.into(),
         },
         exclusivity: vec![
             vec![LABEL_A_1.into(), LABEL_A_2.into(), LABEL_A_3.into()],
@@ -638,7 +637,7 @@ mod tests {
                                         name: LABEL_C_1.to_owned(),
                                         score: 1,
                                         tree: None,
-                                        value: Some(PATH_1.clone()),
+                                        value: Some(PATH_1.into()),
                                     }
                                 })
                             },
@@ -651,7 +650,7 @@ mod tests {
                                         name: LABEL_C_1.to_owned(),
                                         score: 1,
                                         tree: None,
-                                        value: Some(PATH_2.clone())
+                                        value: Some(PATH_2.into())
                                     }
                                 })
                             }
@@ -665,13 +664,13 @@ mod tests {
                             LABEL_B_3.into() => Node {
                                 name: LABEL_B_3.to_owned(),
                                 score: 1,
-                                value: Some(PATH_2.clone()),
+                                value: Some(PATH_2.into()),
                                 tree: Some(btreemap! {
                                     LABEL_C_2.into() => Node {
                                         name: LABEL_C_2.to_owned(),
                                         score: 1,
                                         tree: None,
-                                        value: Some(PATH_3.clone()),
+                                        value: Some(PATH_3.into()),
                                     }
                                 })
                             }
@@ -687,7 +686,7 @@ mod tests {
     trie_test_ignore_score! {
         name: test_invalid_separator_prefix,
         environments: btreemap! {
-            format!("|{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
+            format!("|{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::EmptyEnvironment(format!("|{}|{}", LABEL_A_1, LABEL_B_1)))
@@ -696,7 +695,7 @@ mod tests {
     trie_test_ignore_score! {
         name: test_invalid_separator_suffix,
         environments: btreemap! {
-            format!("{}|{}|", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
+            format!("{}|{}|", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::EmptyEnvironment(format!("{}|{}|", LABEL_A_1, LABEL_B_1)))
@@ -705,7 +704,7 @@ mod tests {
     trie_test_ignore_score! {
         name: test_invalid_consecutive_separator,
         environments: btreemap! {
-            format!("{}||{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
+            format!("{}||{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::EmptyEnvironment(format!("{}||{}", LABEL_A_1, LABEL_B_1)))
@@ -714,7 +713,7 @@ mod tests {
     trie_test_ignore_score! {
         name: test_combine_mutually_exclusive_is_invalid,
         environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_A_2) => PATH_1.clone(),
+            format!("{}|{}", LABEL_A_1, LABEL_A_2) => PATH_1.into(),
         },
         exclusivity: vec![vec![LABEL_A_1.into(), LABEL_A_2.into()]],
         expected: Err(Error::CombinedMutuallyExclusive(format!("{}|{}", LABEL_A_1, LABEL_A_2)))
@@ -723,17 +722,17 @@ mod tests {
     trie_test_ignore_score! {
         name: test_same_condition_twice_is_invalid,
         environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
-            format!("{}|{}", LABEL_B_1, LABEL_A_1) => PATH_2.clone(),
+            format!("{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
+            format!("{}|{}", LABEL_B_1, LABEL_A_1) => PATH_2.into(),
         },
         exclusivity: vec![],
-        expected: Err(Error::DoubleDefine(PATH_1.clone(), PATH_2.clone()))
+        expected: Err(Error::DoubleDefine(PATH_1.into(), PATH_2.into()))
     }
 
     trie_test_ignore_score! {
         name: test_empty_condition_is_invalid,
         environments: btreemap! {
-            "".into() => PATH_1.clone(),
+            "".into() => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::NoEnvironments)

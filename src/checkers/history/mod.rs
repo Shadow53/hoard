@@ -1,8 +1,5 @@
 //! Keep records of previous operations (including on other system) to prevent inconsistencies
 //! and accidental overwrites or deletions.
-//!
-//! This module currently focuses on the [`last_paths`] submodule, which gives a warning and
-//! aborts an operation if the paths being used differ from the previous operation.
 
 use crate::config::get_dirs;
 use std::path::PathBuf;
