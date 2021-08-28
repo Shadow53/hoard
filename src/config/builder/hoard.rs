@@ -11,7 +11,7 @@
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{expand_env_in_path, Error as EnvError};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use thiserror::Error;
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
@@ -70,13 +70,13 @@ pub struct Config {
 pub struct Pile {
     config: Option<Config>,
     #[serde(flatten)]
-    items: BTreeMap<String, String>,
+    items: HashMap<String, String>,
 }
 
 impl Pile {
     fn process_with(
         self,
-        envs: &BTreeMap<String, bool>,
+        envs: &HashMap<String, bool>,
         exclusivity: &[Vec<String>],
     ) -> Result<ConfigSingle, Error> {
         let _span = tracing::debug_span!(
@@ -98,13 +98,13 @@ impl Pile {
 pub struct MultipleEntries {
     config: Option<Config>,
     #[serde(flatten)]
-    items: BTreeMap<String, Pile>,
+    items: HashMap<String, Pile>,
 }
 
 impl MultipleEntries {
     fn process_with(
         self,
-        envs: &BTreeMap<String, bool>,
+        envs: &HashMap<String, bool>,
         exclusivity: &[Vec<String>],
     ) -> Result<ConfigMultiple, Error> {
         let MultipleEntries { config, items } = self;
@@ -143,7 +143,7 @@ impl Hoard {
     /// Any [`enum@Error`] that occurs while evaluating the `Hoard`.
     pub fn process_with(
         self,
-        envs: &BTreeMap<String, bool>,
+        envs: &HashMap<String, bool>,
         exclusivity: &[Vec<String>],
     ) -> Result<crate::config::hoard::Hoard, Error> {
         match self {
@@ -170,14 +170,14 @@ mod tests {
     mod process {
         use super::*;
         use crate::config::hoard::Pile as ConfigPile;
-        use maplit::btreemap;
+        use maplit::hashmap;
         use std::path::PathBuf;
 
         #[test]
         fn env_vars_are_expanded() {
             let pile = Pile {
                 config: None,
-                items: btreemap! {
+                items: hashmap! {
                     "foo".into() => "${HOME}/something".into()
                 },
             };
@@ -188,7 +188,7 @@ mod tests {
                 path: Some(PathBuf::from(format!("{}/something", home))),
             };
 
-            let envs = btreemap! { "foo".into() =>  true };
+            let envs = hashmap! { "foo".into() =>  true };
             let result = pile
                 .process_with(&envs, &[])
                 .expect("pile should process without issues");
@@ -199,14 +199,14 @@ mod tests {
 
     mod serde {
         use super::*;
-        use maplit::btreemap;
+        use maplit::hashmap;
         use serde_test::{assert_tokens, Token};
 
         #[test]
         fn single_entry_no_config() {
             let hoard = Hoard::Single(Pile {
                 config: None,
-                items: btreemap! {
+                items: hashmap! {
                     "bar_env|foo_env".to_string() => "/some/path".to_string()
                 },
             });
@@ -232,7 +232,7 @@ mod tests {
                         public_key: "public key".to_string(),
                     }),
                 }),
-                items: btreemap! {
+                items: hashmap! {
                     "bar_env|foo_env".to_string() => "/some/path".to_string()
                 },
             });
@@ -260,10 +260,10 @@ mod tests {
         fn multiple_entry_no_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: None,
-                items: btreemap! {
+                items: hashmap! {
                     "item1".to_string() => Pile {
                         config: None,
-                        items: btreemap! {
+                        items: hashmap! {
                             "bar_env|foo_env".to_string() => "/some/path".to_string()
                         }
                     },
@@ -296,10 +296,10 @@ mod tests {
                         "correcthorsebatterystaple".into(),
                     )),
                 }),
-                items: btreemap! {
+                items: hashmap! {
                     "item1".to_string() => Pile {
                         config: None,
-                        items: btreemap! {
+                        items: hashmap! {
                             "bar_env|foo_env".to_string() => "/some/path".to_string()
                         }
                     },

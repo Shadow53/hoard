@@ -1,6 +1,6 @@
 //! The [`Builder`] struct serves as an intermediate step between raw configuration and the
 //! [`Config`] type that is used by `hoard`.
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -47,7 +47,7 @@ pub enum Error {
 pub struct Builder {
     #[structopt(skip)]
     #[serde(rename = "envs")]
-    environments: Option<BTreeMap<String, Environment>>,
+    environments: Option<HashMap<String, Environment>>,
     #[structopt(skip)]
     exclusivity: Option<Vec<Vec<String>>>,
     #[structopt(short, long)]
@@ -62,7 +62,7 @@ pub struct Builder {
     #[structopt(short, long)]
     force: bool,
     #[structopt(skip)]
-    hoards: Option<BTreeMap<String, Hoard>>,
+    hoards: Option<HashMap<String, Hoard>>,
 }
 
 impl Default for Builder {
@@ -170,7 +170,7 @@ impl Builder {
 
     /// Set the hoards map.
     #[must_use]
-    pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
+    pub fn set_hoards(mut self, hoards: HashMap<String, Hoard>) -> Self {
         tracing::trace!(?hoards, "setting hoards");
         self.hoards = Some(hoards);
         self
@@ -265,7 +265,7 @@ impl Builder {
     /// Any error that occurs while evaluating the environments.
     fn evaluated_environments(
         &self,
-    ) -> Result<BTreeMap<String, bool>, <Environment as TryInto<bool>>::Error> {
+    ) -> Result<HashMap<String, bool>, <Environment as TryInto<bool>>::Error> {
         let _span = tracing::trace_span!("eval_env").entered();
         if let Some(envs) = &self.environments {
             for (key, env) in envs {
@@ -274,7 +274,7 @@ impl Builder {
         }
 
         self.environments.as_ref().map_or_else(
-            || Ok(BTreeMap::new()),
+            || Ok(HashMap::new()),
             |map| {
                 map.iter()
                     .map(|(key, env)| Ok((key.clone(), env.clone().try_into()?)))
@@ -306,7 +306,7 @@ impl Builder {
         tracing::debug!("processing hoards...");
         let hoards = self
             .hoards
-            .unwrap_or_else(BTreeMap::new)
+            .unwrap_or_else(HashMap::new)
             .into_iter()
             .map(|(name, hoard)| {
                 let _span = tracing::debug_span!("processing_hoard", %name).entered();

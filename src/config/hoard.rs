@@ -4,7 +4,7 @@
 
 pub use super::builder::hoard::Config;
 use crate::checkers::history::last_paths::HoardPaths;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
@@ -199,7 +199,7 @@ impl Pile {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MultipleEntries {
     /// The named [`Pile`]s in the hoard.
-    pub piles: BTreeMap<String, Pile>,
+    pub piles: HashMap<String, Pile>,
 }
 
 impl MultipleEntries {

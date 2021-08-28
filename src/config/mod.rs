@@ -6,7 +6,7 @@ use crate::checkers::history::last_paths::{Error as LastPathsError, HoardPaths, 
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::command::Command;
 use directories::ProjectDirs;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -71,7 +71,7 @@ pub struct Config {
     /// Path to a configuration file.
     config_file: PathBuf,
     /// All of the configured hoards.
-    hoards: BTreeMap<String, Hoard>,
+    hoards: HashMap<String, Hoard>,
     /// Whether to force the operation to continue despite possible inconsistencies.
     force: bool,
 }
