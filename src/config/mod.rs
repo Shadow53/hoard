@@ -2,9 +2,9 @@
 
 pub use self::builder::Builder;
 use self::hoard::Hoard;
-use crate::checkers::Checker;
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
+use crate::checkers::Checker;
 use crate::command::Command;
 use directories::ProjectDirs;
 use std::collections::HashMap;
@@ -122,14 +122,24 @@ impl Config {
         self.hoards_root.clone()
     }
 
-    fn get_hoards<'a>(&'a self, hoards: &'a [String]) -> Result<HashMap<&'a str, &'a Hoard>, Error> {
+    fn get_hoards<'a>(
+        &'a self,
+        hoards: &'a [String],
+    ) -> Result<HashMap<&'a str, &'a Hoard>, Error> {
         if hoards.is_empty() {
             tracing::debug!("no hoard names provided, acting on all of them.");
-            Ok(self.hoards.iter().map(|(key, val)| (key.as_str(), val)).collect())
+            Ok(self
+                .hoards
+                .iter()
+                .map(|(key, val)| (key.as_str(), val))
+                .collect())
         } else {
             tracing::debug!("using hoard names provided on cli");
             tracing::trace!(?hoards);
-            hoards.iter().map(|key| self.get_hoard(key).map(|hoard| (key.as_str(), hoard))).collect()
+            hoards
+                .iter()
+                .map(|key| self.get_hoard(key).map(|hoard| (key.as_str(), hoard)))
+                .collect()
         }
     }
 
@@ -218,7 +228,10 @@ impl Checkers {
             operations.insert((*name).to_string(), op);
         }
 
-        Ok(Self { last_paths, operations })
+        Ok(Self {
+            last_paths,
+            operations,
+        })
     }
 
     fn check(&mut self) -> Result<(), Error> {
@@ -233,7 +246,11 @@ impl Checkers {
     }
 
     fn commit_to_disk(self) -> Result<(), Error> {
-        let Self { last_paths, operations, .. } = self;
+        let Self {
+            last_paths,
+            operations,
+            ..
+        } = self;
         for (_, last_path) in last_paths {
             last_path.commit_to_disk()?;
         }

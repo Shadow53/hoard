@@ -70,7 +70,8 @@ impl Checker for HoardOperation {
     }
 
     fn check(&mut self) -> Result<(), Self::Error> {
-        let _span = tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name).entered();
+        let _span =
+            tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name).entered();
         tracing::debug!("checking if the hoard operation is safe to perform");
         let last_local = Self::latest_local(&self.hoard_name)?;
         let last_remote = Self::latest_remote_backup(&self.hoard_name)?;
@@ -111,7 +112,8 @@ impl Checker for HoardOperation {
     }
 
     fn commit_to_disk(self) -> Result<(), Self::Error> {
-        let _span = tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name).entered();
+        let _span =
+            tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name).entered();
         let id = super::get_or_generate_uuid()?;
         let path = super::get_history_dir_for_id(id)
             .join(&self.hoard_name)
@@ -145,7 +147,9 @@ impl HoardOperation {
     ///
     /// Returns [`Error::RestoreRequired`] if they do not have the same files (and hashes).
     pub fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
-        (self.hoard == other.hoard).then(|| ()).ok_or(Error::RestoreRequired)
+        (self.hoard == other.hoard)
+            .then(|| ())
+            .ok_or(Error::RestoreRequired)
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
@@ -316,4 +320,3 @@ impl TryFrom<&ConfigPile> for Pile {
         )
     }
 }
-

@@ -59,8 +59,7 @@ impl Checker for LastPaths {
 
     fn check(&mut self) -> Result<(), Self::Error> {
         let _span = tracing::debug_span!("running last_paths check", current=?self).entered();
-        let (name, new_hoard) = self.0.iter().next()
-            .ok_or(Error::NoEntries)?;
+        let (name, new_hoard) = self.0.iter().next().ok_or(Error::NoEntries)?;
 
         let last_paths = LastPaths::from_default_file()?;
         if let Some(old_hoard) = last_paths.hoard(name) {
