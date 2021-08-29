@@ -26,6 +26,9 @@ pub enum Error {
     /// Unexpected differences in hoard paths. Operation must be forced to continue.
     #[error("paths used in current hoard operation do not match previous run")]
     HoardPathsMismatch,
+    /// Expected the [`LastPaths`] to have at least one entry in it.
+    #[error("LastPaths record has no entries in it!")]
+    NoEntries,
 }
 
 /// Collection of the last paths matched per hoard.
@@ -44,47 +47,58 @@ fn read_last_paths_file() -> Result<fs::File, io::Error> {
     fs::File::open(path)
 }
 
-fn save_last_paths_to_file(paths: &LastPaths) -> Result<(), Error> {
-    tracing::debug!("saving lastpaths to disk");
-    let path = get_last_paths_file_path()?;
-    tracing::trace!("converting lastpaths to JSON");
-    let content = serde_json::to_string(paths)?;
-    if let Some(parent) = path.parent() {
-        tracing::trace!("ensuring parent directories exist");
-        fs::create_dir_all(parent)?;
-    }
-    tracing::trace!("writing lastpaths file");
-    fs::write(path, content)?;
-    Ok(())
-}
-
 impl Checker for LastPaths {
     type Error = Error;
-    fn check(&mut self, name: &str, hoard: &Hoard) -> Result<(), Error> {
-        let new_hoard = HoardPaths::from(hoard.clone());
-        if let Some(old_hoard) = self.hoard(name) {
-            HoardPaths::enforce_old_and_new_piles_are_same(old_hoard, &new_hoard)?;
+    fn new(name: &str, hoard: &Hoard, _is_backup: bool) -> Result<Self, Self::Error> {
+        Ok(LastPaths({
+            let mut map = HashMap::new();
+            map.insert(name.into(), HoardPaths::from(hoard.clone()));
+            map
+        }))
+    }
+
+    fn check(&mut self) -> Result<(), Self::Error> {
+        let _span = tracing::debug_span!("running last_paths check", current=?self).entered();
+        let (name, new_hoard) = self.0.iter().next()
+            .ok_or(Error::NoEntries)?;
+
+        let last_paths = LastPaths::from_default_file()?;
+        if let Some(old_hoard) = last_paths.hoard(name) {
+            HoardPaths::enforce_old_and_new_piles_are_same(old_hoard, new_hoard)?;
         }
-        self.set_hoard(name.to_owned(), new_hoard);
+
+        Ok(())
+    }
+
+    fn commit_to_disk(self) -> Result<(), Self::Error> {
+        let mut last_paths = LastPaths::from_default_file()?;
+        for (name, hoard) in self.0 {
+            last_paths.set_hoard(name, hoard);
+        }
+
+        tracing::debug!("saving lastpaths to disk");
+        let path = get_last_paths_file_path()?;
+        tracing::trace!("converting lastpaths to JSON");
+        let content = serde_json::to_string(&last_paths)?;
+        if let Some(parent) = path.parent() {
+            tracing::trace!("ensuring parent directories exist");
+            fs::create_dir_all(parent)?;
+        }
+        tracing::trace!("writing lastpaths file");
+        fs::write(path, content)?;
         Ok(())
     }
 }
 
 impl LastPaths {
-    /// Create a new, empty `LastPaths`.
-    #[must_use]
-    pub fn new() -> Self {
-        Self(HashMap::new())
-    }
-
     /// Get the entry for the given hoard, if exists.
     #[must_use]
-    pub fn hoard(&self, hoard: &str) -> Option<&HoardPaths> {
+    fn hoard(&self, hoard: &str) -> Option<&HoardPaths> {
         self.0.get(hoard)
     }
 
     /// Set/overwrite the paths used for the given hoard.
-    pub fn set_hoard(&mut self, hoard: String, paths: HoardPaths) {
+    fn set_hoard(&mut self, hoard: String, paths: HoardPaths) {
         self.0.insert(hoard, paths);
     }
 
@@ -95,14 +109,14 @@ impl LastPaths {
     /// Any I/O or `serde` error that occurs while reading and parsing the file.
     /// The exception is an I/O error with kind `NotFound`, which returns an empty
     /// `LastPaths`.
-    pub fn from_default_file() -> Result<Self, Error> {
+    fn from_default_file() -> Result<Self, Error> {
         tracing::debug!("reading lastpaths from file");
         let reader = match read_last_paths_file() {
             Ok(file) => file,
             Err(err) => {
                 if err.kind() == io::ErrorKind::NotFound {
                     tracing::debug!("lastpaths file not found, creating new instance");
-                    return Ok(Self::new());
+                    return Ok(Self::default());
                 }
                 tracing::error!(error=%err);
                 return Err(err.into());
@@ -111,20 +125,11 @@ impl LastPaths {
 
         serde_json::from_reader(reader).map_err(Into::into)
     }
-
-    /// Save this `LastPaths` to the `last_paths` file.
-    ///
-    /// # Errors
-    ///
-    /// Any I/O or `serde` error that occurs while saving this `LastPaths`.
-    pub fn save_to_disk(&self) -> Result<(), Error> {
-        save_last_paths_to_file(self)
-    }
 }
 
 impl Default for LastPaths {
     fn default() -> Self {
-        Self::new()
+        Self(HashMap::new())
     }
 }
 

@@ -7,6 +7,7 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
+use crate::checkers::Checker;
 use crate::config::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
 use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
@@ -33,6 +34,9 @@ pub enum Error {
     /// An error occurred while (de)serializing with `serde`.
     #[error("a (de)serialization error occurred: {0}")]
     Serde(#[from] serde_json::Error),
+    /// There are unapplied changes from another system. A restore or forced backup is required.
+    #[error("found unapplied remote changes - restore this hoard to apply changes or force a backup with --force")]
+    RestoreRequired,
 }
 
 /// A single operation log.
@@ -47,83 +51,76 @@ pub struct HoardOperation {
     timestamp: chrono::DateTime<chrono::Utc>,
     /// Whether this operation was a backup
     is_backup: bool,
+    /// The name of the hoard for this `HoardOperation`.
+    hoard_name: String,
     /// Mapping of pile files to checksums
     hoard: Hoard,
 }
 
-/// Operation log information for a single hoard.
-///
-/// Really just a wrapper for [`Pile`] because piles may be anonymous or named.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Hoard {
-    /// Information for a single, anonymous pile.
-    Anonymous(Pile),
-    /// Information for some number of named piles.
-    Named(HashMap<String, Pile>),
-}
-
-impl TryFrom<&ConfigHoard> for Hoard {
+impl Checker for HoardOperation {
     type Error = Error;
-    fn try_from(hoard: &ConfigHoard) -> Result<Self, Self::Error> {
-        let _span = tracing::trace_span!("hoard_to_operation", ?hoard).entered();
-        match hoard {
-            ConfigHoard::Anonymous(pile) => Pile::try_from(pile).map(Hoard::Anonymous),
-            ConfigHoard::Named(map) => map
-                .piles
-                .iter()
-                .map(|(key, pile)| Pile::try_from(pile).map(|pile| (key.clone(), pile)))
-                .collect::<Result<HashMap<_, _>, _>>()
-                .map(Hoard::Named),
-        }
-    }
-}
 
-/// Enum to differentiate between different types of checksum.
-///
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum Checksum {
-    /// An MD5 checksum. Fast but may have collisions.
-    MD5(String),
-}
-
-/// A mapping of file path (relative to pile) to file checksum.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Pile(HashMap<PathBuf, String>);
-
-fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
-    let mut map = HashMap::new();
-    if path.is_file() {
-        tracing::trace!(file=%path.display(), "Hashing file");
-        let bytes = fs::read(path)?;
-        let digest = Md5::digest(&bytes);
-        let rel_path = path
-            .strip_prefix(root)
-            .expect("paths in hash_path should always be children of the given root")
-            .to_path_buf();
-        map.insert(rel_path, format!("{:x}", digest));
-    } else if path.is_dir() {
-        tracing::trace!(dir=%path.display(), "Hashing all files in dir");
-        for item in fs::read_dir(path)? {
-            let item = item?;
-            let path = item.path();
-            map.extend(hash_path(&path, root)?);
-        }
-    } else {
-        tracing::warn!(path=%path.display(), "path is neither file nor directory, skipping");
+    fn new(name: &str, hoard: &ConfigHoard, is_backup: bool) -> Result<Self, Self::Error> {
+        Ok(Self {
+            timestamp: chrono::Utc::now(),
+            is_backup,
+            hoard_name: name.into(),
+            hoard: Hoard::try_from(hoard)?,
+        })
     }
 
-    Ok(map)
-}
+    fn check(&mut self) -> Result<(), Self::Error> {
+        let _span = tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name).entered();
+        tracing::debug!("checking if the hoard operation is safe to perform");
+        let last_local = Self::latest_local(&self.hoard_name)?;
+        let last_remote = Self::latest_remote_backup(&self.hoard_name)?;
 
-impl TryFrom<&ConfigPile> for Pile {
-    type Error = Error;
-    fn try_from(pile: &ConfigPile) -> Result<Self, Self::Error> {
-        let _span = tracing::trace_span!("pile_to_operation", ?pile).entered();
-        pile.path.as_ref().map_or_else(
-            || Ok(Self(HashMap::new())),
-            |path| hash_path(path, path).map(Self),
-        )
+        if !self.is_backup {
+            tracing::debug!("not backing up, is safe to continue");
+            return Ok(());
+        }
+
+        match (last_local, last_remote) {
+            (_, None) => {
+                tracing::debug!("no remote operations found for hoard, is safe to continue");
+                Ok(())
+            }
+            (None, Some(last_remote)) => {
+                tracing::debug!("no local operations found, is not safe to continue");
+                self.check_has_same_files(&last_remote)
+            }
+            (Some(last_local), Some(last_remote)) => {
+                if last_local.timestamp > last_remote.timestamp {
+                    // Allow if the last operation on this machine
+                    tracing::debug!(
+                        local=%last_local.timestamp,
+                        remote=%last_remote.timestamp,
+                        "latest local operation is more recent than last remote operation"
+                    );
+                    Ok(())
+                } else {
+                    tracing::debug!(
+                        local=%last_local.timestamp,
+                        remote=%last_remote.timestamp,
+                        "latest local operation is less recent than last remote operation"
+                    );
+                    self.check_has_same_files(&last_remote)
+                }
+            }
+        }
+    }
+
+    fn commit_to_disk(self) -> Result<(), Self::Error> {
+        let _span = tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name).entered();
+        let id = super::get_or_generate_uuid()?;
+        let path = super::get_history_dir_for_id(id)
+            .join(&self.hoard_name)
+            .join(format!("{}.log", self.timestamp.format(TIME_FORMAT_STR)));
+        tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
+        path.parent().map(fs::create_dir_all).transpose()?;
+        let file = fs::File::create(path)?;
+        serde_json::to_writer(file, &self)?;
+        Ok(())
     }
 }
 
@@ -142,23 +139,13 @@ impl HoardOperation {
         result
     }
 
-    /// Create a new `Operation` from the given hoard.
+    /// Checks if files in both operations are the same.
     ///
     /// # Errors
     ///
-    /// Any I/O errors that occur while hashing files.
-    pub fn new(is_backup: bool, hoard: &ConfigHoard) -> Result<Self, Error> {
-        Ok(Self {
-            timestamp: chrono::Utc::now(),
-            is_backup,
-            hoard: Hoard::try_from(hoard)?,
-        })
-    }
-
-    /// Checks if files in both operations are the same.
-    #[must_use]
-    pub fn has_same_files(&self, other: &Self) -> bool {
-        self.hoard == other.hoard
+    /// Returns [`Error::RestoreRequired`] if they do not have the same files (and hashes).
+    pub fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
+        (self.hoard == other.hoard).then(|| ()).ok_or(Error::RestoreRequired)
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
@@ -252,68 +239,81 @@ impl HoardOperation {
             .transpose()
             .map(Option::flatten)
     }
+}
 
-    /// Returns whether this pending operation is safe to perform.
-    ///
-    /// # Errors
-    ///
-    /// Any I/O errors encountered while reading operation logs from disk.
-    pub fn is_valid_pending(&self, hoard: &str) -> Result<bool, Error> {
-        let _span = tracing::debug_span!("is_pending_operation_valid", %hoard).entered();
-        tracing::debug!("checking if the hoard operation is safe to perform");
-        let last_local = Self::latest_local(hoard)?;
-        let last_remote = Self::latest_remote_backup(hoard)?;
+/// Operation log information for a single hoard.
+///
+/// Really just a wrapper for [`Pile`] because piles may be anonymous or named.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Hoard {
+    /// Information for a single, anonymous pile.
+    Anonymous(Pile),
+    /// Information for some number of named piles.
+    Named(HashMap<String, Pile>),
+}
 
-        if !self.is_backup {
-            tracing::debug!("not backing up, is safe to continue");
-            return Ok(true);
+impl TryFrom<&ConfigHoard> for Hoard {
+    type Error = Error;
+    fn try_from(hoard: &ConfigHoard) -> Result<Self, Self::Error> {
+        let _span = tracing::trace_span!("hoard_to_operation", ?hoard).entered();
+        match hoard {
+            ConfigHoard::Anonymous(pile) => Pile::try_from(pile).map(Hoard::Anonymous),
+            ConfigHoard::Named(map) => map
+                .piles
+                .iter()
+                .map(|(key, pile)| Pile::try_from(pile).map(|pile| (key.clone(), pile)))
+                .collect::<Result<HashMap<_, _>, _>>()
+                .map(Hoard::Named),
         }
-
-        match (last_local, last_remote) {
-            (_, None) => {
-                tracing::debug!(%hoard, "no remote operations found for hoard, is safe to continue");
-                Ok(true)
-            }
-            (None, Some(last_remote)) => {
-                tracing::debug!(%hoard, "no local operations found, is not safe to continue");
-                Ok(self.has_same_files(&last_remote))
-            }
-            (Some(last_local), Some(last_remote)) => {
-                if last_local.timestamp > last_remote.timestamp {
-                    // Allow if the last operation on this machine
-                    tracing::debug!(
-                        local=%last_local.timestamp,
-                        remote=%last_remote.timestamp,
-                        "latest local operation is more recent than last remote operation"
-                    );
-                    Ok(true)
-                } else {
-                    tracing::debug!(
-                        local=%last_local.timestamp,
-                        remote=%last_remote.timestamp,
-                        "latest local operation is less recent than last remote operation"
-                    );
-                    Ok(self.has_same_files(&last_remote))
-                }
-            }
-        }
-    }
-
-    /// Writes this operation log to disk for the given hoard.
-    ///
-    /// # Errors
-    ///
-    /// Any I/O errors that may occur while writing the file to disk.
-    pub fn commit_to_disk(&self, hoard: &str) -> Result<(), Error> {
-        let _span = tracing::trace_span!("commit_operation_to_disk", %hoard).entered();
-        let id = super::get_or_generate_uuid()?;
-        let path = super::get_history_dir_for_id(id)
-            .join(hoard)
-            .join(format!("{}.log", self.timestamp.format(TIME_FORMAT_STR)));
-        tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
-        path.parent().map(fs::create_dir_all).transpose()?;
-        let file = fs::File::create(path)?;
-        serde_json::to_writer(file, self)?;
-        Ok(())
     }
 }
+
+/// Enum to differentiate between different types of checksum.
+///
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Checksum {
+    /// An MD5 checksum. Fast but may have collisions.
+    MD5(String),
+}
+
+/// A mapping of file path (relative to pile) to file checksum.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Pile(HashMap<PathBuf, String>);
+
+fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
+    let mut map = HashMap::new();
+    if path.is_file() {
+        tracing::trace!(file=%path.display(), "Hashing file");
+        let bytes = fs::read(path)?;
+        let digest = Md5::digest(&bytes);
+        let rel_path = path
+            .strip_prefix(root)
+            .expect("paths in hash_path should always be children of the given root")
+            .to_path_buf();
+        map.insert(rel_path, format!("{:x}", digest));
+    } else if path.is_dir() {
+        tracing::trace!(dir=%path.display(), "Hashing all files in dir");
+        for item in fs::read_dir(path)? {
+            let item = item?;
+            let path = item.path();
+            map.extend(hash_path(&path, root)?);
+        }
+    } else {
+        tracing::warn!(path=%path.display(), "path is neither file nor directory, skipping");
+    }
+
+    Ok(map)
+}
+
+impl TryFrom<&ConfigPile> for Pile {
+    type Error = Error;
+    fn try_from(pile: &ConfigPile) -> Result<Self, Self::Error> {
+        let _span = tracing::trace_span!("pile_to_operation", ?pile).entered();
+        pile.path.as_ref().map_or_else(
+            || Ok(Self(HashMap::new())),
+            |path| hash_path(path, path).map(Self),
+        )
+    }
+}
+
