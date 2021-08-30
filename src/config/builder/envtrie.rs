@@ -1,14 +1,12 @@
 //! Notes
 //! - Length of matching path takes precedence over the strength of any one segment.
-//! - If two paths have the same length and score, the first one is taken.
 //! - Weights of each segment are determined by taking sets of mutually exclusive
 //!   segments and creating a DAG to determine weights.
 //! - No current design for making a short path win out over a longer one.
 
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
-use std::collections::{BTreeMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 /// Errors that may occur while building or evaluating an [`EnvTrie`].
@@ -22,7 +20,7 @@ pub enum Error {
     /// One [`Pile`](super::hoard::Pile) has the same combination of environments defined
     /// multiple times.
     #[error("The same condition is defined twice with paths {0} and {1}")]
-    DoubleDefine(PathBuf, PathBuf),
+    DoubleDefine(String, String),
     /// No environment exists with the given name, but a [`Pile`](super::hoard::Pile) thinks
     /// one does.
     #[error("\"{0}\" is not an environment that exists")]
@@ -49,15 +47,15 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq)]
 struct Node {
     score: usize,
-    tree: Option<BTreeMap<String, Node>>,
-    value: Option<PathBuf>,
+    tree: Option<HashMap<String, Node>>,
+    value: Option<String>,
     name: String,
 }
 
 fn merge_two_trees(
-    mut acc: BTreeMap<String, Node>,
-    other: BTreeMap<String, Node>,
-) -> Result<BTreeMap<String, Node>, Error> {
+    mut acc: HashMap<String, Node>,
+    other: HashMap<String, Node>,
+) -> Result<HashMap<String, Node>, Error> {
     let _span = tracing::trace_span!("merge_two_trees", left = ?acc, right = ?other).entered();
     tracing::trace!("merging two trees");
     for (key, val) in other {
@@ -84,9 +82,48 @@ fn merge_two_trees(
 #[allow(single_use_lifetimes)]
 struct Evaluation<'a> {
     name: String,
-    path: Option<&'a Path>,
-    score: usize,
-    len: usize,
+    path: Option<&'a str>,
+    scores: Vec<usize>,
+}
+
+impl<'a> Evaluation<'a> {
+    fn is_better_match_than(&self, other: &Evaluation<'a>) -> Result<bool, Error> {
+        match (self.path, other.path) {
+            (_, None) => Ok(true),
+            (None, Some(_)) => Ok(false),
+            (Some(_), Some(_)) => match self.scores.len().cmp(&other.scores.len()) {
+                std::cmp::Ordering::Less => Ok(false),
+                std::cmp::Ordering::Greater => Ok(true),
+                std::cmp::Ordering::Equal => {
+                    let rel_score: i32 = self
+                        .scores
+                        .iter()
+                        .zip(other.scores.iter())
+                        .map(|(s, o)| match s.cmp(o) {
+                            std::cmp::Ordering::Less => -1,
+                            std::cmp::Ordering::Equal => 0,
+                            std::cmp::Ordering::Greater => 1,
+                        })
+                        .sum();
+
+                    match rel_score.cmp(&0) {
+                        std::cmp::Ordering::Less => Ok(false),
+                        std::cmp::Ordering::Greater => Ok(true),
+                        std::cmp::Ordering::Equal => {
+                            tracing::error!(
+                                left_eval = ?self,
+                                right_eval = ?other,
+                                "cannot choose between {} and {}",
+                                self.name,
+                                other.name
+                            );
+                            Err(Error::Indecision(self.name.clone(), other.name.clone()))
+                        }
+                    }
+                }
+            },
+        }
+    }
 }
 
 impl Node {
@@ -132,15 +169,14 @@ impl Node {
         })
     }
 
-    fn get_evaluation(&self, envs: &BTreeMap<String, bool>) -> Result<Evaluation, Error> {
+    fn get_evaluation(&self, envs: &HashMap<String, bool>) -> Result<Evaluation, Error> {
         let _span = tracing::trace_span!("evaluate_node", node = ?self, ?envs).entered();
 
         // Default evaluation if subtree does not exist
         let mut eval = Evaluation {
-            name: self.name.clone(),
-            path: self.value.as_ref().map(PathBuf::as_ref),
-            score: 0,
-            len: 1, // this node
+            name: String::new(),
+            path: self.value.as_deref(),
+            scores: vec![],
         };
 
         if let Some(tree) = &self.tree {
@@ -185,46 +221,30 @@ impl Node {
                     },
                 };
 
-                // Path must exist
-                match (eval.path, node_eval.path) {
-                    (_, None) => {}
-                    (None, Some(_)) => eval = node_eval,
-                    (Some(_), Some(_)) => {
-                        if node_eval.len > eval.len
-                            || (node_eval.len == eval.len && node_eval.score > eval.score)
-                        {
-                            tracing::trace!(
-                                old_eval = ?eval,
-                                new_eval = ?node_eval,
-                                "found child node with a better match"
-                            );
+                if node_eval.is_better_match_than(&eval)? {
+                    tracing::trace!(
+                        old_eval = ?eval,
+                        new_eval = ?node_eval,
+                        "found child node with a better match"
+                    );
 
-                            // Greater length takes precedence, otherwise use score.
-                            eval.path = node_eval.path;
-                            eval.score = node_eval.score + self.score;
-                            // Add this node to the chain
-                            eval.len = node_eval.len + 1;
-                        } else if node_eval.len == eval.len && node_eval.score == eval.score {
-                            // If length and score are same, cannot choose
-                            tracing::error!(
-                                left_eval = ?node_eval,
-                                right_eval = ?eval,
-                                "cannot choose between {} and {}",
-                                node_eval.name,
-                                eval.name
-                            );
-                            return Err(Error::Indecision(eval.name, name.clone()));
-                        }
-                        // Otherwise, keep current one.
-                    }
+                    eval = node_eval;
                 }
             }
         }
 
+        if eval.name.is_empty() {
+            eval.name = self.name.clone();
+        } else {
+            eval.name = format!("{}|{}", self.name, eval.name);
+        }
+        eval.scores.push(self.score);
+        // Sort largest values first
+        eval.scores.sort_unstable_by(|left, right| right.cmp(left));
         Ok(eval)
     }
 
-    fn get_highest_path(&self, envs: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+    fn get_highest_path(&self, envs: &HashMap<String, bool>) -> Result<Option<&str>, Error> {
         tracing::trace!("evaluating envtrie for best matching path");
         let Evaluation { path, .. } = self.get_evaluation(envs)?;
         Ok(path)
@@ -244,7 +264,7 @@ pub struct EnvTrie(Node);
 
 const ENV_SEPARATOR: char = '|';
 
-fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(), Error> {
+fn validate_environments(environments: &HashMap<String, String>) -> Result<(), Error> {
     let _span = tracing::trace_span!("validate_environment_strings", ?environments).entered();
     for (key, _) in environments.iter() {
         tracing::trace_span!("check_env_str", env_str = %key);
@@ -264,16 +284,16 @@ fn validate_environments(environments: &BTreeMap<String, PathBuf>) -> Result<(),
     Ok(())
 }
 
-fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, usize>, Error> {
+fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<HashMap<String, usize>, Error> {
     let _span = tracing::trace_span!(
         "get_weighted_map",
         exclusivity = ?exclusive_list
     )
     .entered();
 
-    tracing::trace!("calculating environment weights from exclusivity lists");
+    // Check for cycles, then discard graph
+    tracing::trace!("checking for cycles");
     let mut score_dag = DiGraph::<String, ()>::new();
-
     for list in exclusive_list.iter() {
         let mut prev_idx = None;
 
@@ -293,25 +313,35 @@ fn get_weighted_map(exclusive_list: &[Vec<String>]) -> Result<BTreeMap<String, u
         }
     }
 
-    toposort(&score_dag, None)
-        .map(|v| {
-            // Toposort returns least to highest priority, so the enumerated index
-            // suffices as relative weight
-            v.into_iter()
-                .enumerate()
-                .map(|(i, id)| (score_dag[id].clone(), i))
-                .collect()
-        })
-        .map_err(|cycle| {
-            let node: &str = &score_dag[cycle.node_id()];
-            Error::WeightCycle(node.to_owned())
-        })
+    toposort(&score_dag, None).map_err(|cycle| {
+        let node: &str = &score_dag[cycle.node_id()];
+        Error::WeightCycle(node.to_owned())
+    })?;
+
+    // Actually calculate map
+    tracing::trace!("calculating environment weights from exclusivity lists");
+    let mut weighted_map: HashMap<String, usize> = HashMap::new();
+
+    for list in exclusive_list {
+        for (score, item) in list.iter().rev().enumerate() {
+            let weight = weighted_map.get(item.as_str()).map_or(score, |val| {
+                if *val > score {
+                    *val
+                } else {
+                    score
+                }
+            });
+            weighted_map.insert(item.clone(), weight);
+        }
+    }
+
+    Ok(weighted_map)
 }
 
 fn merge_maps(
-    mut map1: BTreeMap<String, HashSet<String>>,
-    map2: BTreeMap<String, HashSet<String>>,
-) -> BTreeMap<String, HashSet<String>> {
+    mut map1: HashMap<String, HashSet<String>>,
+    map2: HashMap<String, HashSet<String>>,
+) -> HashMap<String, HashSet<String>> {
     for (key, set) in map2 {
         let new_set = match map1.remove(&key) {
             None => set,
@@ -324,7 +354,7 @@ fn merge_maps(
     map1
 }
 
-fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, HashSet<String>> {
+fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, HashSet<String>> {
     let _span = tracing::trace_span!(
         "get_exclusivity_map",
         exclusivity = ?exclusivity_list
@@ -342,7 +372,7 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, Has
                 .collect()
         })
         .reduce(merge_maps)
-        .unwrap_or_else(BTreeMap::new)
+        .unwrap_or_else(HashMap::new)
 }
 
 impl EnvTrie {
@@ -352,7 +382,7 @@ impl EnvTrie {
     ///
     /// Any [`enum@Error`] relating to parsing or validating environment condition strings.
     pub fn new(
-        environments: &BTreeMap<String, PathBuf>,
+        environments: &HashMap<String, String>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
         let _span =
@@ -364,12 +394,16 @@ impl EnvTrie {
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
-        tracing::trace!("building trees for each environment string");
+        tracing::trace!(
+            ?exclusivity_map,
+            ?weighted_map,
+            "building trees for each environment string"
+        );
         let trees: Vec<_> = environments
             .iter()
             .map(|(env_str, path)| {
                 let _span =
-                    tracing::trace_span!("process_env_string", string = %env_str, path = path.to_string_lossy().as_ref()).entered();
+                    tracing::trace_span!("process_env_string", string = %env_str, %path).entered();
                 let mut envs: Vec<&str> = env_str.split(ENV_SEPARATOR).collect();
                 envs.sort_unstable();
 
@@ -388,7 +422,7 @@ impl EnvTrie {
                 // Last node, then building up to the root.
                 let mut prev_node = Node {
                     name: String::new(),
-                    score: 1,
+                    score: 0,
                     tree: None,
                     value: Some(path.clone()),
                 };
@@ -398,16 +432,16 @@ impl EnvTrie {
                 for segment in envs.into_iter().rev() {
                     let segment = segment.to_string();
 
-                    let score = weighted_map.get(&segment).copied().unwrap_or(1);
+                    prev_node.score = weighted_map.get(&segment).copied().unwrap_or(1);
                     prev_node.name = segment.clone();
                     let tree = {
-                        let mut tree = BTreeMap::new();
+                        let mut tree = HashMap::new();
                         tree.insert(segment, prev_node);
                         Some(tree)
                     };
 
                     prev_node = Node {
-                        score,
+                        score: 0,
                         tree,
                         value: None,
                         name: String::new(),
@@ -439,7 +473,7 @@ impl EnvTrie {
     ///
     /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
     ///   `environments` argument.
-    pub fn get_path(&self, environments: &BTreeMap<String, bool>) -> Result<Option<&Path>, Error> {
+    pub fn get_path(&self, environments: &HashMap<String, bool>) -> Result<Option<&str>, Error> {
         tracing::trace!(
             trie = ?self,
             ?environments,
@@ -453,10 +487,8 @@ impl EnvTrie {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maplit::btreemap;
-    use once_cell::sync::Lazy;
-    use std::collections::BTreeMap;
-    use std::path::PathBuf;
+    use maplit::hashmap;
+    use std::collections::HashMap;
 
     // Every const has a name of the form `LABEL_<char>_<int>`.
     // All consts with the same `<char>` are mutually exclusive for the purposes of testing.
@@ -469,9 +501,9 @@ mod tests {
     const LABEL_C_1: &str = "c1";
     const LABEL_C_2: &str = "c2";
 
-    static PATH_1: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path1"));
-    static PATH_2: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path2"));
-    static PATH_3: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/path3"));
+    const PATH_1: &str = "/tmp/path1";
+    const PATH_2: &str = "/tmp/path2";
+    const PATH_3: &str = "/tmp/path3";
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {
@@ -506,7 +538,7 @@ mod tests {
         (name: $name:ident, environments: $envs:expr, exclusivity: $excl:expr, expected: $result:expr) => {
             #[test]
             fn $name() {
-                let environments: BTreeMap<String, PathBuf> = $envs;
+                let environments: HashMap<String, String> = $envs;
                 let exclusivity: Vec<Vec<String>> = $excl;
 
                 let res: Result<EnvTrie, Error> = EnvTrie::new(&environments, &exclusivity);
@@ -533,10 +565,10 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_valid_single_env,
-        environments: btreemap! {
-            LABEL_A_1.into() => PATH_1.clone(),
-            LABEL_B_1.into() => PATH_2.clone(),
-            LABEL_C_1.into() => PATH_3.clone(),
+        environments: hashmap! {
+            LABEL_A_1.into() => PATH_1.into(),
+            LABEL_B_1.into() => PATH_2.into(),
+            LABEL_C_1.into() => PATH_3.into(),
         },
         exclusivity: vec![],
         expected: {
@@ -544,24 +576,24 @@ mod tests {
                 name: String::new(),
                 score: 1,
                 value: None,
-                tree: Some(btreemap!{
+                tree: Some(hashmap!{
                     LABEL_A_1.to_owned() => Node {
                         name: LABEL_A_1.to_owned(),
                         score: 1,
                         tree: None,
-                        value: Some(PATH_1.clone()),
+                        value: Some(PATH_1.into()),
                     },
                     LABEL_B_1.to_owned() => Node {
                         name: LABEL_B_1.to_owned(),
                         score: 1,
                         tree: None,
-                        value: Some(PATH_2.clone()),
+                        value: Some(PATH_2.into()),
                     },
                     LABEL_C_1.to_owned() => Node {
                         name: LABEL_C_1.to_owned(),
                         score: 1,
                         tree: None,
-                        value: Some(PATH_3.clone()),
+                        value: Some(PATH_3.into()),
                     },
                 })
             };
@@ -571,14 +603,14 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_valid_multi_env,
-        environments: btreemap! {
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1) => PATH_1.clone(),
+        environments: hashmap! {
+            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1) => PATH_1.into(),
             // Testing merged trees
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1) => PATH_2.clone(),
+            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1) => PATH_2.into(),
             // The generated tree should be in sorted order
-            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2) => PATH_3.clone(),
+            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2) => PATH_3.into(),
             // Testing overlapping trees
-            format!("{}|{}", LABEL_A_3, LABEL_B_3) => PATH_2.clone(),
+            format!("{}|{}", LABEL_A_3, LABEL_B_3) => PATH_2.into(),
         },
         exclusivity: vec![
             vec![LABEL_A_1.into(), LABEL_A_2.into(), LABEL_A_3.into()],
@@ -590,22 +622,22 @@ mod tests {
                 name: String::new(),
                 score: 1,
                 value: None,
-                tree: Some(btreemap! {
+                tree: Some(hashmap! {
                     LABEL_A_1.into() => Node {
                         name: LABEL_A_1.to_owned(),
                         score: 1,
                         value: None,
-                        tree: Some(btreemap!{
+                        tree: Some(hashmap!{
                             LABEL_B_1.into() => Node {
                                 name: LABEL_B_1.to_owned(),
                                 score: 1,
                                 value: None,
-                                tree: Some(btreemap!{
+                                tree: Some(hashmap!{
                                     LABEL_C_1.into() => Node {
                                         name: LABEL_C_1.to_owned(),
                                         score: 1,
                                         tree: None,
-                                        value: Some(PATH_1.clone()),
+                                        value: Some(PATH_1.into()),
                                     }
                                 })
                             },
@@ -613,12 +645,12 @@ mod tests {
                                 name: LABEL_B_2.to_owned(),
                                 score: 1,
                                 value: None,
-                                tree: Some(btreemap!{
+                                tree: Some(hashmap!{
                                     LABEL_C_1.into() => Node {
                                         name: LABEL_C_1.to_owned(),
                                         score: 1,
                                         tree: None,
-                                        value: Some(PATH_2.clone())
+                                        value: Some(PATH_2.into())
                                     }
                                 })
                             }
@@ -628,17 +660,17 @@ mod tests {
                         name: LABEL_A_3.to_owned(),
                         score: 1,
                         value: None,
-                        tree: Some(btreemap! {
+                        tree: Some(hashmap! {
                             LABEL_B_3.into() => Node {
                                 name: LABEL_B_3.to_owned(),
                                 score: 1,
-                                value: Some(PATH_2.clone()),
-                                tree: Some(btreemap! {
+                                value: Some(PATH_2.into()),
+                                tree: Some(hashmap! {
                                     LABEL_C_2.into() => Node {
                                         name: LABEL_C_2.to_owned(),
                                         score: 1,
                                         tree: None,
-                                        value: Some(PATH_3.clone()),
+                                        value: Some(PATH_3.into()),
                                     }
                                 })
                             }
@@ -653,8 +685,8 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_invalid_separator_prefix,
-        environments: btreemap! {
-            format!("|{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
+        environments: hashmap! {
+            format!("|{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::EmptyEnvironment(format!("|{}|{}", LABEL_A_1, LABEL_B_1)))
@@ -662,8 +694,8 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_invalid_separator_suffix,
-        environments: btreemap! {
-            format!("{}|{}|", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
+        environments: hashmap! {
+            format!("{}|{}|", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::EmptyEnvironment(format!("{}|{}|", LABEL_A_1, LABEL_B_1)))
@@ -671,8 +703,8 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_invalid_consecutive_separator,
-        environments: btreemap! {
-            format!("{}||{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
+        environments: hashmap! {
+            format!("{}||{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::EmptyEnvironment(format!("{}||{}", LABEL_A_1, LABEL_B_1)))
@@ -680,8 +712,8 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_combine_mutually_exclusive_is_invalid,
-        environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_A_2) => PATH_1.clone(),
+        environments: hashmap! {
+            format!("{}|{}", LABEL_A_1, LABEL_A_2) => PATH_1.into(),
         },
         exclusivity: vec![vec![LABEL_A_1.into(), LABEL_A_2.into()]],
         expected: Err(Error::CombinedMutuallyExclusive(format!("{}|{}", LABEL_A_1, LABEL_A_2)))
@@ -689,18 +721,18 @@ mod tests {
 
     trie_test_ignore_score! {
         name: test_same_condition_twice_is_invalid,
-        environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.clone(),
-            format!("{}|{}", LABEL_B_1, LABEL_A_1) => PATH_2.clone(),
+        environments: hashmap! {
+            format!("{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
+            format!("{}|{}", LABEL_B_1, LABEL_A_1) => PATH_2.into(),
         },
         exclusivity: vec![],
-        expected: Err(Error::DoubleDefine(PATH_1.clone(), PATH_2.clone()))
+        expected: Err(Error::DoubleDefine(PATH_1.into(), PATH_2.into()))
     }
 
     trie_test_ignore_score! {
         name: test_empty_condition_is_invalid,
-        environments: btreemap! {
-            "".into() => PATH_1.clone(),
+        environments: hashmap! {
+            "".into() => PATH_1.into(),
         },
         exclusivity: vec![],
         expected: Err(Error::NoEnvironments)

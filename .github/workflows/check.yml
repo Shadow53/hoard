@@ -3,9 +3,31 @@ on: [push]
 name: Commit Checks
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      cargo: ${{ steps.filter.outputs.cargo }}
+      pytests: ${{ steps.filter.outputs.pytests }}}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            cargo:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            rust:
+              - '**/*.rs'
+            pytests:
+              - 'ci-tests/**'
+
   fmt:
     name: Cargo fmt
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -26,6 +48,8 @@ jobs:
   check-stable:
     name: Check Commit
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -68,6 +92,8 @@ jobs:
   check-nightly:
     name: Check Commit
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -116,3 +142,58 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ steps.coverage.outputs.report }}
+
+  integration-tests:
+    name: "Integration Tests"
+    needs: [check-stable, changes]
+    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true') }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-stable-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-stable-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo binaries
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-stable-bin-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+
+      - name: Install tree (macos)
+        if: matrix.os == 'macos-latest'
+        run: brew install tree
+
+      - name: Test Last Paths
+        run: python ci-tests/test.py last_paths
+
+      - name: Test Remote Operations
+        run: python ci-tests/test.py operation
