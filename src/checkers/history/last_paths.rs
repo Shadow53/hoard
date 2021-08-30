@@ -363,20 +363,15 @@ mod tests {
     }
 
     #[test]
-    fn new_lastpaths_is_empty() {
-        let last_paths = LastPaths::new();
+    fn default_lastpaths_is_empty() {
+        let last_paths = LastPaths::default();
         assert_eq!(last_paths.0.len(), 0);
-    }
-
-    #[test]
-    fn last_paths_new_is_default() {
-        assert_eq!(LastPaths::new(), LastPaths::default());
     }
 
     #[test]
     fn test_lastpaths_get_set_hoard() {
         let hoard_paths = anonymous_hoard_paths();
-        let mut last_paths = LastPaths::new();
+        let mut last_paths = LastPaths::default();
         let key = "testkey";
         last_paths.set_hoard(key.to_string(), hoard_paths.clone());
         let got_hoard_paths = last_paths.hoard(key);
