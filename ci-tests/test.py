@@ -185,12 +185,13 @@ def test_operation_checker():
     with open(uuid_path, "r") as file:
         uuid = file.readline()
     os.remove(uuid_path)
+
     # Go again, this time with a different uuid
     # This should still succeed because the files have the same checksum
-
     print("========= HOARD RUN #2 =========")
     print("  After removing the UUID file  ")
     run_hoard("backup", env=env)
+
     # Modify a file and backup again so checksums are different the next time
     # This should succeed because this UUID had the last backup
     with open(Path.home().joinpath("first_anon_file"), "rb") as file:
@@ -198,7 +199,6 @@ def test_operation_checker():
     with open(Path.home().joinpath("first_anon_file"), "wb") as file:
         content = secrets.token_bytes(1024)
         file.write(content)
-
     print("========= HOARD RUN #3 =========")
     print(" After replacing a file content ")
     run_hoard("backup", env=env)
@@ -206,10 +206,8 @@ def test_operation_checker():
     # Swap UUIDs and change the file again and try to back up
     # Should fail because a different machine has the most recent backup
     with open(uuid_path, "w") as file:
-        file.truncate(0)
         file.write(uuid)
     with open(Path.home().joinpath("first_anon_file"), "wb") as file:
-        file.truncate(0)
         file.write(old_content)
     try:
         print("========= HOARD RUN #4 =========")
