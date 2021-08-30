@@ -188,6 +188,10 @@ jobs:
         with:
           python-version: "3.9"
 
+      - name: Install tree (macos)
+        if: matrix.os == 'macos-latest'
+        run: brew install tree
+
       - name: Test Last Paths
         run: python ci-tests/test.py last_paths
 
