@@ -382,14 +382,14 @@ impl EnvTrie {
     ///
     /// Any [`enum@Error`] relating to parsing or validating environment condition strings.
     pub fn new(
-        environments: &HashMap<String, String>,
+        envs: &HashMap<String, String>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
         let _span =
-            tracing::trace_span!("create_envtrie", ?environments, ?exclusive_list).entered();
+            tracing::trace_span!("create_envtrie", ?envs, ?exclusive_list).entered();
         tracing::trace!("creating a new envtrie");
 
-        validate_environments(environments)?;
+        validate_environments(envs)?;
         let weighted_map = get_weighted_map(exclusive_list)?;
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
@@ -399,7 +399,7 @@ impl EnvTrie {
             ?weighted_map,
             "building trees for each environment string"
         );
-        let trees: Vec<_> = environments
+        let trees: Vec<_> = envs
             .iter()
             .map(|(env_str, path)| {
                 let _span =

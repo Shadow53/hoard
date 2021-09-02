@@ -61,8 +61,12 @@ pub enum Encryption {
 /// Hoard/Pile configuration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
+    /// The [`Encryption`] configuration for a pile.
     #[serde(flatten)]
-    encryption: Encryption,
+    pub encryption: Option<Encryption>,
+    /// A list of glob patterns matching files to ignore.
+    #[serde(default)]
+    pub ignore: Vec<String>,
 }
 
 /// A single pile in the hoard.
@@ -91,6 +95,10 @@ impl Pile {
 
         Ok(ConfigSingle { config, path })
     }
+
+    pub(crate) fn set_config_if_none(&mut self, config: Option<&Config>) {
+        self.config = self.config.take().or_else(|| config.cloned());
+    }
 }
 
 /// A set of multiple related piles (i.e. in a single hoard).
@@ -110,15 +118,20 @@ impl MultipleEntries {
         let MultipleEntries { config, items } = self;
         let items = items
             .into_iter()
-            .map(|(pile, entry)| {
+            .map(|(pile, mut entry)| {
                 tracing::debug!(%pile, "processing pile");
-                let mut entry = entry.process_with(envs, exclusivity)?;
-                entry.config = entry.config.or_else(|| config.clone());
+                entry.set_config_if_none(config.as_ref());
+                let _span = tracing::debug_span!("processing_span_outer", name=%pile).entered();
+                let entry = entry.process_with(envs, exclusivity)?;
                 Ok((pile, entry))
             })
             .collect::<Result<_, Error>>()?;
 
         Ok(ConfigMultiple { piles: items })
+    }
+
+    pub(crate) fn set_config_if_none(&mut self, config: Option<&Config>) {
+        self.config = self.config.take().or_else(|| config.cloned());
     }
 }
 
@@ -231,6 +244,7 @@ mod tests {
                     encryption: Encryption::Asymmetric(AsymmetricEncryption {
                         public_key: "public key".to_string(),
                     }),
+                    ignore: Vec::new(),
                 }),
                 items: hashmap! {
                     "bar_env|foo_env".to_string() => "/some/path".to_string()
@@ -295,6 +309,7 @@ mod tests {
                     encryption: Encryption::Symmetric(SymmetricEncryption::Password(
                         "correcthorsebatterystaple".into(),
                     )),
+                    ignore: Vec::new(),
                 }),
                 items: hashmap! {
                     "item1".to_string() => Pile {

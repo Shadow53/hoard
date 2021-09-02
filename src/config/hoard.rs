@@ -4,6 +4,7 @@
 
 pub use super::builder::hoard::Config;
 use crate::checkers::history::last_paths::HoardPaths;
+use crate::filters::{Filter, Filters, Error as FilterError};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -49,6 +50,9 @@ pub enum Error {
         /// Destination path.
         dest: PathBuf,
     },
+    /// An error occurred while filtering files.
+    #[error("error while filtering files: {0}")]
+    Filter(#[from] FilterError),
 }
 
 /// A single path to hoard, with configuration.
@@ -71,13 +75,19 @@ impl Pile {
     /// # Errors
     ///
     /// Various sorts of I/O errors as the different [`Error`] variants.
-    fn copy(src: &Path, dest: &Path) -> Result<(), Error> {
+    fn copy(filters: Option<&Filters>, src: &Path, dest: &Path) -> Result<(), Error> {
         let _span = tracing::trace_span!(
             "copy",
             source = ?src,
             destination = ?dest
         )
         .entered();
+
+        if !filters.as_ref().map_or(true, |filters| filters.keep(src)) {
+            // File should be ignored (not kept), so do nothing.
+            tracing::trace!(path=%src.display(), "ignoring path based on filters");
+            return Ok(())
+        }
 
         // Fail if src and dest exist but are not both file or directory.
         if src.exists() == dest.exists()
@@ -106,7 +116,7 @@ impl Pile {
 
                 let dest = dest.join(item.file_name());
                 // No tracing event here because we are recursing
-                Self::copy(&item.path(), &dest)?;
+                Self::copy(filters, &item.path(), &dest)?;
             }
         } else if src.is_file() {
             let _span = tracing::trace_span!("is_file").entered();
@@ -154,7 +164,6 @@ impl Pile {
     ///
     /// Various sorts of I/O errors as the different [`enum@Error`] variants.
     pub fn backup(&self, prefix: &Path) -> Result<(), Error> {
-        // TODO: do stuff with pile config
         if let Some(path) = &self.path {
             let _span = tracing::debug_span!(
                 "backup_pile",
@@ -163,7 +172,9 @@ impl Pile {
             )
             .entered();
 
-            Self::copy(path, prefix)?;
+            let filter = self.config.as_ref().map(Filters::new).transpose()?;
+
+            Self::copy(filter.as_ref(), path, prefix)?;
         } else {
             tracing::warn!("pile has no associated path -- perhaps no environment matched?");
         }
@@ -186,7 +197,7 @@ impl Pile {
             )
             .entered();
 
-            Self::copy(prefix, path)?;
+            Self::copy(None, prefix, path)?;
         } else {
             tracing::warn!("pile has no associated path -- perhaps no environment matched");
         }
