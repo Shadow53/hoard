@@ -1,7 +1,7 @@
 //! Provides filters for determining whether a path should be backed up or not.
 
-use std::path::Path;
 use crate::config::builder::hoard::Config;
+use std::path::Path;
 use thiserror::Error;
 
 pub(crate) mod ignore;
@@ -39,7 +39,7 @@ impl Filter for Filters {
 
     fn new(pile_config: &Config) -> Result<Self, Self::Error> {
         let ignore = ignore::IgnoreFilter::new(pile_config)?;
-        Ok(Self{ ignore })
+        Ok(Self { ignore })
     }
 
     fn keep(&self, path: &Path) -> bool {

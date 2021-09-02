@@ -1,3 +1,4 @@
+use crate::config::builder::hoard::Config;
 /// Provides a [`Filter`] based on glob ignore patterns.
 ///
 /// To use this filter, add an list of glob patterns to `ignore` under `config`. For example:
@@ -8,9 +9,7 @@
 /// ```
 ///
 /// This can be put under global, hoard, or pile scope.
-
 use glob::{Pattern, PatternError};
-use crate::config::builder::hoard::Config;
 
 use super::Filter;
 use thiserror::Error;
@@ -23,26 +22,25 @@ pub enum Error {
         pattern: String,
         #[source]
         error: PatternError,
-    }
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct IgnoreFilter {
-    globs: Vec<Pattern>
+    globs: Vec<Pattern>,
 }
 
 impl Filter for IgnoreFilter {
     type Error = Error;
 
     fn new(pile_config: &Config) -> Result<Self, Self::Error> {
-        pile_config.ignore
+        pile_config
+            .ignore
             .iter()
             .map(|pattern| {
-                Pattern::new(pattern).map_err(|error| {
-                    Error::InvalidGlob {
-                        pattern: pattern.clone(),
-                        error,
-                    }
+                Pattern::new(pattern).map_err(|error| Error::InvalidGlob {
+                    pattern: pattern.clone(),
+                    error,
                 })
             })
             .collect::<Result<_, _>>()

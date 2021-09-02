@@ -16,8 +16,8 @@ use crate::command::Command;
 use crate::CONFIG_FILE_NAME;
 use crate::HOARDS_DIR_SLUG;
 
+use self::hoard::Config as PileConfig;
 use super::Config;
-use hoard::Config as PileConfig;
 
 pub mod environment;
 pub mod envtrie;

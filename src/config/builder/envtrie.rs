@@ -385,8 +385,7 @@ impl EnvTrie {
         envs: &HashMap<String, String>,
         exclusive_list: &[Vec<String>],
     ) -> Result<Self, Error> {
-        let _span =
-            tracing::trace_span!("create_envtrie", ?envs, ?exclusive_list).entered();
+        let _span = tracing::trace_span!("create_envtrie", ?envs, ?exclusive_list).entered();
         tracing::trace!("creating a new envtrie");
 
         validate_environments(envs)?;

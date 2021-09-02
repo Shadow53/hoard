@@ -4,7 +4,7 @@
 
 pub use super::builder::hoard::Config;
 use crate::checkers::history::last_paths::HoardPaths;
-use crate::filters::{Filter, Filters, Error as FilterError};
+use crate::filters::{Error as FilterError, Filter, Filters};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -86,7 +86,7 @@ impl Pile {
         if !filters.as_ref().map_or(true, |filters| filters.keep(src)) {
             // File should be ignored (not kept), so do nothing.
             tracing::trace!(path=%src.display(), "ignoring path based on filters");
-            return Ok(())
+            return Ok(());
         }
 
         // Fail if src and dest exist but are not both file or directory.

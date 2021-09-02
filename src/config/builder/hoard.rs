@@ -241,9 +241,9 @@ mod tests {
         fn single_entry_with_config() {
             let hoard = Hoard::Single(Pile {
                 config: Some(Config {
-                    encryption: Encryption::Asymmetric(AsymmetricEncryption {
+                    encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                         public_key: "public key".to_string(),
-                    }),
+                    })),
                     ignore: Vec::new(),
                 }),
                 items: hashmap! {
@@ -262,6 +262,9 @@ mod tests {
                     Token::Str("asymmetric"),
                     Token::Str("encrypt_pub_key"),
                     Token::Str("public key"),
+                    Token::Str("ignore"),
+                    Token::Seq { len: Some(0) },
+                    Token::SeqEnd,
                     Token::MapEnd,
                     Token::Str("bar_env|foo_env"),
                     Token::Str("/some/path"),
@@ -306,9 +309,9 @@ mod tests {
         fn multiple_entry_with_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: Some(Config {
-                    encryption: Encryption::Symmetric(SymmetricEncryption::Password(
+                    encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                         "correcthorsebatterystaple".into(),
-                    )),
+                    ))),
                     ignore: Vec::new(),
                 }),
                 items: hashmap! {
@@ -332,6 +335,9 @@ mod tests {
                     Token::Str("symmetric"),
                     Token::Str("encrypt_pass"),
                     Token::Str("correcthorsebatterystaple"),
+                    Token::Str("ignore"),
+                    Token::Seq { len: Some(0) },
+                    Token::SeqEnd,
                     Token::MapEnd,
                     Token::Str("item1"),
                     Token::Map { len: None },
