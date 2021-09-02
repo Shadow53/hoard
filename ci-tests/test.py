@@ -311,5 +311,5 @@ if __name__ == "__main__":
         print("\nHoards:")
         subprocess.run(["tree", str(data_dir_path())])
         print("\nHome:")
-        subprocess.run(["tree", str(Path.home())])
+        subprocess.run(["tree", "-L", "4"])
         raise
