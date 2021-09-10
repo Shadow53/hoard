@@ -15,6 +15,9 @@ exclusivity = [
     os = ["linux", "macos"]
     env = [{ var = "HOME" }]
 
+[config]
+    ignore = ["*global*"]
+
 [hoards]
 [hoards.anon_dir]
     "unix|first"  = "${HOME}/first_anon_dir"
@@ -27,13 +30,21 @@ exclusivity = [
     "windows|first"  = "C:/${HOMEPATH}/first_anon_file"
     "windows|second" = "C:/${HOMEPATH}/second_anon_file"
 [hoards.named]
+    [hoards.named.config]
+        ignore = ["*hoard*"]
     [hoards.named.file]
         "unix|first"  = "${HOME}/first_named_file"
         "unix|second" = "${HOME}/second_named_file"
         "windows|first"  = "C:/${HOMEPATH}/first_named_file"
         "windows|second" = "C:/${HOMEPATH}/second_named_file"
-    [hoards.named.dir]
-        "unix|first"  = "${HOME}/first_named_dir"
-        "unix|second" = "${HOME}/second_named_dir"
-        "windows|first"  = "C:/${HOMEPATH}/first_named_dir"
-        "windows|second" = "C:/${HOMEPATH}/second_named_dir"
+    [hoards.named.dir1]
+        config = { ignore = ["*pile*", ".hidden"] }
+        "unix|first"  = "${HOME}/first_named_dir1"
+        "unix|second" = "${HOME}/second_named_dir1"
+        "windows|first"  = "C:/${HOMEPATH}/first_named_dir1"
+        "windows|second" = "C:/${HOMEPATH}/second_named_dir1"
+    [hoards.named.dir2]
+        "unix|first"  = "${HOME}/first_named_dir2"
+        "unix|second" = "${HOME}/second_named_dir2"
+        "windows|first"  = "C:/${HOMEPATH}/first_named_dir2"
+        "windows|second" = "C:/${HOMEPATH}/second_named_dir2"

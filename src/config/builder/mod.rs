@@ -16,6 +16,7 @@ use crate::command::Command;
 use crate::CONFIG_FILE_NAME;
 use crate::HOARDS_DIR_SLUG;
 
+use self::hoard::Config as PileConfig;
 use super::Config;
 
 pub mod environment;
@@ -63,6 +64,9 @@ pub struct Builder {
     force: bool,
     #[structopt(skip)]
     hoards: Option<HashMap<String, Hoard>>,
+    #[structopt(skip)]
+    #[serde(rename = "config")]
+    global_config: Option<PileConfig>,
 }
 
 impl Default for Builder {
@@ -99,6 +103,7 @@ impl Builder {
             environments: None,
             exclusivity: None,
             force: false,
+            global_config: None,
         }
     }
 
@@ -288,7 +293,7 @@ impl Builder {
     /// # Errors
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
-    pub fn build(self) -> Result<Config, Error> {
+    pub fn build(mut self) -> Result<Config, Error> {
         tracing::debug!("building configuration from builder");
         let environments = self.evaluated_environments()?;
         tracing::debug!(?environments);
@@ -302,6 +307,16 @@ impl Builder {
         tracing::debug!(?command);
         let force = self.force;
         tracing::debug!(?force);
+
+        if let (Some(global), Some(hoards)) = (self.global_config, &mut self.hoards) {
+            tracing::debug!("copying global config to hoards without one");
+            for (_, hoard) in hoards.iter_mut() {
+                match hoard {
+                    Hoard::Single(pile) => pile.set_config_if_none(Some(&global)),
+                    Hoard::Multiple(multi) => multi.set_config_if_none(Some(&global)),
+                }
+            }
+        }
 
         tracing::debug!("processing hoards...");
         let hoards = self
@@ -341,6 +356,7 @@ mod tests {
                 exclusivity: None,
                 hoards: None,
                 force: false,
+                global_config: None,
             }
         }
 
@@ -355,6 +371,7 @@ mod tests {
                 exclusivity: None,
                 hoards: None,
                 force: false,
+                global_config: None,
             }
         }
 
@@ -373,6 +390,7 @@ mod tests {
                 hoards: None,
                 exclusivity: None,
                 force: false,
+                global_config: None,
             };
 
             assert_eq!(

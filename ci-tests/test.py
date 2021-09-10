@@ -40,6 +40,13 @@ def data_dir_path():
         raise OSError("could not determine system for CI tests")
 
 
+def generate_file(path, size=1024):
+    os.makedirs(path.parent, exist_ok=True)
+    with open(path, "wb") as file:
+        content = secrets.token_bytes(size)
+        file.write(content)
+
+
 def setup():
     home = Path.home()
 
@@ -54,16 +61,11 @@ def setup():
         pass
 
     for env in ["first", "second"]:
-        for item in ["anon_dir", "named_dir"]:
+        for item in ["anon_dir", "named_dir1", "named_dir2"]:
             for num in [1, 2, 3]:
-                os.makedirs(home.joinpath(f"{env}_{item}"), exist_ok=True)
-                with open(home.joinpath(f"{env}_{item}", str(num)), "wb") as file:
-                    content = secrets.token_bytes(num * 1024)
-                    file.write(content)
+                generate_file(home.joinpath(f"{env}_{item}", str(num)), 1024 * num)
         for item in ["anon_file", "named_file"]:
-            with open(home.joinpath(f"{env}_{item}"), "wb") as file:
-                content = secrets.token_bytes(2048)
-                file.write(content)
+            generate_file(home.joinpath(f"{env}_{item}"))
     os.makedirs(config_file_path().parent)
     shutil.copy2(Path.cwd().joinpath("ci-tests", "config.toml"), config_file_path())
 
@@ -99,8 +101,13 @@ def assert_first_tree():
         data_dir.joinpath("hoards", "anon_file")
     )
     assert_same_tree(
-        home.joinpath("first_named_dir"),
-        data_dir.joinpath("hoards", "named", "dir"),
+        home.joinpath("first_named_dir1"),
+        data_dir.joinpath("hoards", "named", "dir1"),
+        direntries=["1", "2", "3"]
+    )
+    assert_same_tree(
+        home.joinpath("first_named_dir2"),
+        data_dir.joinpath("hoards", "named", "dir2"),
         direntries=["1", "2", "3"]
     )
     assert_same_tree(
@@ -122,8 +129,13 @@ def assert_second_tree():
         data_dir.joinpath("hoards", "anon_file")
     )
     assert_same_tree(
-        home.joinpath("second_named_dir"),
-        data_dir.joinpath("hoards", "named", "dir"),
+        home.joinpath("second_named_dir1"),
+        data_dir.joinpath("hoards", "named", "dir1"),
+        direntries=["1", "2", "3"]
+    )
+    assert_same_tree(
+        home.joinpath("second_named_dir2"),
+        data_dir.joinpath("hoards", "named", "dir2"),
         direntries=["1", "2", "3"]
     )
     assert_same_tree(
@@ -230,6 +242,56 @@ def test_operation_checker():
     run_hoard("backup", env=env, force=True)
 
 
+def test_ignore_filter():
+    # Do setup
+    setup()
+    # We are not changing env on this test
+    env = {"USE_ENV": "1"}
+    # All three of global, hoard, and pile-ignore files should be ignored.
+    global_file = "global_ignore"
+    hoard_file = "ignore_for_hoard"
+    pile_file = "spilem"
+
+    # Create files to ignore
+    anon_dir_root = Path.home().joinpath("first_anon_dir")
+    named_dir1_root = Path.home().joinpath("first_named_dir1")
+    named_dir2_root = Path.home().joinpath("first_named_dir2")
+
+    for root in [anon_dir_root, named_dir1_root, named_dir2_root]:
+        for file in [global_file, hoard_file, pile_file]:
+            generate_file(root.joinpath(file))
+
+    # Run hoard
+    run_hoard("backup", env=env)
+
+    # Delete unexpected files for assert_same_tree
+    # Named dir1 pile should only ignore pile (overwrites global and hoard)
+    os.remove(named_dir1_root.joinpath(pile_file))
+    # Named dir2 pile should only ignore hoard (overwrites global)
+    os.remove(named_dir2_root.joinpath(hoard_file))
+    # Anon dir should only ignore global
+    os.remove(anon_dir_root.joinpath(global_file))
+
+    # Assert trees
+    home = Path.home()
+    data_dir = data_dir_path()
+    assert_same_tree(
+        home.joinpath("first_anon_dir"),
+        data_dir.joinpath("hoards", "anon_dir"),
+        direntries=["1", "2", "3", pile_file, hoard_file]
+    )
+    assert_same_tree(
+        home.joinpath("first_named_dir1"),
+        data_dir.joinpath("hoards", "named", "dir1"),
+        direntries=["1", "2", "3", hoard_file, global_file]
+    )
+    assert_same_tree(
+        home.joinpath("first_named_dir2"),
+        data_dir.joinpath("hoards", "named", "dir2"),
+        direntries=["1", "2", "3", pile_file, global_file]
+    )
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         raise RuntimeError("One argument - the test - is required")
@@ -240,11 +302,14 @@ if __name__ == "__main__":
         elif sys.argv[1] == "operation":
             print("Running operation test")
             test_operation_checker()
+        elif sys.argv[1] == "ignore":
+            print("Running ignore filter test")
+            test_ignore_filter()
         else:
             raise RuntimeError(f"Invalid argument {sys.argv[1]}")
     except Exception:
         print("\nHoards:")
         subprocess.run(["tree", str(data_dir_path())])
         print("\nHome:")
-        subprocess.run(["tree", str(Path.home())])
+        subprocess.run(["tree", "-L", "4"])
         raise
