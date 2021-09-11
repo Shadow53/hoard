@@ -251,6 +251,7 @@ def test_ignore_filter():
     global_file = "global_ignore"
     hoard_file = "ignore_for_hoard"
     pile_file = "spilem"
+    nested_file = "nested_dir/.hidden"
 
     # Create files to ignore
     anon_dir_root = Path.home().joinpath("first_anon_dir")
@@ -258,17 +259,19 @@ def test_ignore_filter():
     named_dir2_root = Path.home().joinpath("first_named_dir2")
 
     for root in [anon_dir_root, named_dir1_root, named_dir2_root]:
-        for file in [global_file, hoard_file, pile_file]:
+        for file in [global_file, hoard_file, pile_file, nested_file]:
             generate_file(root.joinpath(file))
 
     # Run hoard
     run_hoard("backup", env=env)
 
     # Delete unexpected files for assert_same_tree
-    # Named dir1 pile should only ignore pile (overwrites global and hoard)
-    os.remove(named_dir1_root.joinpath(pile_file))
-    # Named dir2 pile should only ignore hoard (overwrites global)
-    os.remove(named_dir2_root.joinpath(hoard_file))
+    # Named dir1 pile should ignore all
+    for file in [global_file, hoard_file, pile_file]:
+        os.remove(named_dir1_root.joinpath(file))
+    # Named dir2 pile should only ignore hoard and global
+    for file in [global_file, hoard_file]:
+        os.remove(named_dir2_root.joinpath(file))
     # Anon dir should only ignore global
     os.remove(anon_dir_root.joinpath(global_file))
 
@@ -278,17 +281,20 @@ def test_ignore_filter():
     assert_same_tree(
         home.joinpath("first_anon_dir"),
         data_dir.joinpath("hoards", "anon_dir"),
-        direntries=["1", "2", "3", pile_file, hoard_file]
+        direntries=["1", "2", "3", pile_file, hoard_file, nested_file]
     )
     assert_same_tree(
         home.joinpath("first_named_dir1"),
         data_dir.joinpath("hoards", "named", "dir1"),
-        direntries=["1", "2", "3", hoard_file, global_file]
+        # The file name should match the glob ".hidden",
+        # but the path should not match because it is not in the root
+        # of the pile directory.
+        direntries=["1", "2", "3", nested_file]
     )
     assert_same_tree(
         home.joinpath("first_named_dir2"),
         data_dir.joinpath("hoards", "named", "dir2"),
-        direntries=["1", "2", "3", pile_file, global_file]
+        direntries=["1", "2", "3", pile_file, nested_file]
     )
 
 
@@ -311,5 +317,5 @@ if __name__ == "__main__":
         print("\nHoards:")
         subprocess.run(["tree", str(data_dir_path())])
         print("\nHome:")
-        subprocess.run(["tree", "-L", "4"])
+        subprocess.run(["tree", "-aL", "3", str(Path.home())])
         raise
