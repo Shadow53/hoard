@@ -90,7 +90,7 @@ impl Config {
             match specific {
                 None => {
                     specific.replace(general.clone());
-                },
+                }
                 Some(this_config) => this_config.layer(general),
             }
         }
@@ -216,7 +216,7 @@ mod tests {
     use super::*;
 
     mod config {
-        use super::{Encryption, Config, SymmetricEncryption, AsymmetricEncryption};
+        use super::{AsymmetricEncryption, Config, Encryption, SymmetricEncryption};
 
         #[test]
         fn test_layer_configs_both_none() {
@@ -229,7 +229,9 @@ mod tests {
         #[test]
         fn test_layer_specific_some_general_none() {
             let mut specific = Some(Config {
-                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password("password".into()))),
+                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
+                    "password".into(),
+                ))),
                 ignore: vec!["ignore me".into()],
             });
             let old_specific = specific.clone();
@@ -242,7 +244,9 @@ mod tests {
         fn test_layer_specific_none_general_some() {
             let mut specific = None;
             let general = Some(Config {
-                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password("password".into()))),
+                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
+                    "password".into(),
+                ))),
                 ignore: vec!["ignore me".into()],
             });
             Config::layer_options(&mut specific, general.as_ref());
@@ -252,18 +256,32 @@ mod tests {
         #[test]
         fn test_layer_configs_both_some() {
             let mut specific = Some(Config {
-                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password("password".into()))),
+                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
+                    "password".into(),
+                ))),
                 ignore: vec!["ignore me".into(), "duplicate".into()],
             });
             let old_specific = specific.clone();
             let general = Some(Config {
-                encryption: Some(Encryption::Asymmetric(AsymmetricEncryption { public_key: "somekey".into() })),
+                encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
+                    public_key: "somekey".into(),
+                })),
                 ignore: vec!["me too".into(), "duplicate".into()],
             });
             Config::layer_options(&mut specific, general.as_ref());
             assert!(specific.is_some());
-            assert_eq!(specific.as_ref().unwrap().encryption, old_specific.unwrap().encryption);
-            assert_eq!(specific.unwrap().ignore, vec!["duplicate".to_string(), "ignore me".to_string(), "me too".to_string()]);
+            assert_eq!(
+                specific.as_ref().unwrap().encryption,
+                old_specific.unwrap().encryption
+            );
+            assert_eq!(
+                specific.unwrap().ignore,
+                vec![
+                    "duplicate".to_string(),
+                    "ignore me".to_string(),
+                    "me too".to_string()
+                ]
+            );
         }
     }
 
