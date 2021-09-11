@@ -156,3 +156,47 @@ The following rules determine which path to use for a pile:
     "foo|bar" = "/some/path/second"
     "baz" = "/some/different/path/second"
 ```
+
+### Pile Configuration
+
+Pile configuration can be defined at three different levels:
+
+1. Globally
+2. Per-Hoard
+3. Per-Pile
+
+For a given Pile, any/all three of the levels of configuration are "layered" together, as appropriate for each
+configuration item:
+
+- Ignore patterns are merged and deduplicated.
+- Encryption settings will use the most-specific settings.
+
+#### Ignore Patterns
+
+Set `ignore` to a list of [glob patterns](https://en.wikipedia.org/wiki/Glob_(programming)) indicating files and folders
+to ignore. These lists will be merged across all levels of configuration.
+
+```toml
+# ... snip env definitions of "foo" and "bar" ...
+
+# Top-level config, applies to all hoards
+[config]
+    # Ignore the .git folder at any depth
+    ignore = ["**/.git"]
+
+[hoards]
+[hoards.anon_hoard]
+    "foo" = "/some/path"
+    "bar" = "/some/other/path"
+[hoards.anon_hoard.config]
+    ignore = [
+        "**/.*", # Ignore all hidden files on Linux/macOS
+        "*.log", # Ignore all top-level log files
+    ]
+[hoards.named_hoard]
+[hoards.named_hoard.config]
+    ignore = ["ignore-in-named-only"]
+[hoards.named_hoard.pile1]
+    "foo" = "/some/named/path"
+    "bar" = "/another/named/path"
+```
