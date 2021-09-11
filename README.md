@@ -135,10 +135,6 @@ The following rules determine which path to use for a pile:
 3. If multiple conditions have the same precedence, an error is printed and `hoard` exits.
 4. If no conditions match, the pile is skipped and a warning is printed.
 
-Note: it is possible that one condition may take precedence over another despite them not
-having mutually exclusive environments between them, if one condition contains an environment
-that shows up in the `exclusivity` list.
-
 ```toml
 [hoards]
 # This hoard consists of a single anonymous pile
