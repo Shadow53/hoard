@@ -69,6 +69,34 @@ pub struct Config {
     pub ignore: Vec<String>,
 }
 
+impl Config {
+    /// Merge the `other` configuration with this one, preferring the content of this one, when
+    /// appropriate.
+    fn layer(&mut self, other: &Self) {
+        // Overlay a more general encryption config, if a specific one doesn't exist.
+        if self.encryption.is_none() {
+            self.encryption = other.encryption.clone();
+        }
+
+        // Merge ignore lists.
+        self.ignore.extend(other.ignore.clone());
+        self.ignore.sort_unstable();
+        self.ignore.dedup();
+    }
+
+    /// Layer the `general` config with the `specific` one, modifying the `specific` one in place.
+    pub fn layer_options(specific: &mut Option<Self>, general: Option<&Self>) {
+        if let Some(general) = general {
+            match specific {
+                None => {
+                    specific.replace(general.clone());
+                }
+                Some(this_config) => this_config.layer(general),
+            }
+        }
+    }
+}
+
 /// A single pile in the hoard.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pile {
@@ -96,8 +124,8 @@ impl Pile {
         Ok(ConfigSingle { config, path })
     }
 
-    pub(crate) fn set_config_if_none(&mut self, config: Option<&Config>) {
-        self.config = self.config.take().or_else(|| config.cloned());
+    pub(crate) fn layer_config(&mut self, config: Option<&Config>) {
+        Config::layer_options(&mut self.config, config);
     }
 }
 
@@ -120,7 +148,7 @@ impl MultipleEntries {
             .into_iter()
             .map(|(pile, mut entry)| {
                 tracing::debug!(%pile, "processing pile");
-                entry.set_config_if_none(config.as_ref());
+                entry.layer_config(config.as_ref());
                 let _span = tracing::debug_span!("processing_span_outer", name=%pile).entered();
                 let entry = entry.process_with(envs, exclusivity)?;
                 Ok((pile, entry))
@@ -130,8 +158,8 @@ impl MultipleEntries {
         Ok(ConfigMultiple { piles: items })
     }
 
-    pub(crate) fn set_config_if_none(&mut self, config: Option<&Config>) {
-        self.config = self.config.take().or_else(|| config.cloned());
+    pub(crate) fn layer_config(&mut self, config: Option<&Config>) {
+        Config::layer_options(&mut self.config, config);
     }
 }
 
@@ -174,11 +202,88 @@ impl Hoard {
             }
         }
     }
+
+    pub(crate) fn layer_config(&mut self, config: Option<&Config>) {
+        match self {
+            Hoard::Single(pile) => pile.layer_config(config),
+            Hoard::Multiple(multi) => multi.layer_config(config),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod config {
+        use super::{AsymmetricEncryption, Config, Encryption, SymmetricEncryption};
+
+        #[test]
+        fn test_layer_configs_both_none() {
+            let mut specific = None;
+            let general = None;
+            Config::layer_options(&mut specific, general);
+            assert!(specific.is_none());
+        }
+
+        #[test]
+        fn test_layer_specific_some_general_none() {
+            let mut specific = Some(Config {
+                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
+                    "password".into(),
+                ))),
+                ignore: vec!["ignore me".into()],
+            });
+            let old_specific = specific.clone();
+            let general = None;
+            Config::layer_options(&mut specific, general);
+            assert_eq!(specific, old_specific);
+        }
+
+        #[test]
+        fn test_layer_specific_none_general_some() {
+            let mut specific = None;
+            let general = Some(Config {
+                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
+                    "password".into(),
+                ))),
+                ignore: vec!["ignore me".into()],
+            });
+            Config::layer_options(&mut specific, general.as_ref());
+            assert_eq!(specific, general);
+        }
+
+        #[test]
+        fn test_layer_configs_both_some() {
+            let mut specific = Some(Config {
+                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
+                    "password".into(),
+                ))),
+                ignore: vec!["ignore me".into(), "duplicate".into()],
+            });
+            let old_specific = specific.clone();
+            let general = Some(Config {
+                encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
+                    public_key: "somekey".into(),
+                })),
+                ignore: vec!["me too".into(), "duplicate".into()],
+            });
+            Config::layer_options(&mut specific, general.as_ref());
+            assert!(specific.is_some());
+            assert_eq!(
+                specific.as_ref().unwrap().encryption,
+                old_specific.unwrap().encryption
+            );
+            assert_eq!(
+                specific.unwrap().ignore,
+                vec![
+                    "duplicate".to_string(),
+                    "ignore me".to_string(),
+                    "me too".to_string()
+                ]
+            );
+        }
+    }
 
     mod process {
         use super::*;

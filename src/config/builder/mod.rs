@@ -308,13 +308,10 @@ impl Builder {
         let force = self.force;
         tracing::debug!(?force);
 
-        if let (Some(global), Some(hoards)) = (self.global_config, &mut self.hoards) {
-            tracing::debug!("copying global config to hoards without one");
+        if let Some(hoards) = &mut self.hoards {
+            tracing::debug!("layering global config onto hoards");
             for (_, hoard) in hoards.iter_mut() {
-                match hoard {
-                    Hoard::Single(pile) => pile.set_config_if_none(Some(&global)),
-                    Hoard::Multiple(multi) => multi.set_config_if_none(Some(&global)),
-                }
+                hoard.layer_config(self.global_config.as_ref());
             }
         }
 
