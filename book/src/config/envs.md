@@ -2,7 +2,7 @@
 
 The path used for a given pile depends on the best matching environment(s) for a configured path. This page
 discusses how to define environments. For how to use them with hoards/piles, see
-[Hoards and Piles](config/hoards-piles.md).
+[Hoards and Piles](hoards-piles.md).
 
 Environments can be matched on one or more of five possible factors:
 

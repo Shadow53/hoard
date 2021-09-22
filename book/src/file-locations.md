@@ -84,6 +84,6 @@ There are currently two types of history-related files stored by `hoard`, both o
 in pre-operation consistency checks. All history-related files are stored in a subdirectory `history/{uuid}`
 in the data directory, where `uuid` is the generated uuid of the current system.
 
-- [Last Paths](./cli/checks/last-paths.md): a single file `last_paths.json`.
-- [Operations](./cli/checks/operations.md): date-stamped JSON files with details of which files were modified
+- [Last Paths](./cli/checks.md#last-paths): a single file `last_paths.json`.
+- [Operations](./cli/checks.md#remote-operations): date-stamped JSON files with details of which files were modified
   during a given operation and what the checksum was for each file.

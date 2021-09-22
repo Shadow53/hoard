@@ -23,7 +23,7 @@ A collection of one or more [Piles](#pile) that form a logical unit.
 
 # Examples
 
-Consider this configuration snippet (see [Configuration File](./config/README.md) for more explanation):
+Consider this configuration snippet (see [Configuration File](./config/index.md) for more explanation):
 
 ```toml
 exclusivity = [
