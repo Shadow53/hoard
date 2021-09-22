@@ -13,8 +13,6 @@ jobs:
           crate: mdbook
           version: latest
           use-tool-cache: true
-      - name: Run mdBook tests
-        run: mdbook test book
       - name: Build mdBook
         if: ${{ github.ref == 'refs/heads/33-mdbook' }}
         run: mdbook build book
