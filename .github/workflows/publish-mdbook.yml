@@ -16,10 +16,13 @@ jobs:
       - name: Build mdBook
         if: ${{ github.ref == 'refs/heads/33-mdbook' }}
         run: mdbook build book
-      - name: Publish to GitHub Pages
+      - name: Publish to Netlify
         if: ${{ github.ref == 'refs/heads/33-mdbook' }}
-        uses: peaceiris/actions-gh-pages@v3
+        uses: nwtgck/actions-netlify@v1.2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: mdbook
-          publish_dir: book/book
+          publish-dir: book/book
+          production-branch: main
+          production-deploy: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
