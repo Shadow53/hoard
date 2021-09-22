@@ -1,0 +1,27 @@
+on: [push]
+
+name: Publish mdBook
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install mdBook
+        uses: actions-rs/install@v0.1
+        with:
+          crate: mdbook
+          version: latest
+          use-tool-cache: true
+      - name: Run mdBook tests
+        run: mdbook test book
+      - name: Build mdBook
+        if: ${{ github.ref == 'refs/heads/33-mdbook' }}
+        run: mdbook build book
+      - name: Publish to GitHub Pages
+        if: ${{ github.ref == 'refs/heads/33-mdbook' }}
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: mdbook
+          publish_dir: book/book
