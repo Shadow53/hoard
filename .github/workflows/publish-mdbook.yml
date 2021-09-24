@@ -36,7 +36,7 @@ jobs:
           publish-dir: book/book
           alias: ${{ github.head_ref }}
           production-branch: main
-          production-deploy: true
+          production-deploy: false
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
