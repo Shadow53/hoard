@@ -1,0 +1,42 @@
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    paths: ["/book"]
+
+name: Publish mdBook
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install mdBook
+        uses: actions-rs/install@v0.1
+        with:
+          crate: mdbook
+          version: latest
+          use-tool-cache: true
+      - name: Build mdBook
+        run: mdbook build book
+      - name: Publish to Netlify (Stable)
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: book/book
+          production-branch: main
+          production-deploy: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      - name: Publish to Netlify (Preview)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: book/book
+          alias: ${{ github.head_ref }}
+          production-branch: main
+          production-deploy: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

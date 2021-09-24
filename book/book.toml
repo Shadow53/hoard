@@ -1,0 +1,16 @@
+[book]
+authors = ["Michael Bryant"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Hoard Book"
+description = "The official documentation for the Hoard dotfile manager"
+
+[rust]
+edition = "2021"
+
+[output.html]
+preferred-dark-theme = "ayu"
+mathjax-support = false
+cname = "hoard.shadow53.dev"
+edit-url-template = "https://github.com/Shadow53/hoard/edit/master/{path}"
