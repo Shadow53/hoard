@@ -1,4 +1,8 @@
-on: [push]
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    paths: ["/book"]
 
 name: Publish mdBook
 
@@ -14,13 +18,23 @@ jobs:
           version: latest
           use-tool-cache: true
       - name: Build mdBook
-        if: ${{ github.ref == 'refs/heads/33-mdbook' }}
         run: mdbook build book
-      - name: Publish to Netlify
-        if: ${{ github.ref == 'refs/heads/33-mdbook' }}
+      - name: Publish to Netlify (Stable)
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: nwtgck/actions-netlify@v1.2
         with:
           publish-dir: book/book
+          production-branch: main
+          production-deploy: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      - name: Publish to Netlify (Preview)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: book/book
+          alias: ${{ github.head_ref }}
           production-branch: main
           production-deploy: true
         env:
