@@ -7,6 +7,12 @@ import shutil
 import subprocess
 import sys
 
+
+def sync_to_disk():
+    if platform.system() != 'Windows':
+        os.sync()
+
+
 # Before continuing, ensure this is running on GitHub Actions
 for var in ["CI", "GITHUB_ACTIONS"]:
     val = os.environ.get(var)
@@ -213,7 +219,7 @@ def test_operation_checker():
         assert content != old_content, "new content should differ from old"
         file.write(content)
     # Ensure changes are written to disk
-    os.sync()
+    sync_to_disk()
     print("========= HOARD RUN #3 =========")
     print(" After replacing a file content ")
     run_hoard("backup", env=env)
@@ -227,7 +233,7 @@ def test_operation_checker():
     with open(Path.home().joinpath("first_anon_file"), "wb") as file:
         file.write(old_content)
     # Ensure changes are written to disk
-    os.sync()
+    sync_to_disk()
     try:
         print("========= HOARD RUN #4 =========")
         print("   After using first UUID/File  ")
