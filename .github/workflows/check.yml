@@ -1,6 +1,6 @@
-on: [push]
+on: [push, release]
 
-name: Commit Checks
+name: Checks and Releases
 
 jobs:
   changes:
@@ -32,6 +32,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - uses: Swatinem/rust-cache@v1
+
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -54,23 +56,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-stable-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-stable-index-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo binaries
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/bin
-          key: ${{ runner.os }}-cargo-stable-bin-${{ hashFiles('**/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -98,23 +84,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-nightly-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-nightly-index-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo binaries
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/bin
-          key: ${{ runner.os }}-cargo-nightly-bin-${{ hashFiles('**/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
@@ -154,23 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-stable-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-stable-index-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo binaries
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/bin
-          key: ${{ runner.os }}-cargo-stable-bin-${{ hashFiles('**/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v1
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -197,3 +151,75 @@ jobs:
 
       - name: Test Remote Operations
         run: python ci-tests/test.py operation
+
+  release:
+    if: github.event_name == 'release'
+    runs-on: ${{ matrix.os }}
+    needs: [fmt, check-stable, integration-tests]
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+        include:
+          # LINUX TARGETS
+          - os: "ubuntu-latest"
+            target: aarch64-unknown-linux-gnu
+          - os: "ubuntu-latest"
+            target: aarch64-unknown-linux-musl
+          - os: "ubuntu-latest"
+            target: arm-unknown-linux-gnueabihf
+          - os: "ubuntu-latest"
+            target: arm-unknown-linux-musleabihf
+          - os: "ubuntu-latest"
+            target: i686-unknown-linux-gnueabihf
+          - os: "ubuntu-latest"
+            target: i686-unknown-linux-musleabihf
+          - os: "ubuntu-latest"
+            target: x86_64-unknown-linux-gnueabihf
+          - os: "ubuntu-latest"
+            target: x86_64-unknown-linux-musleabihf
+          # ANDROID TARGETS
+          - os: "ubuntu-latest"
+            target: arm-linux-androideabi
+          - os: "ubuntu-latest"
+            target: armv7-linux-androideabi
+          - os: "ubuntu-latest"
+            target: i686-linux-androideabi
+          - os: "ubuntu-latest"
+            target: x86_64-linux-androideabi
+          # MACOS TARGETS
+          - os: "macos-latest"
+            target: aarch64-apple-darwin
+          - os: "macos-latest"
+            target: x86_64-apple-darwin
+          # WINDOWS TARGETS
+          - os: "windows-latest"
+            target: aarch64-pc-windows-msvc
+          - os: "windows-latest"
+            target: i686-pc-windows-msvc
+          - os: "windows-latest"
+            target: x86_64-pc-windows-msvc
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Install stable toolchain - ${{ matrix.target }}
+        uses: actions-rs/toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          toolchain: stable
+          override: true
+          default: true
+          profile: minimal
+
+      - name: Build and Upload Binary
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: hoard
+          target: ${{ matrix.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_PROFILE_RELEASE_LTO: true
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: 3
