@@ -210,17 +210,24 @@ def test_operation_checker():
         old_content = file.read()
     with open(Path.home().joinpath("first_anon_file"), "wb") as file:
         content = secrets.token_bytes(1024)
+        assert content != old_content, "new content should differ from old"
         file.write(content)
+    # Ensure changes are written to disk
+    os.sync()
     print("========= HOARD RUN #3 =========")
     print(" After replacing a file content ")
     run_hoard("backup", env=env)
 
     # Swap UUIDs and change the file again and try to back up
     # Should fail because a different machine has the most recent backup
+    with open(uuid_path, "r") as file:
+        assert uuid != file.readline(), "new UUID should not match old one"
     with open(uuid_path, "w") as file:
         file.write(uuid)
     with open(Path.home().joinpath("first_anon_file"), "wb") as file:
         file.write(old_content)
+    # Ensure changes are written to disk
+    os.sync()
     try:
         print("========= HOARD RUN #4 =========")
         print("   After using first UUID/File  ")
