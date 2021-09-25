@@ -116,7 +116,7 @@ jobs:
   integration-tests:
     name: "Integration Tests"
     needs: [check-stable, changes]
-    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true') }}
+    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true' || startsWith(github.ref, 'refs/tags/')) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
