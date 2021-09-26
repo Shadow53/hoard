@@ -147,7 +147,7 @@ jobs:
         run: brew install tree
 
       - name: Test Last Paths
-        run: python ci-tests/test.py last_paths
+        run: python ci-tests/tests last_paths
 
       - name: Test Remote Operations
         run: python ci-tests/tests operation
