@@ -28,7 +28,9 @@ if __name__ == "__main__":
             raise RuntimeError(f"Invalid argument {sys.argv[1]}")
     except Exception:
         print("\nHoards:")
+        sys.stdout.flush()
         subprocess.run(["tree", str(LastPathsTester.data_dir_path())])
         print("\nHome:")
+        sys.stdout.flush()
         subprocess.run(["tree", "-aL", "3", str(Path.home())])
         raise

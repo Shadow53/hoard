@@ -7,6 +7,7 @@ import platform
 import secrets
 import shutil
 import subprocess
+import sys
 import time
 
 
@@ -205,6 +206,7 @@ class HoardTester(ABC):
         args += self.targets
 
         subprocess.run(args, check=True)
+        sys.stdout.flush()
 
     @classmethod
     def _read_file(cls, path, *, is_binary=True):
