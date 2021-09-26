@@ -7,7 +7,7 @@ import platform
 import secrets
 import shutil
 import subprocess
-#import time
+import time
 
 
 HOARDS_DIRNAME = "hoards"
@@ -223,7 +223,8 @@ class HoardTester(ABC):
             file.write(content)
             os.fsync(file)
         os.sync()
-        #time.sleep(2)
+        time.sleep(2)
+        os.sync()
 
     @classmethod
     def read_hoard_file(cls, env, file):
