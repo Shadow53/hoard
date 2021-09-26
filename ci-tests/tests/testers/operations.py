@@ -57,6 +57,7 @@ class OperationCheckerTester(HoardTester):
         new_content = secrets.token_bytes(1024)
         assert new_content != self.old_content, "new content should differ from old"
         self.write_hoard_file(Environment.First, HoardFile.AnonFile, new_content)
+        assert new_content == self.read_hoard_file(Environment.First, HoardFile.AnonFile)
         assert not self._anon_file_checksum_matches(new_content)
 
         print("========= HOARD RUN #3 =========")
@@ -76,6 +77,7 @@ class OperationCheckerTester(HoardTester):
         assert not self._anon_file_checksum_matches(self.old_content, uuid=new_uuid)
 
         self.write_hoard_file(Environment.First, HoardFile.AnonFile, self.old_content)
+        assert self.old_content == self.read_hoard_file(Environment.First, HoardFile.AnonFile)
         # Should already be False, but making sure.
         self.force = False
 
