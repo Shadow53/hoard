@@ -221,6 +221,7 @@ class HoardTester(ABC):
             access += "b"
         with open(path, access) as file:
             file.write(content)
+            file.flush()
             os.fsync(file)
         os.sync()
         time.sleep(2)
