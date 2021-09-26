@@ -161,7 +161,6 @@ jobs:
     needs: [fmt, check-stable, integration-tests]
     strategy:
       matrix:
-        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
         include:
           # LINUX TARGETS
           - os: "ubuntu-latest"
