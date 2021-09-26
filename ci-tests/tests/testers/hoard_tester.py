@@ -222,10 +222,10 @@ class HoardTester(ABC):
         with open(path, access) as file:
             file.write(content)
             file.flush()
-            os.fsync(file)
-        os.sync()
+            os.fsync(file.fileno())
+        cls.sync()
         time.sleep(2)
-        os.sync()
+        cls.sync()
 
     @classmethod
     def read_hoard_file(cls, env, file):
