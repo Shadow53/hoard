@@ -21,9 +21,11 @@ def print_logs():
         for file in filenames:
             if file.endswith(".log"):
                 path = str(Path(dirpath).joinpath(file))
-                print(f"\t{path}")
+                print(f"\n##########\n\t{path}")
+                sys.stdout.flush()
                 subprocess.run(["cat", path])
                 sys.stdout.flush()
+                print("\n##########")
 
 
 def print_checksums():
@@ -46,7 +48,6 @@ if __name__ == "__main__":
         elif sys.argv[1] == "operation":
             print("Running operation test")
             OperationCheckerTester().run_test()
-            raise RuntimeError("Testing")
         elif sys.argv[1] == "ignore":
             print("Running ignore filter test")
             IgnoreFilterTester().run_test()
