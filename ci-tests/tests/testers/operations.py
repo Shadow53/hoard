@@ -1,4 +1,6 @@
 from .hoard_tester import HoardTester, HoardFile, Environment
+import hashlib
+import json
 import os
 import secrets
 import subprocess
@@ -10,6 +12,26 @@ class OperationCheckerTester(HoardTester):
         self.reset()
         # We are not changing env on this test
         self.env = {"USE_ENV": "1"}
+
+    def _checksum_matches(self, hoard_name, hoard_path, content, *, uuid=None):
+        if uuid is None:
+            uuid = self.uuid
+        operation_log_dir = self.data_dir_path().joinpath("history", uuid, hoard_name)
+        latest = None
+        for entry in os.scandir(operation_log_dir):
+            if entry.is_file() and "last_paths" not in entry.name and (latest is None or latest.name > entry.name):
+                latest = entry
+        subprocess.run(["tree", str(entry.path)])
+        with open(entry.path) as file:
+            op_json = json.load(file)
+            for item in hoard_path:
+                op_json = op_json[item]
+
+        md5 = hashlib.md5(content).hexdigest()
+        return op_json == md5
+
+    def _anon_file_checksum_matches(self, content, *, uuid=None):
+        return self._checksum_matches("anon_file", ["hoard", "Anonymous", ""], content, uuid=uuid)
 
     def _run1(self):
         # Run hoard
@@ -30,35 +52,52 @@ class OperationCheckerTester(HoardTester):
         # Modify a file and backup again so checksums are different the next time
         # This should succeed because this UUID had the last backup
         self.old_content = self.read_hoard_file(Environment.First, HoardFile.AnonFile)
+        assert self._anon_file_checksum_matches(self.old_content)
+
         new_content = secrets.token_bytes(1024)
         assert new_content != self.old_content, "new content should differ from old"
         self.write_hoard_file(Environment.First, HoardFile.AnonFile, new_content)
+        assert not self._anon_file_checksum_matches(new_content)
+
         print("========= HOARD RUN #3 =========")
         print(" After replacing a file content ")
         self.run_hoard("backup")
 
+        assert not self._anon_file_checksum_matches(self.old_content)
+        assert self._anon_file_checksum_matches(new_content)
+
     def _run4(self):
         # Swap UUIDs and change the file again and try to back up
         # Should fail because a different machine has the most recent backup
+        new_uuid = self.uuid
         assert self.old_uuid != self.uuid, "new UUID should not match old one"
         self.uuid = self.old_uuid
         assert self.uuid == self.old_uuid, "UUID should now be set to old one"
+        assert not self._anon_file_checksum_matches(self.old_content, uuid=new_uuid)
+
         self.write_hoard_file(Environment.First, HoardFile.AnonFile, self.old_content)
+        # Should already be False, but making sure.
+        self.force = False
+
         try:
             print("========= HOARD RUN #4 =========")
             print("   After using first UUID/File  ")
             self.run_hoard("backup")
+            assert not self._anon_file_checksum_matches(self.old_content, uuid=new_uuid)
             raise AssertionError("Using the first UUID should have failed (1)")
         except subprocess.CalledProcessError:
             pass
+
         # Once more to verify it should always fail
         try:
             print("========= HOARD RUN #5 =========")
             print("    Doing it again to be sure   ")
             self.run_hoard("backup")
+            assert not self._anon_file_checksum_matches(self.old_content, uuid=new_uuid)
             raise AssertionError("Using the first UUID should have failed (2)")
         except subprocess.CalledProcessError:
             pass
+
 
     def _run5(self):
         # Do it again but forced, and it should succeed
@@ -66,6 +105,7 @@ class OperationCheckerTester(HoardTester):
         print("    Doing it again to be sure   ")
         self.force = True
         self.run_hoard("backup")
+        assert self._anon_file_checksum_matches(self.old_content)
 
     def run_test(self):
         self._run1()
