@@ -168,44 +168,46 @@ jobs:
     strategy:
       matrix:
         include:
-          # LINUX TARGETS
+          ## TIER ONE
           - os: "ubuntu-latest"
             target: aarch64-unknown-linux-gnu
+          - os: "ubuntu-latest"
+            target: i686-unknown-linux-gnu
+          - os: "ubuntu-latest"
+            target: x86_64-unknown-linux-gnu
+          - os: "macos-latest"
+            target: x86_64-apple-darwin
+          - os: "windows-latest"
+            target: i686-pc-windows-msvc
+          - os: "windows-latest"
+            target: x86_64-pc-windows-msvc
+          ## TIER TWO WITH HOST TOOLS
           - os: "ubuntu-latest"
             target: aarch64-unknown-linux-musl
           - os: "ubuntu-latest"
             target: arm-unknown-linux-gnueabihf
           - os: "ubuntu-latest"
-            target: arm-unknown-linux-musleabihf
+            target: x86_64-unknown-linux-musl
+          - os: "macos-latest"
+            target: aarch64-apple-darwin
+          - os: "windows-latest"
+            target: aarch64-pc-windows-msvc
+          ## TIER 2 NO HOST TOOLS
           - os: "ubuntu-latest"
-            target: i686-unknown-linux-gnueabihf
-          - os: "ubuntu-latest"
-            target: i686-unknown-linux-musleabihf
-          - os: "ubuntu-latest"
-            target: x86_64-unknown-linux-gnueabihf
-          - os: "ubuntu-latest"
-            target: x86_64-unknown-linux-musleabihf
-          # ANDROID TARGETS
+            target: aarch64-linux-android
           - os: "ubuntu-latest"
             target: arm-linux-androideabi
           - os: "ubuntu-latest"
+            target: arm-unknown-linux-musleabihf
+          - os: "ubuntu-latest"
             target: armv7-linux-androideabi
           - os: "ubuntu-latest"
-            target: i686-linux-androideabi
+            target: i686-unknown-linux-musl
           - os: "ubuntu-latest"
-            target: x86_64-linux-androideabi
-          # MACOS TARGETS
-          - os: "macos-latest"
-            target: aarch64-apple-darwin
-          - os: "macos-latest"
-            target: x86_64-apple-darwin
-          # WINDOWS TARGETS
-          - os: "windows-latest"
-            target: aarch64-pc-windows-msvc
-          - os: "windows-latest"
-            target: i686-pc-windows-msvc
-          - os: "windows-latest"
-            target: x86_64-pc-windows-msvc
+            target: i686-linux-android
+          - os: "ubuntu-latest"
+            target: x86_64-linux-android
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
