@@ -1,4 +1,5 @@
 from .hoard_tester import HoardTester, HoardFile, Environment
+from pathlib import Path
 import hashlib
 import json
 import os
@@ -20,7 +21,10 @@ class OperationCheckerTester(HoardTester):
         latest = None
         with os.scandir(operation_log_dir) as it:
             for entry in it:
-                if entry.is_file() and "last_paths" not in entry.name and (latest is None or latest.name < entry.name):
+                print(f"### Found {entry.path}")
+                is_later = latest is None or Path(latest.path).name < Path(entry.path).name
+                if entry.is_file() and "last_paths" not in entry.name and is_later:
+                    print("    Marking as latest entry")
                     latest = entry
         with open(entry.path) as file:
             op_json = json.load(file)
@@ -35,7 +39,7 @@ class OperationCheckerTester(HoardTester):
             assert md5 != op_json, f"expected file hash {md5} to NOT match logged checksum {op_json} for uuid {uuid}: {message}"
 
     def _assert_anon_file_checksum_matching(self, content, *, matches, message="", uuid=None):
-        return self._checksum_matches(
+        self._checksum_matches(
             "anon_file", ["hoard", "Anonymous", ""], content,
             matches=matches, message=message, uuid=uuid
         )
