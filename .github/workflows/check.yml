@@ -120,7 +120,7 @@ jobs:
   integration-tests:
     name: "Integration Tests"
     needs: [check-stable, changes]
-    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true' || github.event_name == 'release' }}
+    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true' || github.event_name == 'release') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
