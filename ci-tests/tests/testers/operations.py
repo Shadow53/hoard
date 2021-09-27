@@ -19,6 +19,7 @@ class OperationCheckerTester(HoardTester):
             uuid = self.uuid
         operation_log_dir = self.data_dir_path().joinpath("history", uuid, hoard_name)
         latest = None
+        self.sync()
         with os.scandir(operation_log_dir) as it:
             for entry in it:
                 print(f"### Found {entry.path}")
