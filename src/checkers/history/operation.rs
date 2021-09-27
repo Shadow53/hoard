@@ -191,7 +191,7 @@ impl HoardOperation {
             .reduce(|left, right| {
                 let left = left?;
                 let right = right?;
-                if left.timestamp.timestamp() > right.timestamp.timestamp() {
+                if left.timestamp > right.timestamp {
                     Ok(left)
                 } else {
                     Ok(right)
