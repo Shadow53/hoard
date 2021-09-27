@@ -29,9 +29,9 @@ class OperationCheckerTester(HoardTester):
         md5 = hashlib.md5(content).hexdigest()
 
         if matches:
-            assert md5 == op_json, f"expected file hash {md5} to match logged checksum {op_json}: {message}"
+            assert md5 == op_json, f"expected file hash {md5} to match logged checksum {op_json} for uuid {uuid}: {message}"
         else:
-            assert md5 != op_json, f"expected file hash {md5} to NOT match logged checksum {op_json}: {message}"
+            assert md5 != op_json, f"expected file hash {md5} to NOT match logged checksum {op_json} for uuid {uuid}: {message}"
 
     def _assert_anon_file_checksum_matching(self, content, *, matches, message="", uuid=None):
         return self._checksum_matches(
