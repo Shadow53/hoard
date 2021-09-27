@@ -20,6 +20,7 @@ class OperationCheckerTester(HoardTester):
         operation_log_dir = self.data_dir_path().joinpath("history", uuid, hoard_name)
         latest = None
         self.sync()
+        print("##  Scanning for Operation Logs")
         with os.scandir(operation_log_dir) as it:
             for entry in it:
                 print(f"### Found {entry.path}")
@@ -27,7 +28,7 @@ class OperationCheckerTester(HoardTester):
                 if entry.is_file() and "last_paths" not in entry.name and is_later:
                     print("    Marking as latest entry")
                     latest = entry
-        with open(entry.path) as file:
+        with open(latest.path) as file:
             op_json = json.load(file)
             for item in hoard_path:
                 op_json = op_json[item]
