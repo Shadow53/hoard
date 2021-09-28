@@ -242,7 +242,7 @@ jobs:
           profile: minimal
 
       - name: Install deps (Linux)
-        if: matrix.os == "ubuntu-latest"
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install ${{ matrix.deps }}
 
       - name: Build and Upload Binary
