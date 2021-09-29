@@ -251,7 +251,7 @@ jobs:
         uses: devbotsxyz/xcode-select@v1
 
       - name: Build and Upload Binary
-        uses: taiki-e/upload-rust-binary-action@strip
+        uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: hoard
           target: ${{ matrix.target }}
