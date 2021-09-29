@@ -208,13 +208,13 @@ jobs:
             deps: gcc-aarch64-linux-gnu
           - os: "ubuntu-latest"
             target: arm-linux-androideabi
-            deps: gcc-arm-linux-gnueabihf
+            deps: gcc-arm-linux-gnueabi
           - os: "ubuntu-latest"
             target: arm-unknown-linux-musleabihf
             deps: gcc-arm-linux-gnueabihf musl-tools
           - os: "ubuntu-latest"
             target: armv7-linux-androideabi
-            deps: gcc-arm-linux-gnueabihf
+            deps: gcc-arm-linux-gnueabi
           - os: "ubuntu-latest"
             target: i686-unknown-linux-musl
             deps: gcc-i686-linux-gnu musl-tools
@@ -245,6 +245,10 @@ jobs:
       - name: Install deps (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install ${{ matrix.deps }}
+
+      - name: Update XCode tools
+        if: matrix.os == 'macos-latest'
+        uses: devbotsxyz/xcode-select@v1
 
       - name: Build and Upload Binary
         uses: taiki-e/upload-rust-binary-action@strip
