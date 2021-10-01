@@ -6,13 +6,14 @@ COPY Cargo.lock Cargo.lock
 COPY src src
 RUN cargo build
 
-FROM python:alpine
+FROM ubuntu:latest
 
-ENV CI=true GITHUB_ACTIONS=true HOARD_LOG=debug
-COPY ci-tests ci-tests
+ARG CI=true GITHUB_ACTIONS=true HOARD_LOG=debug
+RUN apt-get update && apt-get install -y tree python3
+
 COPY --from=build target/debug/hoard target/debug/hoard
+COPY ci-tests ci-tests
 
-RUN apk add tree
-RUN python3 ci-tests/test.py last_paths
-RUN python3 ci-tests/test.py operation
-RUN python3 ci-tests/test.py ignore
+RUN python3 ci-tests/tests last_paths
+RUN python3 ci-tests/tests operation
+RUN python3 ci-tests/tests ignore
