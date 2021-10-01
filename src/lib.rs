@@ -22,6 +22,7 @@
 #![deny(clippy::complexity)]
 #![deny(clippy::perf)]
 #![deny(clippy::pedantic)]
+#![deny(rustdoc::missing_doc_code_examples)]
 #![deny(
     absolute_paths_not_starting_with_crate,
     anonymous_parameters,
@@ -35,7 +36,6 @@
     missing_abi,
     missing_debug_implementations, // can affect compile time/code size
     missing_docs,
-    missing_doc_code_examples,
     no_mangle_generic_items,
     non_shorthand_field_patterns,
     noop_method_call,
