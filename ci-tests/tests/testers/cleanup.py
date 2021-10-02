@@ -2,6 +2,7 @@ from .hoard_tester import HoardTester, Hoard, HoardFile, Environment
 from uuid import uuid4
 import os
 import secrets
+import subprocess
 
 
 class LogCleanupTester(HoardTester):
@@ -119,8 +120,17 @@ class LogCleanupTester(HoardTester):
                 path = self.data_dir_path().joinpath("history").joinpath(system_id).joinpath(hoard.value)
                 retained_files = [file for file in os.listdir(path) if "last_paths" not in file]
                 expected_files = expected[system_id][hoard]
-                print(retained_files)
-                print(expected_files)
                 assert len(retained_files) == len(expected_files)
                 for file in expected_files:
                     assert file in retained_files
+
+        # The following should still fail after cleanup
+        try:
+            self._run_operation(self.system1, "backup", Hoard.Named)
+            raise AssertionError("Backup should have failed")
+        except subprocess.CalledProcessError:
+            pass
+
+        # The following should succeed
+        self._run_operation(self.system1, "backup", Hoard.AnonDir)
+        self._run_operation(self.system1, "backup", Hoard.AnonFile)
