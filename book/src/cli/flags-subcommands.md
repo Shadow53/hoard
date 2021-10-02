@@ -16,3 +16,6 @@ Flags can be used with any subcommand and must be specified *before* any subcomm
 - Validate: `hoard [flags...] validate`
   - Attempt to parse the default configuration file (or the one provided via `--config-file`)
     Exits with code `0` if the config is valid.
+- Cleanup: `hoard [flags...] cleanup`
+  - Deletes all extra [operation log files](../file-locations.md#history-files)
+    that are unnecessary for the [check](./checks.md#remote-operations).
