@@ -19,6 +19,12 @@ class Environment(str, Enum):
     Second = "second"
 
 
+class Hoard(str, Enum):
+    AnonDir = "anon_dir"
+    AnonFile = "anon_file"
+    Named = "named"
+
+
 class HoardFile(str, Enum):
     AnonFile = "anon_file"
     AnonDir = "anon_dir"

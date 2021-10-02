@@ -18,6 +18,7 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
+use uuid::Uuid;
 
 const TIME_FORMAT_STR: &str = "%Y_%m_%d-%H_%M_%S%.6f";
 static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -152,8 +153,16 @@ impl HoardOperation {
             .ok_or(Error::RestoreRequired)
     }
 
+    fn from_file(path: &Path) -> Result<Self, Error> {
+        tracing::trace!(path=%path.display(), "loading operation log from path");
+        fs::File::open(path)
+            .map(serde_json::from_reader)
+            .map_err(Error::from)?
+            .map_err(Error::from)
+    }
+
     /// Returns the latest operation for the given hoard from a system history root directory.
-    fn get_latest_hoard_operation_from_system_dir(
+    fn latest_hoard_operation_from_system_dir(
         dir: &Path,
         hoard: &str,
         backups_only: bool,
@@ -176,13 +185,7 @@ impl HoardOperation {
                 .transpose()
             })
             .map(|path| -> Result<HoardOperation, Error> {
-                path.map(|path| {
-                    tracing::trace!(path=%path.display(), "loading operation log from path");
-                    fs::File::open(path)
-                        .map(serde_json::from_reader)
-                        .map_err(Error::from)?
-                        .map_err(Error::from)
-                })?
+                path.map(|path| HoardOperation::from_file(&path))?
             })
             .filter_map(|operation| match operation {
                 Err(err) => Some(Err(err)),
@@ -211,7 +214,7 @@ impl HoardOperation {
         tracing::debug!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
         let self_folder = super::get_history_dir_for_id(uuid);
-        Self::get_latest_hoard_operation_from_system_dir(&self_folder, hoard, false)
+        Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, false)
     }
 
     /// Returns the latest backup operation recorded on any other machine (by UUID).
@@ -227,7 +230,7 @@ impl HoardOperation {
         let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
         other_folders
             .into_iter()
-            .map(|dir| Self::get_latest_hoard_operation_from_system_dir(&dir, hoard, true))
+            .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, true))
             .reduce(|left, right| match (left?, right?) {
                 (Some(left), None) => Ok(Some(left)),
                 (None, Some(right)) => Ok(Some(right)),
@@ -319,4 +322,120 @@ impl TryFrom<&ConfigPile> for Pile {
             |path| hash_path(path, path).map(Self),
         )
     }
+}
+
+/// Cleans up residual operation logs, leaving the latest per (system, hoard) pair.
+///
+/// Technically speaking, this function may leave up to two log files behind per pair.
+/// If the most recent log file is for a *restore* operation, the most recent *backup* will
+/// also be retained. If the most recent log file is a *backup*, it will be the only one
+/// retained.
+///
+/// # Errors
+///
+/// - Any I/O error from working with and deleting multiple files
+/// - Any [`Error`]s from parsing files to determine whether or not to keep them
+pub fn cleanup_operations() -> Result<u32, (u32, Error)> {
+    // Get hoard history root
+    // Iterate over every uuid in the directory
+    let root = super::get_history_root_dir();
+    fs::read_dir(root)
+        .map_err(|err| (0, err.into()))?
+        .filter(|entry| {
+            entry.as_ref().map_or_else(
+                // Propagate errors
+                |_err| true,
+                // Keep only entries that are directories with UUIDs for names
+                |entry| {
+                    tracing::trace!("checking if {} is a system directory", entry.path().display());
+                    entry.path().is_dir()
+                        && entry
+                            .file_name()
+                            .to_str()
+                            .map_or_else(|| false, |s| {
+                                tracing::trace!("checking if {} is a valid UUID", s);
+                                Uuid::parse_str(s).is_ok()
+                            })
+                },
+            )
+        })
+        // For each system folder, make a list of all log files, excluding 1 or 2 to keep.
+        .map(|entry| {
+            let entry = entry?;
+            let hoards = fs::read_dir(entry.path())?
+                .map(|entry| entry.map(|entry| {
+                    let path = entry.path();
+                    tracing::trace!("found hoard directory: {}", path.display());
+                    path
+                }))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            // List all log files in a hoard folder for the current iterated system
+            hoards.into_iter()
+                // Filter out last_paths.json
+                .filter(|path| path.is_dir())
+                .map(|path| {
+                tracing::trace!("checking files in directory: {}", path.display());
+                let mut files: Vec<PathBuf> = fs::read_dir(path)?
+                    .filter_map(|subentry| {
+                        subentry
+                            .map(|subentry| {
+                                tracing::trace!("checking if {} is a log file", subentry.path().display());
+                                HoardOperation::file_is_log(&subentry.path()).then(|| subentry.path())
+                            })
+                            .map_err(Error::from)
+                            .transpose()
+                    })
+                    .collect::<Result<_, Error>>()?;
+
+                files.sort_unstable();
+
+                // The last item is the latest operation for this hoard, so keep it.
+                let recent = files.pop();
+
+                // Make sure the most recent backup is (also) retained.
+                if let Some(recent) = recent {
+                    let recent = HoardOperation::from_file(&recent)?;
+                    if !recent.is_backup {
+                        tracing::trace!("most recent log is not a backup, making sure to retain a backup log too");
+                        // Find the index of the latest backup
+                        let index = files
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .find_map(|(i, path)| {
+                                HoardOperation::from_file(path)
+                                    .map(|op| op.is_backup.then(|| i))
+                                    .transpose()
+                            })
+                            .transpose()?;
+
+                        if let Some(index) = index {
+                            // Found index of latest backup, remove it from deletion list
+                            files.remove(index);
+                        }
+                    }
+                }
+
+                Ok(files)
+            }).collect::<Result<Vec<_>, _>>()
+        })
+        // Collect a list of all files to delete for each system directory.
+        .collect::<Result<Vec<Vec<Vec<PathBuf>>>, _>>()
+        .map_err(|err| (0, err))?
+        .into_iter()
+        // Flatten the list of lists into a single list.
+        .flatten()
+        .flatten()
+        // Delete each file.
+        .map(|path| {
+            tracing::trace!("deleting {}", path.display());
+            fs::remove_file(path)
+        })
+        // Return the first error or the number of files deleted.
+        .fold(Ok((0, ())), |acc, res2| {
+            let (count, _) = acc?;
+            Ok((count + 1, res2.map_err(|err| (count, err.into()))?))
+        })
+        .map(|(count, _)| count)
 }

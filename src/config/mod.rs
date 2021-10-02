@@ -165,6 +165,12 @@ impl Config {
             Command::Validate => {
                 tracing::info!("configuration is valid");
             }
+            Command::Cleanup => match crate::checkers::history::operation::cleanup_operations() {
+                Ok(count) => tracing::info!("cleaned up {} log files", count),
+                Err((count, err)) => {
+                    tracing::error!("error occurred after cleaning up {} files: {}", count, err);
+                }
+            },
             Command::Backup { hoards } => {
                 let hoards = self.get_hoards(hoards)?;
                 let mut checkers = Checkers::new(&hoards, true)?;
