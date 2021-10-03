@@ -292,6 +292,7 @@ mod tests {
         use std::path::PathBuf;
 
         #[test]
+        #[serial_test::serial]
         fn env_vars_are_expanded() {
             let pile = Pile {
                 config: None,
