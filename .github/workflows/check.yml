@@ -98,7 +98,30 @@ jobs:
         with:
           toolchain: nightly
           override: true
+          default: true
           components: llvm-tools-preview
+
+      - name: Install Grcov
+        uses: actions-rs/install@v0.1
+        with:
+          crate: grcov
+          version: latest
+          use-tool-cache: true
+
+      - name: Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Zinstrument-coverage'
+          RUSTDOCFLAGS: '-Zinstrument-coverage'
+          LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
+
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
 
       - name: Cargo Test (Grcov)
         uses: actions-rs/cargo@v1
@@ -107,18 +130,21 @@ jobs:
           args: --all-features --no-fail-fast
         env:
           CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTFLAGS: '-Zinstrument-coverage'
+          RUSTDOCFLAGS: '-Zinstrument-coverage'
+          LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
+
+      - name: Run Integration Tests
+        run: python ci-tests/tests all
 
       - name: Run grcov
-        id: coverage
-        uses: actions-rs/grcov@v0.1
+        run: grcov profraw/*.profraw --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{ steps.coverage.outputs.report }}
+          files: coverage.lcov
 
   integration-tests:
     name: "Integration Tests"

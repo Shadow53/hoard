@@ -55,6 +55,12 @@ if __name__ == "__main__":
         elif sys.argv[1] == "cleanup":
             print("Running cleanup test")
             LogCleanupTester().run_test()
+        elif sys.argv[1] == "all":
+            print("Running all tests")
+            LastPathsTester().run_test()
+            IgnoreFilterTester().run_test()
+            OperationCheckerTester().run_test()
+            LogCleanupTester().run_test()
         else:
             raise RuntimeError(f"Invalid argument {sys.argv[1]}")
     except Exception:

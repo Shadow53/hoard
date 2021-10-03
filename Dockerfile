@@ -1,20 +1,28 @@
 FROM rust:alpine AS build
+ENV RUSTFLAGS="-Zinstrument-coverage"
+ENV LLVM_PROFILE_FILE="profraw/hoard-test-%p-%m.profraw"
+ENV CI=true GITHUB_ACTIONS=true HOARD_LOG=debug
+WORKDIR /hoard-tests
 
-RUN apk add build-base
-COPY Cargo.toml Cargo.toml
-COPY Cargo.lock Cargo.lock
-COPY src src
-RUN cargo build
+RUN apk add python3 tree
+#RUN apk add build-base python3 tree
+#RUN rustup toolchain add nightly --component llvm-tools-preview
+#COPY Cargo.toml Cargo.toml
+#COPY Cargo.lock Cargo.lock
+#COPY src src
+#RUN cargo +nightly build
 
-FROM ubuntu:latest
+#FROM ubuntu:latest
+#ENV RUSTFLAGS="-Zinstrument-coverage"
+#ENV LLVM_PROFILE_FILE="/hoard-tests/profraw/hoard-test-%p-%m.profraw"
 
-ARG CI=true GITHUB_ACTIONS=true HOARD_LOG=debug
-RUN apt-get update && apt-get install -y tree python3
+#VOLUME /hoard-tests/profraw
 
-COPY --from=build target/debug/hoard target/debug/hoard
+#RUN apt-get update && apt-get install -y tree python3
+
+#COPY --from=build target/debug/hoard target/debug/hoard
+COPY target/x86_64-unknown-linux-musl/debug/hoard target/debug/hoard
 COPY ci-tests ci-tests
+RUN echo $WORKDIR
 
-RUN python3 ci-tests/tests cleanup
-RUN python3 ci-tests/tests last_paths
-RUN python3 ci-tests/tests operation
-RUN python3 ci-tests/tests ignore
+CMD ["python3", "ci-tests/tests", "all"]
