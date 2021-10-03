@@ -164,6 +164,9 @@ jobs:
       - name: Test Ignore Filter
         run: python ci-tests/tests ignore
 
+      - name: Test Ignore Filter
+        run: python ci-tests/tests cleanup
+
   release:
     if: github.event_name == 'release'
     runs-on: ${{ matrix.os }}

@@ -6,6 +6,7 @@ from pathlib import Path
 from testers.ignore_filter import IgnoreFilterTester
 from testers.last_paths import LastPathsTester
 from testers.operations import OperationCheckerTester
+from testers.cleanup import LogCleanupTester
 from testers.hoard_tester import HoardFile, Environment
 
 for var in ["CI", "GITHUB_ACTIONS"]:
@@ -51,6 +52,9 @@ if __name__ == "__main__":
         elif sys.argv[1] == "ignore":
             print("Running ignore filter test")
             IgnoreFilterTester().run_test()
+        elif sys.argv[1] == "cleanup":
+            print("Running cleanup test")
+            LogCleanupTester().run_test()
         else:
             raise RuntimeError(f"Invalid argument {sys.argv[1]}")
     except Exception:

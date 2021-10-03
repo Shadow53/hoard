@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y tree python3
 COPY --from=build target/debug/hoard target/debug/hoard
 COPY ci-tests ci-tests
 
+RUN python3 ci-tests/tests cleanup
 RUN python3 ci-tests/tests last_paths
 RUN python3 ci-tests/tests operation
 RUN python3 ci-tests/tests ignore

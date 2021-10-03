@@ -16,6 +16,8 @@ pub enum Command {
     /// Loads all configuration for validation.
     /// If the configuration loads and builds, this command succeeds.
     Validate,
+    /// Cleans up the operation logs for all known systems.
+    Cleanup,
     /// Back up the given hoard(s).
     Backup {
         /// The name(s) of the hoard(s) to back up. Will back up all hoards if empty.
