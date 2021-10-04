@@ -25,7 +25,7 @@ impl TryInto<bool> for ExeExists {
             Err(err) => match err {
                 // AFAICT, this error is the "exe not found" one.
                 which::Error::CannotFindBinaryPath => Ok(false),
-                err => Err(err),
+                err => Err(err), // grcov: ignore
             },
         }
     }

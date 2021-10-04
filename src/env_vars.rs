@@ -101,6 +101,7 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error as _;
 
     macro_rules! test_env {
         (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr, require_var: $require_var:literal) => {
@@ -244,5 +245,13 @@ mod tests {
         env: "TEST_VAR",
         value: "_",
         expected: PathBuf::from("${WRAPPING_VARIABLE}")
+    }
+
+    #[test]
+    fn test_error_traits() {
+        let env_error = env::var("DOESNOTEXIST").expect_err("variable should not exist");
+        let error = Error { error: env_error, var: "DOESNOTEXIST".to_string() };
+        assert!(error.to_string().contains("DOESNOTEXIST"));
+        assert!(error.source().is_some());
     }
 }

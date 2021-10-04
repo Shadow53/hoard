@@ -38,8 +38,8 @@ pub enum Error {
 }
 
 impl From<Infallible> for Error {
-    fn from(_: Infallible) -> Self {
-        unimplemented!("this should never happen");
+    fn from(_: Infallible) -> Self {                // grcov: ignore
+        unimplemented!("this should never happen"); // grcov: ignore
     }
 }
 
@@ -105,7 +105,7 @@ impl fmt::Display for Environment {
         if let Some(exe_exists) = &self.exe_exists {
             if has_previous {
                 write!(f, " AND ")?;
-            }
+            } // grcov: ignore
             has_previous = true;
             write!(f, "({})", exe_exists)?;
         }
@@ -113,7 +113,7 @@ impl fmt::Display for Environment {
         if let Some(path_exists) = &self.path_exists {
             if has_previous {
                 write!(f, " AND ")?;
-            }
+            } // grcov: ignore
             write!(f, "({})", path_exists)?;
         }
 
@@ -254,7 +254,7 @@ mod tests {
 
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {}", err), // grcov: ignore
             }
         }
 
@@ -278,7 +278,7 @@ mod tests {
                 .expect_err("expecting two hostnames at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {}", err), // grcov: ignore
             }
         }
 
@@ -320,7 +320,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {}", err), // grcov: ignore
             }
         }
 
@@ -344,7 +344,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {}", err), // grcov: ignore
             }
         }
 

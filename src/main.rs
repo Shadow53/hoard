@@ -28,7 +28,7 @@ fn get_subscriber() -> Subscriber {
         .with_max_level(if cfg!(debug_assertions) {
             Level::DEBUG
         } else {
-            Level::INFO
+            Level::INFO // grcov: ignore
         })
 }
 
@@ -39,23 +39,23 @@ fn main() {
     let subscriber = get_subscriber();
     match std::env::var_os(LOG_ENV) {
         Some(_) => match EnvFilter::try_from_env(LOG_ENV) {
-            Err(err) => error_and_exit(err),
+            Err(err) => error_and_exit(err), // grcov: ignore
             Ok(filter) => subscriber
                 .with_env_filter(filter)
                 .with_filter_reloading()
                 .init(),
         },
-        None => subscriber.init(),
+        None => subscriber.init(), // grcov: ignore
     };
 
     // Get configuration
     let config = match Config::load() {
         Ok(config) => config,
-        Err(err) => error_and_exit(err),
+        Err(err) => error_and_exit(err), // grcov: ignore
     };
 
     // Run command with config
     if let Err(err) = config.run() {
-        error_and_exit(err);
+        error_and_exit(err); // grcov: ignore
     }
 }

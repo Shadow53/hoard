@@ -46,3 +46,28 @@ impl Filter for Filters {
         self.ignore.keep(path)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error as _;
+
+    #[test]
+    fn test_error_derives() {
+        let config = Config { encryption: None, ignore: vec!["invalid**".to_string()] };
+        let ignore_error = ignore::IgnoreFilter::new(&config).expect_err("config should be invalid");
+        let error = Error::from(ignore_error);
+        assert!(format!("{:?}", error).contains("Ignore"));
+        assert!(format!("{:?}", error).contains("InvalidGlob"));
+        assert!(error.source().is_some());
+        assert!(error.to_string().contains("in the ignore filter"));
+    }
+
+    #[test]
+    fn test_filters_derives() {
+        let config = Config { encryption: None, ignore: vec!["valid/**".to_string()] };
+        let filters = Filters::new(&config).expect("config should be valid");
+        assert!(format!("{:?}", filters).contains("Filters"));
+        assert_eq!(filters.clone().ignore, filters.ignore);
+    }
+}

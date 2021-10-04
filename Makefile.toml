@@ -35,42 +35,19 @@
     """
 
 [tasks.grcov]
-    dependencies = ["test-nightly"]
-    install_crate = "grcov"
-    command = "grcov"
-    args = [
-        ".", "-s", ".", "-t", "html",
-        "--branch", "--ignore-not-existing",
-        "-o", "./target/debug/coverage/"
-    ]
-    [tasks.grcov.env]
-        CARGO_INCREMENTAL=0
-        RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
-        RUSTDOCFLAGS="-Cpanic=abort"
-
-[tasks.grcov-src]
     dependencies = ["clean-all", "test-nightly", "integration-tests"]
-    #install_crate = "grcov"
+    # Using `script` is necessary to get the glob expansion
     script = """
-    grcov profraw/*.profraw --binary-path ./target/x86_64-unknown-linux-musl/debug -s . -t html --branch --ignore-not-existing -o ./target/debug/coverage
+    grcov profraw/*.profraw --binary-path ./target/x86_64-unknown-linux-musl/debug \
+        -s . -t html --branch --ignore-not-existing -o ./target/debug/coverage \
+        --excl-br-line "(#\\[derive\\(|grcov: ignore|tracing::(error|warn|info|debug|trace)(_span)?)" \
+        --excl-line "(#\\[derive\\(|grcov: ignore|tracing::(error|warn|info|debug|trace)(_span)?)"
     """
-    #command = "grcov"
-    #args = [
-    #    "*.profraw",
-    #    "--binary-path", "./target/debug",
-    #    "-s", ".", "-t", "html",
-    #    "--branch", "--ignore-not-existing",
-    #    "-o", "./target/debug/coverage/"
-    #]
-    [tasks.grcov-src.env]
+    [tasks.grcov.env]
         RUSTFLAGS="-Zinstrument-coverage"
         LLVM_PROFILE_FILE="default.profraw"
         RUSTUP_TOOLCHAIN="nightly"
-
-[tasks.view-grcov-src]
-    dependencies = ["grcov-src"]
-    command = "xdg-open"
-    args = ["./target/debug/coverage/index.html"]
+        HOARD_LOG="trace"
 
 [tasks.view-grcov]
     dependencies = ["grcov"]

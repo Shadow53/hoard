@@ -51,3 +51,41 @@ impl Filter for IgnoreFilter {
         self.globs.iter().all(|glob| !glob.matches_path(path))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error as _;
+
+    #[test]
+    fn test_invalid_glob() {
+        let config = Config { encryption: None, ignore: vec!["invalid**".to_string()] };
+        let err = IgnoreFilter::new(&config).expect_err("glob pattern should be invalid");
+        let Error::InvalidGlob { pattern, .. } = err;
+        assert_eq!(&pattern, config.ignore.first().unwrap());
+    }
+
+    #[test]
+    fn test_error_derives() {
+        let config = Config { encryption: None, ignore: vec!["invalid**".to_string()] };
+        let err = IgnoreFilter::new(&config).expect_err("glob pattern should be invalid");
+        assert!(format!("{:?}", err).contains("InvalidGlob"));
+        assert!(err.source().is_some());
+        assert!(err.to_string().contains("invalid glob pattern"));
+    }
+
+    #[test]
+    fn test_filter_derives() {
+        let filter = {
+            let config = Config { encryption: None, ignore: vec!["testing/**".to_string()] };
+            IgnoreFilter::new(&config).expect("filter should be valid")
+        };
+        let other = {
+            let config = Config { encryption: None, ignore: vec!["test/**".to_string()] };
+            IgnoreFilter::new(&config).expect("filter should be valid")
+        };
+        assert!(format!("{:?}", filter).contains("IgnoreFilter"));
+        assert_eq!(filter, filter.clone());
+        assert_ne!(filter, other);
+    }
+}

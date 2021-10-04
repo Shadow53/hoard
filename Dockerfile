@@ -1,7 +1,7 @@
 FROM rust:alpine AS build
 ENV RUSTFLAGS="-Zinstrument-coverage"
 ENV LLVM_PROFILE_FILE="profraw/hoard-test-%p-%m.profraw"
-ENV CI=true GITHUB_ACTIONS=true HOARD_LOG=debug
+ENV CI=true GITHUB_ACTIONS=true HOARD_LOG=trace
 WORKDIR /hoard-tests
 
 RUN apk add python3 tree

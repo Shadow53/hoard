@@ -173,20 +173,20 @@ impl Builder {
         self
     }
 
-    /// Set the hoards map.
-    #[must_use]
-    pub fn set_hoards(mut self, hoards: HashMap<String, Hoard>) -> Self {
-        tracing::trace!(?hoards, "setting hoards");
-        self.hoards = Some(hoards);
-        self
-    }
+    ///// Set the hoards map.
+    //#[must_use]
+    //pub fn set_hoards(mut self, hoards: HashMap<String, Hoard>) -> Self {
+    //    tracing::trace!(?hoards, "setting hoards");
+    //    self.hoards = Some(hoards);
+    //    self
+    //}
 
     /// Set the directory that will contain all game save data.
     #[must_use]
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
         tracing::trace!(
             hoards_root = ?path,
-            "setting hoards root",
+            "setting hoards root", // grcov: ignore
         );
         self.hoards_root = Some(path);
         self
@@ -200,7 +200,7 @@ impl Builder {
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
         tracing::trace!(
             config_file = ?path,
-            "setting config file",
+            "setting config file", // grcov: ignore
         );
         self.config_file = Some(path);
         self
@@ -214,13 +214,13 @@ impl Builder {
         self
     }
 
-    /// Set whether to force the command to run despite possible failed checks.
-    #[must_use]
-    pub fn set_force(mut self, force: bool) -> Self {
-        tracing::trace!(?force, "setting force");
-        self.force = force;
-        self
-    }
+    ///// Set whether to force the command to run despite possible failed checks.
+    //#[must_use]
+    //pub fn set_force(mut self, force: bool) -> Self {
+    //    tracing::trace!(?force, "setting force");
+    //    self.force = force;
+    //    self
+    //}
 
     /// Unset the hoards map
     #[must_use]
@@ -230,37 +230,37 @@ impl Builder {
         self
     }
 
-    /// Unset the directory that will contain all game save data.
-    #[must_use]
-    pub fn unset_hoards_root(mut self) -> Self {
-        tracing::trace!("unsetting hoards root");
-        self.hoards_root = None;
-        self
-    }
+    ///// Unset the directory that will contain all game save data.
+    //#[must_use]
+    //pub fn unset_hoards_root(mut self) -> Self {
+    //    tracing::trace!("unsetting hoards root");
+    //    self.hoards_root = None;
+    //    self
+    //}
 
-    /// Unset the file that contains configuration.
-    #[must_use]
-    pub fn unset_config_file(mut self) -> Self {
-        tracing::trace!("unsetting config file");
-        self.config_file = None;
-        self
-    }
+    ///// Unset the file that contains configuration.
+    //#[must_use]
+    //pub fn unset_config_file(mut self) -> Self {
+    //    tracing::trace!("unsetting config file");
+    //    self.config_file = None;
+    //    self
+    //}
 
-    /// Unset the command that will be run.
-    #[must_use]
-    pub fn unset_command(mut self) -> Self {
-        tracing::trace!("unsetting command");
-        self.command = None;
-        self
-    }
+    ///// Unset the command that will be run.
+    //#[must_use]
+    //pub fn unset_command(mut self) -> Self {
+    //    tracing::trace!("unsetting command");
+    //    self.command = None;
+    //    self
+    //}
 
-    /// Set whether to force the command to run despite possible failed checks.
-    #[must_use]
-    pub fn unset_force(mut self) -> Self {
-        tracing::trace!("unsetting force");
-        self.force = false;
-        self
-    }
+    ///// Set whether to force the command to run despite possible failed checks.
+    //#[must_use]
+    //pub fn unset_force(mut self) -> Self {
+    //    tracing::trace!("unsetting force");
+    //    self.force = false;
+    //    self
+    //}
 
     /// Evaluates the stored environment definitions and returns a mapping of
     /// environment name to (boolean) whether that environment applies.
@@ -393,7 +393,7 @@ mod tests {
             assert_eq!(
                 expected,
                 Builder::new(),
-                "ConfigBuild::new() should have all None fields"
+                "ConfigBuild::new() should have all None fields" // grcov: ignore
             );
         }
 
@@ -407,12 +407,12 @@ mod tests {
             assert_eq!(
                 some,
                 none.clone().layer(some.clone()),
-                "Some fields atop None prefers Some"
+                "Some fields atop None prefers Some" // grcov: ignore
             );
             assert_eq!(
                 some,
                 some.clone().layer(none),
-                "None fields atop Some prefers Some"
+                "None fields atop Some prefers Some" // grcov: ignore
             );
         }
 
@@ -424,12 +424,12 @@ mod tests {
             assert_eq!(
                 layer2,
                 layer1.clone().layer(layer2.clone()),
-                "layer() should prefer the argument"
+                "layer() should prefer the argument" // grcov: ignore
             );
             assert_eq!(
                 layer1,
                 layer2.layer(layer1.clone()),
-                "layer() should prefer the argument"
+                "layer() should prefer the argument" // grcov: ignore
             );
         }
 
@@ -442,7 +442,7 @@ mod tests {
             assert_eq!(
                 Some(path),
                 builder.hoards_root,
-                "saves_root should now be set"
+                "saves_root should now be set" // grcov: ignore
             );
         }
 
@@ -451,14 +451,14 @@ mod tests {
             let mut builder = Builder::new();
             assert_eq!(
                 None, builder.config_file,
-                "config_file should start as None"
+                "config_file should start as None" // grcov: ignore
             );
             let path = PathBuf::from("/testing/config.toml");
             builder = builder.set_config_file(path.clone());
             assert_eq!(
                 Some(path),
                 builder.config_file,
-                "config_file should now be set"
+                "config_file should now be set" // grcov: ignore
             );
         }
 
@@ -469,44 +469,6 @@ mod tests {
             let cmd = Command::Validate;
             builder = builder.set_command(cmd.clone());
             assert_eq!(Some(cmd), builder.command, "command should now be set");
-        }
-
-        #[test]
-        fn builder_saves_root_unsets_correctly() {
-            let mut builder = Builder::new();
-            let path = PathBuf::from("/testing/saves");
-            builder = builder.set_hoards_root(path.clone());
-            assert_eq!(
-                Some(path),
-                builder.hoards_root,
-                "saves_root should start as set"
-            );
-            builder = builder.unset_hoards_root();
-            assert_eq!(None, builder.hoards_root, "saves_root should now be None");
-        }
-
-        #[test]
-        fn builder_config_file_unsets_correctly() {
-            let mut builder = Builder::new();
-            let path = PathBuf::from("/testing/config.toml");
-            builder = builder.set_config_file(path.clone());
-            assert_eq!(
-                Some(path),
-                builder.config_file,
-                "config_file should start as set"
-            );
-            builder = builder.unset_config_file();
-            assert_eq!(None, builder.config_file, "config_file should now be None");
-        }
-
-        #[test]
-        fn builder_command_unsets_correctly() {
-            let mut builder = Builder::new();
-            let cmd = Command::Validate;
-            builder = builder.set_command(cmd.clone());
-            assert_eq!(Some(cmd), builder.command, "command should start as set");
-            builder = builder.unset_command();
-            assert_eq!(None, builder.command, "command should now be None");
         }
 
         #[test]

@@ -82,7 +82,7 @@ impl Checker for LastPaths {
         if let Some(parent) = path.parent() {
             tracing::trace!("ensuring parent directories exist");
             fs::create_dir_all(parent)?;
-        }
+        } // grcov: ignore
         tracing::trace!("writing lastpaths file");
         fs::write(path, content)?;
         Ok(())
@@ -116,9 +116,9 @@ impl LastPaths {
                 if err.kind() == io::ErrorKind::NotFound {
                     tracing::debug!("lastpaths file not found, creating new instance");
                     return Ok(Self::default());
-                }
+                } // grcov: ignore
                 tracing::error!(error=%err);
-                return Err(err.into());
+                return Err(err.into()); // grcov: ignore
             }
         };
 
@@ -407,14 +407,14 @@ mod tests {
         let named = named_hoard_paths();
 
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&anonymous, &named),
                 Err(Error::HoardPathsMismatch)
             ),
             "anonymous and named paths are not the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named, &anonymous),
                 Err(Error::HoardPathsMismatch)
             ),
@@ -433,14 +433,14 @@ mod tests {
 
         // Test none/none and some/some are the same.
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&anon_none, &anon_none),
                 Ok(())
             ),
             "two Anonymous(None) paths are the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&anon_1, &anon_3),
                 Ok(())
             ),
@@ -449,7 +449,7 @@ mod tests {
 
         // none/some doesn't match
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&anon_none, &anon_1),
                 Err(Error::HoardPathsMismatch),
             ),
@@ -457,7 +457,7 @@ mod tests {
         );
         // some/some with different paths are different
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&anon_1, &anon_2),
                 Err(Error::HoardPathsMismatch),
             ),
@@ -486,28 +486,28 @@ mod tests {
 
         // Test the same
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_empty, &named_empty),
                 Ok(()),
             ),
             "empty paths are the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_1),
                 Ok(()),
             ),
             "single (same) paths are the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_1_again),
                 Ok(()),
             ),
             "single (same) paths are the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_with_both, &named_with_both),
                 Ok(()),
             ),
@@ -516,21 +516,21 @@ mod tests {
 
         // Test are different
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_empty, &named_with_1),
                 Err(Error::HoardPathsMismatch)
             ),
             "empty paths and single path are not the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_2),
                 Err(Error::HoardPathsMismatch)
             ),
             "single different paths are not the same"
         );
         assert!(
-            matches!(
+            matches!( // grcov: ignore
                 HoardPaths::enforce_old_and_new_piles_are_same(&named_with_1, &named_with_both),
                 Err(Error::HoardPathsMismatch)
             ),

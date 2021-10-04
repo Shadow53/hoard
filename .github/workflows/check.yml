@@ -136,6 +136,9 @@ jobs:
 
       - name: Run Integration Tests
         run: python ci-tests/tests all
+        env:
+          # Creates a lot of output but also makes sure all logging receives coverage
+          HOARD_LOG: trace
 
       - name: Run grcov
         run: grcov profraw/*.profraw --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov

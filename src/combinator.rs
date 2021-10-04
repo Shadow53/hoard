@@ -274,8 +274,8 @@ mod tests {
             let result: bool = input.clone().try_into().unwrap();
             assert_eq!(
                 result, expected,
-                "CombinatorInner did not AND items correctly: {:?}",
-                input
+                "CombinatorInner did not AND items correctly: {:?}", // grcov: ignore
+                input // grcov: ignore
             );
         }
     }
@@ -488,8 +488,8 @@ mod tests {
             let result: bool = case.combinator.clone().try_into().unwrap();
             assert_eq!(
                 result, case.evaluates_to,
-                "Combinator did not OR items correctly: {:?}",
-                case.combinator
+                "Combinator did not OR items correctly: {:?}", // grcov: ignore
+                case.combinator // grcov: ignore
             );
         }
     }
@@ -500,8 +500,8 @@ mod tests {
             assert_eq!(
                 case.expected_bool_str,
                 &case.combinator.to_string(),
-                "failed to create boolean string for {:?}",
-                case.combinator
+                "failed to create boolean string for {:?}", // grcov: ignore
+                case.combinator // grcov: ignore
             );
         }
     }
@@ -520,8 +520,8 @@ mod tests {
             assert_eq!(
                 matches!(case.typ, CombinatorType::Empty),
                 case.combinator.is_empty(),
-                "left value indicates whether {:?} should be empty",
-                case.combinator
+                "left value indicates whether {:?} should be empty", // grcov: ignore
+                case.combinator // grcov: ignore
             );
         }
     }
@@ -542,8 +542,8 @@ mod tests {
             assert_eq!(
                 matches!(case.typ, CombinatorType::OnlyOr),
                 case.combinator.is_only_or(),
-                "left value indicates whether {:?} should be only OR",
-                case.combinator
+                "left value indicates whether {:?} should be only OR", // grcov: ignore
+                case.combinator // grcov: ignore
             );
         }
     }
@@ -554,8 +554,8 @@ mod tests {
             assert_eq!(
                 matches!(case.typ, CombinatorType::OnlyAnd),
                 case.combinator.is_only_and(),
-                "left value indicates whether {:?} should be only AND",
-                case.combinator
+                "left value indicates whether {:?} should be only AND", // grcov: ignore
+                case.combinator // grcov: ignore
             );
         }
     }
@@ -566,8 +566,8 @@ mod tests {
             assert_eq!(
                 matches!(case.typ, CombinatorType::Complex),
                 case.combinator.is_complex(),
-                "left value indicates whether {:?} should be complex",
-                case.combinator
+                "left value indicates whether {:?} should be complex", // grcov: ignore
+                case.combinator // grcov: ignore
             );
         }
     }

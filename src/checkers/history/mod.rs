@@ -38,7 +38,7 @@ fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<PathBuf>, io::Error> {
     fs::read_dir(root)?
         .filter_map(|entry| {
             match entry {
-                Err(err) => Some(Err(err)),
+                Err(err) => Some(Err(err)), // grcov: ignore
                 Ok(entry) => {
                     let path = entry.path();
                     path.file_name().and_then(|file_name| {

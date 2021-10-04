@@ -196,7 +196,7 @@ impl Config {
                 let mut checkers = Checkers::new(&hoards, false)?;
                 if !self.force {
                     checkers.check()?;
-                }
+                } // grcov: ignore
 
                 for (name, hoard) in hoards {
                     let prefix = self.get_prefix(name);
@@ -276,7 +276,7 @@ mod tests {
         assert_eq!(
             Config::builder(),
             Builder::new(),
-            "Config::builder should return an unmodified new Builder"
+            "Config::builder should return an unmodified new Builder" // grcov: ignore
         );
     }
 
@@ -285,7 +285,7 @@ mod tests {
         assert_eq!(
             Some(Config::default()),
             Builder::new().build().ok(),
-            "Config::default should be the same as a built unmodified Builder"
+            "Config::default should be the same as a built unmodified Builder" // grcov: ignore
         );
     }
 
@@ -295,7 +295,7 @@ mod tests {
         assert_eq!(
             config.get_config_file_path(),
             config.config_file,
-            "should return config file path"
+            "should return config file path" // grcov: ignore
         );
     }
 
@@ -305,7 +305,7 @@ mod tests {
         assert_eq!(
             config.get_hoards_root_path(),
             config.hoards_root,
-            "should return saves root path"
+            "should return saves root path" // grcov: ignore
         );
     }
 }

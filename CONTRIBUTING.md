@@ -81,3 +81,17 @@ These are some general rules used for writing log statements.
    `do_a_thing()`.
 5. If there must be an event logged with the creation of a span, log the event first so that the context logged with it
    remains minimal.
+
+## Ignoring Lines for Code Coverage
+
+Ignored lines should be limited to the following:
+
+- Logging statements
+- "This should never happen" panics/asserts *in testing code*.
+- Code containing `unimplemented!()` (i.e. should never be called)
+- Lines containing only opening/closing braces that are marked as missing coverage
+- Manual error propagation
+  - That is, something like inspecting a lower error to return a specific higher one, or otherwise returning the
+    original error.
+
+Lines can be manually ignored by adding a comment with `grcov: ignore` on that line.
