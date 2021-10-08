@@ -218,14 +218,6 @@ impl Builder {
         self
     }
 
-    ///// Set whether to force the command to run despite possible failed checks.
-    //#[must_use]
-    //pub fn set_force(mut self, force: bool) -> Self {
-    //    tracing::trace!(?force, "setting force");
-    //    self.force = force;
-    //    self
-    //}
-
     /// Unset the hoards map
     #[must_use]
     pub fn unset_hoards(mut self) -> Self {
@@ -233,38 +225,6 @@ impl Builder {
         self.hoards = None;
         self
     }
-
-    ///// Unset the directory that will contain all game save data.
-    //#[must_use]
-    //pub fn unset_hoards_root(mut self) -> Self {
-    //    tracing::trace!("unsetting hoards root");
-    //    self.hoards_root = None;
-    //    self
-    //}
-
-    ///// Unset the file that contains configuration.
-    //#[must_use]
-    //pub fn unset_config_file(mut self) -> Self {
-    //    tracing::trace!("unsetting config file");
-    //    self.config_file = None;
-    //    self
-    //}
-
-    ///// Unset the command that will be run.
-    //#[must_use]
-    //pub fn unset_command(mut self) -> Self {
-    //    tracing::trace!("unsetting command");
-    //    self.command = None;
-    //    self
-    //}
-
-    ///// Set whether to force the command to run despite possible failed checks.
-    //#[must_use]
-    //pub fn unset_force(mut self) -> Self {
-    //    tracing::trace!("unsetting force");
-    //    self.force = false;
-    //    self
-    //}
 
     /// Evaluates the stored environment definitions and returns a mapping of
     /// environment name to (boolean) whether that environment applies.

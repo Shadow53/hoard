@@ -231,7 +231,7 @@ impl Node {
                     );
 
                     eval = node_eval;
-                } // grcov: ignore
+                }
             }
         }
 
