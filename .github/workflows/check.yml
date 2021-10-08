@@ -141,7 +141,25 @@ jobs:
           HOARD_LOG: trace
 
       - name: Run grcov
-        run: grcov profraw/*.profraw --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov
+        run: |
+          grcov profraw/*.profraw --binary-path target/debug/ \
+            -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov \
+          --excl-br-line "($EXCLUDE_DERIVE|$EXCLUDE_PANICS|$EXCLUDE_TRACING|$EXCLUDE_PROPAGATE_ERROR|$EXCLUDE_MANUAL|$EXCLUDE_LONE_CLOSING_BRACE)" \
+          --excl-line "($EXCLUDE_DERIVE|$EXCLUDE_PANICS|$EXCLUDE_TRACING|$EXCLUDE_PROPAGATE_ERROR|$EXCLUDE_MANUAL|$EXCLUDE_LONE_CLOSING_BRACE)" \
+          --excl-br-start "(grcov: ignore-start|mod tests)" --excl-start "(grcov: ignore-start|mod tests)" \
+          --excl-br-stop "grcov: ignore-end" --excl-stop "grcov: ignore-end"
+        env:
+          RUSTFLAGS: "-Zinstrument-coverage"
+          LLVM_PROFILE_FILE: "default.profraw"
+          RUSTUP_TOOLCHAIN: "nightly"
+          HOARD_LOG: "trace"
+          EXCLUDE_DERIVE: "#\\[derive\\("
+          EXCLUDE_PANICS: "panic!|todo!|unimplemented!"
+          EXCLUDE_TRACING: "tracing::(error|warn|info|debug|trace)(_span)?"
+          EXCLUDE_PROPAGATE_ERROR: "(return|(Err\\(err(or)?\\)|err(or)?) =>) (Some\\()?Err\\(err(or)?(\\.into\\(\\))?\\)"
+          EXCLUDE_MANUAL: "grcov: ignore"
+          EXCLUDE_LONE_CLOSING_BRACE: "^\\s*\\}\\s*$"
+
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
