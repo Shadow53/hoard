@@ -61,3 +61,7 @@
     dependencies = ["grcov"]
     command = "xdg-open"
     args = ["./target/debug/coverage/index.html"]
+
+[tasks.book]
+    command = "mdbook"
+    args = ["serve", "./book"]
