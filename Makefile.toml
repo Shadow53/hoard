@@ -55,7 +55,7 @@
         EXCLUDE_TRACING="tracing::(error|warn|info|debug|trace)(_span)?"
         EXCLUDE_PROPAGATE_ERROR="(return|(Err\\(err(or)?\\)|err(or)?) =>) (Some\\()?Err\\(err(or)?(\\.into\\(\\))?\\)"
         EXCLUDE_MANUAL="grcov: ignore"
-        EXCLUDE_LONE_CLOSING_BRACE="^\\s*\\{\\s*$"
+        EXCLUDE_LONE_CLOSING_BRACE="^\\s*\\}\\s*$"
 
 [tasks.view-grcov]
     dependencies = ["grcov"]
