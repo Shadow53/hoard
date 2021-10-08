@@ -304,8 +304,6 @@ jobs:
         with:
           bin: hoard
           target: ${{ matrix.target }}
-          tar: none
-          zip: none
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_PROFILE_RELEASE_LTO: true
