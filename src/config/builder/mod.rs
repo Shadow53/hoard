@@ -173,21 +173,23 @@ impl Builder {
         self
     }
 
-    /// Set the hoards map.
-    #[must_use]
-    pub fn set_hoards(mut self, hoards: HashMap<String, Hoard>) -> Self {
-        tracing::trace!(?hoards, "setting hoards");
-        self.hoards = Some(hoards);
-        self
-    }
+    ///// Set the hoards map.
+    //#[must_use]
+    //pub fn set_hoards(mut self, hoards: HashMap<String, Hoard>) -> Self {
+    //    tracing::trace!(?hoards, "setting hoards");
+    //    self.hoards = Some(hoards);
+    //    self
+    //}
 
     /// Set the directory that will contain all game save data.
     #[must_use]
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
+        // grcov: ignore-start
         tracing::trace!(
             hoards_root = ?path,
             "setting hoards root",
         );
+        // grcov: ignore-end
         self.hoards_root = Some(path);
         self
     }
@@ -198,10 +200,12 @@ impl Builder {
     /// instead, which will actually read and parse the file.
     #[must_use]
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
+        // grcov: ignore-start
         tracing::trace!(
             config_file = ?path,
             "setting config file",
         );
+        // grcov: ignore-end
         self.config_file = Some(path);
         self
     }
@@ -214,51 +218,11 @@ impl Builder {
         self
     }
 
-    /// Set whether to force the command to run despite possible failed checks.
-    #[must_use]
-    pub fn set_force(mut self, force: bool) -> Self {
-        tracing::trace!(?force, "setting force");
-        self.force = force;
-        self
-    }
-
     /// Unset the hoards map
     #[must_use]
     pub fn unset_hoards(mut self) -> Self {
         tracing::trace!("unsetting hoards");
         self.hoards = None;
-        self
-    }
-
-    /// Unset the directory that will contain all game save data.
-    #[must_use]
-    pub fn unset_hoards_root(mut self) -> Self {
-        tracing::trace!("unsetting hoards root");
-        self.hoards_root = None;
-        self
-    }
-
-    /// Unset the file that contains configuration.
-    #[must_use]
-    pub fn unset_config_file(mut self) -> Self {
-        tracing::trace!("unsetting config file");
-        self.config_file = None;
-        self
-    }
-
-    /// Unset the command that will be run.
-    #[must_use]
-    pub fn unset_command(mut self) -> Self {
-        tracing::trace!("unsetting command");
-        self.command = None;
-        self
-    }
-
-    /// Set whether to force the command to run despite possible failed checks.
-    #[must_use]
-    pub fn unset_force(mut self) -> Self {
-        tracing::trace!("unsetting force");
-        self.force = false;
         self
     }
 
@@ -469,44 +433,6 @@ mod tests {
             let cmd = Command::Validate;
             builder = builder.set_command(cmd.clone());
             assert_eq!(Some(cmd), builder.command, "command should now be set");
-        }
-
-        #[test]
-        fn builder_saves_root_unsets_correctly() {
-            let mut builder = Builder::new();
-            let path = PathBuf::from("/testing/saves");
-            builder = builder.set_hoards_root(path.clone());
-            assert_eq!(
-                Some(path),
-                builder.hoards_root,
-                "saves_root should start as set"
-            );
-            builder = builder.unset_hoards_root();
-            assert_eq!(None, builder.hoards_root, "saves_root should now be None");
-        }
-
-        #[test]
-        fn builder_config_file_unsets_correctly() {
-            let mut builder = Builder::new();
-            let path = PathBuf::from("/testing/config.toml");
-            builder = builder.set_config_file(path.clone());
-            assert_eq!(
-                Some(path),
-                builder.config_file,
-                "config_file should start as set"
-            );
-            builder = builder.unset_config_file();
-            assert_eq!(None, builder.config_file, "config_file should now be None");
-        }
-
-        #[test]
-        fn builder_command_unsets_correctly() {
-            let mut builder = Builder::new();
-            let cmd = Command::Validate;
-            builder = builder.set_command(cmd.clone());
-            assert_eq!(Some(cmd), builder.command, "command should start as set");
-            builder = builder.unset_command();
-            assert_eq!(None, builder.command, "command should now be None");
         }
 
         #[test]

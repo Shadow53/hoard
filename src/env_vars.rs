@@ -29,7 +29,10 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.error {
             env::VarError::NotPresent => write!(f, "{}: {}", self.error, self.var),
+            // grcov: ignore-start
+            // I do not think it is worth testing for this error just to get coverage.
             env::VarError::NotUnicode(_) => self.error.fmt(f),
+            // grcov: ignore-end
         }
     }
 }
@@ -82,12 +85,14 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
         }
 
         let range = mat.range();
+        // grcov: ignore-start
         tracing::trace!(
             var,
             path = %new_path,
             %value,
             "expanding first instance of variable in path"
         );
+        // grcov: ignore-end
         new_path.replace_range(range.start + old_start..range.end + old_start, &value);
         if start >= new_path.len() {
             break;
@@ -101,6 +106,7 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error as _;
 
     macro_rules! test_env {
         (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr, require_var: $require_var:literal) => {
@@ -111,10 +117,14 @@ mod tests {
                     panic!("input string {} doesn't contain variable {}", $input, $var);
                 }
 
+                let old_val = std::env::var_os($var);
                 std::env::set_var($var, $value);
                 let expected: PathBuf = $expected;
                 let result = expand_env_in_path($input).expect("failed to expand env in path");
                 assert_eq!(result, expected);
+                if let Some(val) = old_val {
+                    std::env::set_var($var, val);
+                }
             }
         };
         (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr) => {
@@ -244,5 +254,17 @@ mod tests {
         env: "TEST_VAR",
         value: "_",
         expected: PathBuf::from("${WRAPPING_VARIABLE}")
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_error_traits() {
+        let env_error = env::var("DOESNOTEXIST").expect_err("variable should not exist");
+        let error = Error {
+            error: env_error,
+            var: "DOESNOTEXIST".to_string(),
+        };
+        assert!(error.to_string().contains("DOESNOTEXIST"));
+        assert!(error.source().is_some());
     }
 }

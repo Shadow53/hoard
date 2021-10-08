@@ -135,7 +135,7 @@ impl Node {
             let (first, second) = if first < second {
                 (first, second)
             } else {
-                (second, first)
+                (second, first) // grcov: ignore
             };
 
             return Err(Error::DoubleDefine(first.clone(), second.clone()));
@@ -145,11 +145,13 @@ impl Node {
         let value = self.value.or(other.value);
 
         let tree = if self.tree.is_none() || other.tree.is_none() {
+            // grcov: ignore-start
             tracing::trace!(
                 left_tree = ?self.tree,
                 right_tree = ?other.tree,
                 "do not need to merge subtrees"
             );
+            // grcov: ignore-end
             self.tree.or(other.tree)
         } else {
             tracing::trace!("both nodes have subtrees: merging");
@@ -361,9 +363,12 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, Hash
     )
     .entered();
 
+    // grcov: ignore-start
     tracing::trace!(
         "creating a mapping of environment names to mutually exclusive other environments"
     );
+    // grcov: ignore-end
+
     exclusivity_list
         .iter()
         .map(|list| {
@@ -392,12 +397,15 @@ impl EnvTrie {
         let weighted_map = get_weighted_map(exclusive_list)?;
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
+        // grcov: ignore-start
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
         tracing::trace!(
             ?exclusivity_map,
             ?weighted_map,
             "building trees for each environment string"
         );
+        // grcov: ignore-end
+
         let trees: Vec<_> = envs
             .iter()
             .map(|(env_str, path)| {

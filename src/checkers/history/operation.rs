@@ -132,9 +132,9 @@ impl HoardOperation {
         let _span = tracing::trace_span!("file_is_log", ?path).entered();
         let result = path.is_file()
             && match path.file_name() {
-                None => false,
+                None => false, // grcov: ignore
                 Some(name) => match name.to_str() {
-                    None => false,
+                    None => false, // grcov: ignore
                     Some(name) => LOG_FILE_REGEX.is_match(name),
                 },
             };
@@ -195,7 +195,12 @@ impl HoardOperation {
                 let left = left?;
                 let right = right?;
                 if left.timestamp > right.timestamp {
+                    // grcov: ignore-start
+                    // This branch doesn't seem to be taken by tests, at least locally.
+                    // I don't know of a way to force this branch to be taken and it is simple
+                    // enough that I feel comfortable marking it ignored.
                     Ok(left)
+                    // grcov: ignore-end
                 } else {
                     Ok(right)
                 }
@@ -281,6 +286,7 @@ impl TryFrom<&ConfigHoard> for Hoard {
 #[serde(rename_all = "kebab-case")]
 pub enum Checksum {
     /// An MD5 checksum. Fast but may have collisions.
+    #[serde(rename = "md5")]
     MD5(String),
 }
 
@@ -415,7 +421,7 @@ pub fn cleanup_operations() -> Result<u32, (u32, Error)> {
                             files.remove(index);
                         }
                     }
-                }
+                } // grcov: ignore
 
                 Ok(files)
             }).collect::<Result<Vec<_>, _>>()
@@ -438,4 +444,25 @@ pub fn cleanup_operations() -> Result<u32, (u32, Error)> {
             Ok((count + 1, res2.map_err(|err| (count, err.into()))?))
         })
         .map(|(count, _)| count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_test::{assert_tokens, Token};
+
+    #[test]
+    fn test_checksum_derives() {
+        let checksum = Checksum::MD5("legit checksum".to_string());
+        assert!(format!("{:?}", checksum).contains("MD5"));
+        assert_eq!(checksum, checksum.clone());
+        assert_tokens(
+            &checksum,
+            &[
+                Token::Enum { name: "Checksum" },
+                Token::Str("md5"),
+                Token::Str("legit checksum"),
+            ],
+        );
+    }
 }

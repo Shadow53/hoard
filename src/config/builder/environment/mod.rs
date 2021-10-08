@@ -37,11 +37,13 @@ pub enum Error {
     },
 }
 
+// grcov: ignore-start
 impl From<Infallible> for Error {
     fn from(_: Infallible) -> Self {
         unimplemented!("this should never happen");
     }
 }
+// grcov: ignore-end
 
 /// A combination of conditions that make up a single Environment.
 ///

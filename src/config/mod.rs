@@ -55,6 +55,15 @@ pub enum Error {
     /// An error occurred while checking against remote operations.
     #[error("error while checking against recent remote operations: {0}")]
     Operation(#[from] HoardOperationError),
+    /// An error occurred while cleaning up log files.
+    #[error("error after cleaning up {success_count} log files: {error}")]
+    Cleanup {
+        /// The number of files successfully cleaned.
+        success_count: u32,
+        /// The error that occurred.
+        #[source]
+        error: crate::checkers::history::operation::Error,
+    },
 }
 
 /// A (processed) configuration.
@@ -167,8 +176,11 @@ impl Config {
             }
             Command::Cleanup => match crate::checkers::history::operation::cleanup_operations() {
                 Ok(count) => tracing::info!("cleaned up {} log files", count),
-                Err((count, err)) => {
-                    tracing::error!("error occurred after cleaning up {} files: {}", count, err);
+                Err((count, error)) => {
+                    return Err(Error::Cleanup {
+                        success_count: count,
+                        error,
+                    });
                 }
             },
             Command::Backup { hoards } => {

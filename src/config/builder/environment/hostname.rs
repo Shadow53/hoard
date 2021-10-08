@@ -17,11 +17,13 @@ impl TryInto<bool> for Hostname {
         let Hostname(expected) = self;
         let host = hostname::get().map_err(super::Error::Hostname)?;
 
+        // grcov: ignore-start
         tracing::trace!(
             hostname = host.to_string_lossy().as_ref(),
             %expected,
             "checking if system hostname matches expected",
         );
+        // grcov: ignore-end
 
         Ok(host == expected.as_str())
     }
