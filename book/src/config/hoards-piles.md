@@ -37,6 +37,33 @@ The following rules determine which path to use for a pile:
     "baz" = "/some/different/path/second"
 ```
 
+## Environment Variables
+
+Paths may contain environment variables. Environment variables *must* be written as `${ENVVAR}`,
+where `ENVVAR` is the environment variable. As an example, the following hoard could be used
+to back up a user's `Documents` folder on Linux and Windows.
+
+```toml
+[hoards.documents]
+    "linux" = "${HOME}/Documents"
+    "windows" = "${USERPROFILE}/Documents"
+```
+
+For the user `myuser`, this expands to the following:
+
+```toml
+[hoards.documents]
+    "linux" = "/home/myuser/Documents"
+    "windows" = "C:/Users/myuser/Documents"
+```
+
+If the environment variable does not exist (i.e. is not defined), an error is returned and
+the operation is canceled.
+
+### Limitations
+
+1. There is no support for default values, i.e. `${MYVAR:-"/some/default"}`
+
 ## Pile Configuration
 
 Pile configuration can be defined at three different levels:
