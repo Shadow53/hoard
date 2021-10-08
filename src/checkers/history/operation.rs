@@ -188,14 +188,19 @@ impl HoardOperation {
                 path.map(|path| HoardOperation::from_file(&path))?
             })
             .filter_map(|operation| match operation {
-                Err(err) => Some(Err(err)), // grcov: ignore
+                Err(err) => Some(Err(err)),
                 Ok(operation) => (!backups_only || operation.is_backup).then(|| Ok(operation)),
             })
             .reduce(|left, right| {
                 let left = left?;
                 let right = right?;
                 if left.timestamp > right.timestamp {
+                    // grcov: ignore-start
+                    // This branch doesn't seem to be taken by tests, at least locally.
+                    // I don't know of a way to force this branch to be taken and it is simple
+                    // enough that I feel comfortable marking it ignored.
                     Ok(left)
+                    // grcov: ignore-end
                 } else {
                     Ok(right)
                 }
@@ -451,10 +456,13 @@ mod tests {
         let checksum = Checksum::MD5("legit checksum".to_string());
         assert!(format!("{:?}", checksum).contains("MD5"));
         assert_eq!(checksum, checksum.clone());
-        assert_tokens(&checksum, &[
-            Token::Enum { name: "Checksum" },
-            Token::Str("md5"),
-            Token::Str("legit checksum"),
-        ]);
+        assert_tokens(
+            &checksum,
+            &[
+                Token::Enum { name: "Checksum" },
+                Token::Str("md5"),
+                Token::Str("legit checksum"),
+            ],
+        );
     }
 }

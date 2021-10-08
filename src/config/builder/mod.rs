@@ -184,10 +184,12 @@ impl Builder {
     /// Set the directory that will contain all game save data.
     #[must_use]
     pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
+        // grcov: ignore-start
         tracing::trace!(
             hoards_root = ?path,
-            "setting hoards root", // grcov: ignore
+            "setting hoards root",
         );
+        // grcov: ignore-end
         self.hoards_root = Some(path);
         self
     }
@@ -198,10 +200,12 @@ impl Builder {
     /// instead, which will actually read and parse the file.
     #[must_use]
     pub fn set_config_file(mut self, path: PathBuf) -> Self {
+        // grcov: ignore-start
         tracing::trace!(
             config_file = ?path,
-            "setting config file", // grcov: ignore
+            "setting config file",
         );
+        // grcov: ignore-end
         self.config_file = Some(path);
         self
     }
@@ -393,7 +397,7 @@ mod tests {
             assert_eq!(
                 expected,
                 Builder::new(),
-                "ConfigBuild::new() should have all None fields" // grcov: ignore
+                "ConfigBuild::new() should have all None fields"
             );
         }
 
@@ -407,12 +411,12 @@ mod tests {
             assert_eq!(
                 some,
                 none.clone().layer(some.clone()),
-                "Some fields atop None prefers Some" // grcov: ignore
+                "Some fields atop None prefers Some"
             );
             assert_eq!(
                 some,
                 some.clone().layer(none),
-                "None fields atop Some prefers Some" // grcov: ignore
+                "None fields atop Some prefers Some"
             );
         }
 
@@ -424,12 +428,12 @@ mod tests {
             assert_eq!(
                 layer2,
                 layer1.clone().layer(layer2.clone()),
-                "layer() should prefer the argument" // grcov: ignore
+                "layer() should prefer the argument"
             );
             assert_eq!(
                 layer1,
                 layer2.layer(layer1.clone()),
-                "layer() should prefer the argument" // grcov: ignore
+                "layer() should prefer the argument"
             );
         }
 
@@ -442,7 +446,7 @@ mod tests {
             assert_eq!(
                 Some(path),
                 builder.hoards_root,
-                "saves_root should now be set" // grcov: ignore
+                "saves_root should now be set"
             );
         }
 
@@ -451,14 +455,14 @@ mod tests {
             let mut builder = Builder::new();
             assert_eq!(
                 None, builder.config_file,
-                "config_file should start as None" // grcov: ignore
+                "config_file should start as None"
             );
             let path = PathBuf::from("/testing/config.toml");
             builder = builder.set_config_file(path.clone());
             assert_eq!(
                 Some(path),
                 builder.config_file,
-                "config_file should now be set" // grcov: ignore
+                "config_file should now be set"
             );
         }
 

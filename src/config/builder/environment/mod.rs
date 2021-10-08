@@ -37,11 +37,13 @@ pub enum Error {
     },
 }
 
+// grcov: ignore-start
 impl From<Infallible> for Error {
-    fn from(_: Infallible) -> Self {                // grcov: ignore
-        unimplemented!("this should never happen"); // grcov: ignore
+    fn from(_: Infallible) -> Self {
+        unimplemented!("this should never happen");
     }
 }
+// grcov: ignore-end
 
 /// A combination of conditions that make up a single Environment.
 ///
@@ -254,7 +256,7 @@ mod tests {
 
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err), // grcov: ignore
+                err => panic!("unexpected error: {}", err),
             }
         }
 
@@ -278,7 +280,7 @@ mod tests {
                 .expect_err("expecting two hostnames at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err), // grcov: ignore
+                err => panic!("unexpected error: {}", err),
             }
         }
 
@@ -320,7 +322,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err), // grcov: ignore
+                err => panic!("unexpected error: {}", err),
             }
         }
 
@@ -344,7 +346,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err), // grcov: ignore
+                err => panic!("unexpected error: {}", err),
             }
         }
 

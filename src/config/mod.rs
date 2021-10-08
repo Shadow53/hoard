@@ -55,6 +55,15 @@ pub enum Error {
     /// An error occurred while checking against remote operations.
     #[error("error while checking against recent remote operations: {0}")]
     Operation(#[from] HoardOperationError),
+    /// An error occurred while cleaning up log files.
+    #[error("error after cleaning up {success_count} log files: {error}")]
+    Cleanup {
+        /// The number of files successfully cleaned.
+        success_count: u32,
+        /// The error that occurred.
+        #[source]
+        error: crate::checkers::history::operation::Error,
+    },
 }
 
 /// A (processed) configuration.
@@ -167,8 +176,11 @@ impl Config {
             }
             Command::Cleanup => match crate::checkers::history::operation::cleanup_operations() {
                 Ok(count) => tracing::info!("cleaned up {} log files", count),
-                Err((count, err)) => {
-                    tracing::error!("error occurred after cleaning up {} files: {}", count, err);
+                Err((count, error)) => {
+                    return Err(Error::Cleanup {
+                        success_count: count,
+                        error,
+                    });
                 }
             },
             Command::Backup { hoards } => {
@@ -196,7 +208,7 @@ impl Config {
                 let mut checkers = Checkers::new(&hoards, false)?;
                 if !self.force {
                     checkers.check()?;
-                } // grcov: ignore
+                }
 
                 for (name, hoard) in hoards {
                     let prefix = self.get_prefix(name);
@@ -276,7 +288,7 @@ mod tests {
         assert_eq!(
             Config::builder(),
             Builder::new(),
-            "Config::builder should return an unmodified new Builder" // grcov: ignore
+            "Config::builder should return an unmodified new Builder"
         );
     }
 
@@ -285,7 +297,7 @@ mod tests {
         assert_eq!(
             Some(Config::default()),
             Builder::new().build().ok(),
-            "Config::default should be the same as a built unmodified Builder" // grcov: ignore
+            "Config::default should be the same as a built unmodified Builder"
         );
     }
 
@@ -295,7 +307,7 @@ mod tests {
         assert_eq!(
             config.get_config_file_path(),
             config.config_file,
-            "should return config file path" // grcov: ignore
+            "should return config file path"
         );
     }
 
@@ -305,7 +317,7 @@ mod tests {
         assert_eq!(
             config.get_hoards_root_path(),
             config.hoards_root,
-            "should return saves root path" // grcov: ignore
+            "should return saves root path"
         );
     }
 }

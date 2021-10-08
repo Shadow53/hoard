@@ -14,8 +14,8 @@ fn test_results_in_indecision() {
                 hashset! { left, right },
                 hashset! { "foo".into(), "baz".into() }
             ),
-            _ => panic!("Unexpected error: {}", err), // grcov: ignore
+            _ => panic!("Unexpected error: {}", err),
         },
-        _ => panic!("Unexpected error: {}", err), // grcov: ignore
+        _ => panic!("Unexpected error: {}", err),
     }
 }

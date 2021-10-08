@@ -22,11 +22,13 @@ impl TryInto<bool> for OperatingSystem {
 
     fn try_into(self) -> Result<bool, Self::Error> {
         let OperatingSystem(expected) = self;
+        // grcov: ignore-start
         tracing::trace!(
             os = std::env::consts::OS,
             %expected,
             "checking if current operating system matches expected",
         );
+        // grcov: ignore-end
         Ok(expected == std::env::consts::OS)
     }
 }

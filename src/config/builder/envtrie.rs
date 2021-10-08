@@ -135,7 +135,7 @@ impl Node {
             let (first, second) = if first < second {
                 (first, second)
             } else {
-                (second, first)
+                (second, first) // grcov: ignore
             };
 
             return Err(Error::DoubleDefine(first.clone(), second.clone()));
@@ -145,11 +145,13 @@ impl Node {
         let value = self.value.or(other.value);
 
         let tree = if self.tree.is_none() || other.tree.is_none() {
+            // grcov: ignore-start
             tracing::trace!(
                 left_tree = ?self.tree,
                 right_tree = ?other.tree,
-                "do not need to merge subtrees" // grcov: ignore
+                "do not need to merge subtrees"
             );
+            // grcov: ignore-end
             self.tree.or(other.tree)
         } else {
             tracing::trace!("both nodes have subtrees: merging");
@@ -361,9 +363,12 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> HashMap<String, Hash
     )
     .entered();
 
+    // grcov: ignore-start
     tracing::trace!(
         "creating a mapping of environment names to mutually exclusive other environments"
     );
+    // grcov: ignore-end
+
     exclusivity_list
         .iter()
         .map(|list| {
@@ -392,12 +397,15 @@ impl EnvTrie {
         let weighted_map = get_weighted_map(exclusive_list)?;
         let exclusivity_map = get_exclusivity_map(exclusive_list);
 
+        // grcov: ignore-start
         // Building a list of linked lists that represent paths from the root of a tree to a leaf.
         tracing::trace!(
             ?exclusivity_map,
             ?weighted_map,
             "building trees for each environment string"
         );
+        // grcov: ignore-end
+
         let trees: Vec<_> = envs
             .iter()
             .map(|(env_str, path)| {
@@ -459,7 +467,7 @@ impl EnvTrie {
             .fold(first, |acc, node| {
                 // TODO: Use result flattening when stable
                 match acc {
-                    Err(err) => Err(err), // grcov: ignore
+                    Err(err) => Err(err),
                     Ok(acc_node) => acc_node.merge_with(node),
                 }
             })
@@ -506,25 +514,25 @@ mod tests {
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {
-            return false; // grcov: ignore
+            return false;
         }
 
         match (&trie.tree, &expected.tree) {
             (None, None) => true,
-            (None, Some(_)) | (Some(_), None) => false, // grcov: ignore
+            (None, Some(_)) | (Some(_), None) => false,
             (Some(tree1), Some(tree2)) => {
                 if tree1.len() != tree2.len() {
-                    return false; // grcov: ignore
+                    return false;
                 }
 
                 for (key, node1) in tree1.iter() {
                     let equal = match tree2.get(key) {
-                        None => false, // grcov: ignore
+                        None => false,
                         Some(node2) => node_eq_ignore_score(node1, node2),
                     };
 
                     if !equal {
-                        return false; // grcov: ignore
+                        return false;
                     }
                 }
 
@@ -544,18 +552,18 @@ mod tests {
                 let expected: Result<EnvTrie, Error> = $result;
 
                 match (res, expected) {
-                    (Ok(trie), Err(err)) => { // grcov: ignore
-                        panic!("expected error\n{:#?},\ngot trie\n{:#?}", err, trie) // grcov: ignore
+                    (Ok(trie), Err(err)) => {
+                        panic!("expected error\n{:#?},\ngot trie\n{:#?}", err, trie)
                     }
-                    (Err(err), Ok(trie)) => { // grcov: ignore
-                        panic!("expected trie\n{:#?},\ngot error\n{:#?}", trie, err) // grcov: ignore
+                    (Err(err), Ok(trie)) => {
+                        panic!("expected trie\n{:#?},\ngot error\n{:#?}", trie, err)
                     }
                     (Ok(EnvTrie(node1)), Ok(EnvTrie(node2))) => if !node_eq_ignore_score(&node1, &node2) {
-                        panic!("received trie did not match expected\nReceived: {:#?}\nExpected: {:#?}", node1, node2) // grcov: ignore
+                        panic!("received trie did not match expected\nReceived: {:#?}\nExpected: {:#?}", node1, node2)
                     },
                     (Err(err), Err(exp)) => assert_eq!(
                         err, exp,
-                        "received (left) error does not match expected (right) error" // grcov: ignore
+                        "received (left) error does not match expected (right) error"
                     ),
                 }
             }

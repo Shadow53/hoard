@@ -59,7 +59,10 @@ mod tests {
 
     #[test]
     fn test_invalid_glob() {
-        let config = Config { encryption: None, ignore: vec!["invalid**".to_string()] };
+        let config = Config {
+            encryption: None,
+            ignore: vec!["invalid**".to_string()],
+        };
         let err = IgnoreFilter::new(&config).expect_err("glob pattern should be invalid");
         let Error::InvalidGlob { pattern, .. } = err;
         assert_eq!(&pattern, config.ignore.first().unwrap());
@@ -67,7 +70,10 @@ mod tests {
 
     #[test]
     fn test_error_derives() {
-        let config = Config { encryption: None, ignore: vec!["invalid**".to_string()] };
+        let config = Config {
+            encryption: None,
+            ignore: vec!["invalid**".to_string()],
+        };
         let err = IgnoreFilter::new(&config).expect_err("glob pattern should be invalid");
         assert!(format!("{:?}", err).contains("InvalidGlob"));
         assert!(err.source().is_some());
@@ -77,11 +83,17 @@ mod tests {
     #[test]
     fn test_filter_derives() {
         let filter = {
-            let config = Config { encryption: None, ignore: vec!["testing/**".to_string()] };
+            let config = Config {
+                encryption: None,
+                ignore: vec!["testing/**".to_string()],
+            };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
         let other = {
-            let config = Config { encryption: None, ignore: vec!["test/**".to_string()] };
+            let config = Config {
+                encryption: None,
+                ignore: vec!["test/**".to_string()],
+            };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
         assert!(format!("{:?}", filter).contains("IgnoreFilter"));
