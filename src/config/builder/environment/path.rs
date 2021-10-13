@@ -1,20 +1,49 @@
 //! See [`PathExists`].
 
-use serde::{Deserialize, Serialize};
+use crate::env_vars::expand_env_in_path;
+use serde::{de, Deserialize, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
 use std::path::PathBuf;
 
+struct PathExistsVisitor;
+
+impl de::Visitor<'_> for PathExistsVisitor {
+    type Value = PathExists;
+
+    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+        formatter.write_str("a path that may or may not contain environment variables")
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        expand_env_in_path(s)
+            .map(PathExists)
+            .map_err(de::Error::custom)
+    }
+}
+
 /// A conditional structure that tests whether or not the contained path exists.
 ///
 /// The path can be anything from a file, directory, symbolic link, or otherwise, so long as
 /// *something* with that name exists.
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
+#[derive(Clone, PartialEq, Debug, Hash, Serialize)]
 #[serde(transparent)]
 #[repr(transparent)]
 #[allow(clippy::module_name_repetitions)]
 pub struct PathExists(pub PathBuf);
+
+impl<'de> Deserialize<'de> for PathExists {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(PathExistsVisitor)
+    }
+}
 
 impl TryInto<bool> for PathExists {
     type Error = Infallible;
@@ -36,6 +65,7 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_test::{assert_de_tokens, assert_tokens, Token};
     use std::fs;
     use tempfile::{tempdir, NamedTempFile};
 
@@ -75,5 +105,22 @@ mod tests {
             .try_into()
             .expect("failed to check if path exists");
         assert!(!exists);
+    }
+
+    #[test]
+    fn test_custom_deserialize() {
+        let path_str = "/test/path/example";
+        let path = PathExists(PathBuf::from(path_str));
+        assert_tokens(&path, &[Token::Str(path_str)]);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_env_is_expanded_in_path() {
+        std::env::set_var("HOARD_TEST_ENV", "hoard-test");
+        let path_with_env = "/test/path/${HOARD_TEST_ENV}/leaf";
+        let path_resolved = "/test/path/hoard-test/leaf";
+        let path = PathExists(PathBuf::from(path_resolved));
+        assert_de_tokens(&path, &[Token::Str(path_with_env)]);
     }
 }
