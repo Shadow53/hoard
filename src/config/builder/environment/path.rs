@@ -1,7 +1,7 @@
 //! See [`PathExists`].
 
 use crate::env_vars::expand_env_in_path;
-use serde::{Deserialize, Serialize, de};
+use serde::{de, Deserialize, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
@@ -16,7 +16,10 @@ impl de::Visitor<'_> for PathExistsVisitor {
         formatter.write_str("a path that may or may not contain environment variables")
     }
 
-    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E> where E: de::Error {
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
         expand_env_in_path(s)
             .map(PathExists)
             .map_err(de::Error::custom)
@@ -36,7 +39,8 @@ pub struct PathExists(pub PathBuf);
 impl<'de> Deserialize<'de> for PathExists {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de> {
+        D: serde::Deserializer<'de>,
+    {
         deserializer.deserialize_str(PathExistsVisitor)
     }
 }
@@ -61,9 +65,9 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_test::{assert_de_tokens, assert_tokens, Token};
     use std::fs;
     use tempfile::{tempdir, NamedTempFile};
-    use serde_test::{Token, assert_tokens, assert_de_tokens};
 
     #[test]
     fn test_file_does_exist() {
@@ -107,9 +111,7 @@ mod tests {
     fn test_custom_deserialize() {
         let path_str = "/test/path/example";
         let path = PathExists(PathBuf::from(path_str));
-        assert_tokens(&path, &[
-            Token::Str(path_str)
-        ]);
+        assert_tokens(&path, &[Token::Str(path_str)]);
     }
 
     #[test]
@@ -119,8 +121,6 @@ mod tests {
         let path_with_env = "/test/path/${HOARD_TEST_ENV}/leaf";
         let path_resolved = "/test/path/hoard-test/leaf";
         let path = PathExists(PathBuf::from(path_resolved));
-        assert_de_tokens(&path, &[
-            Token::Str(path_with_env)
-        ]);
+        assert_de_tokens(&path, &[Token::Str(path_with_env)]);
     }
 }
