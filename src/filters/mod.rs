@@ -17,7 +17,7 @@ pub trait Filter: Sized {
     /// Any errors that may occur while creating the new filter.
     fn new(pile_config: &Config) -> Result<Self, Self::Error>;
     /// Whether or not the file should be kept (backed up).
-    fn keep(&self, path: &Path) -> bool;
+    fn keep(&self, prefix: &Path, path: &Path) -> bool;
 }
 
 /// Any errors that may occur while filtering.
@@ -42,8 +42,9 @@ impl Filter for Filters {
         Ok(Self { ignore })
     }
 
-    fn keep(&self, path: &Path) -> bool {
-        self.ignore.keep(path)
+    fn keep(&self, prefix: &Path, path: &Path) -> bool {
+        let _span = tracing::trace_span!("run_filters", ?prefix, ?path).entered();
+        self.ignore.keep(prefix, path)
     }
 }
 

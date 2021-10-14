@@ -28,7 +28,7 @@
     dependencies = ["build-nightly"]
     script = """
     mkdir -p ./profraw
-    sudo docker image build . -t hoard-tests
+    sudo docker image build . -t hoard-tests --no-cache
     echo "Running tests"
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
     echo "Ran tests"

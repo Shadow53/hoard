@@ -75,15 +75,16 @@ impl Pile {
     /// # Errors
     ///
     /// Various sorts of I/O errors as the different [`Error`] variants.
-    fn copy(filters: Option<&Filters>, src: &Path, dest: &Path) -> Result<(), Error> {
+    fn copy(filters: Option<&Filters>, root_prefix: &Path, src: &Path, dest: &Path) -> Result<(), Error> {
         let _span = tracing::trace_span!(
             "copy",
             source = ?src,
-            destination = ?dest
+            destination = ?dest,
+            ?root_prefix,
         )
         .entered();
 
-        if !filters.as_ref().map_or(true, |filters| filters.keep(src)) {
+        if !filters.as_ref().map_or(true, |filters| filters.keep(root_prefix, src)) {
             // File should be ignored (not kept), so do nothing.
             tracing::trace!(path=%src.display(), "ignoring path based on filters");
             return Ok(());
@@ -116,7 +117,7 @@ impl Pile {
 
                 let dest = dest.join(item.file_name());
                 // No tracing event here because we are recursing
-                Self::copy(filters, &item.path(), &dest)?;
+                Self::copy(filters, root_prefix, &item.path(), &dest)?;
             }
         } else if src.is_file() {
             let _span = tracing::trace_span!("is_file").entered();
@@ -174,7 +175,7 @@ impl Pile {
 
             let filter = self.config.as_ref().map(Filters::new).transpose()?;
 
-            Self::copy(filter.as_ref(), path, prefix)?;
+            Self::copy(filter.as_ref(), path, path, prefix)?;
         } else {
             tracing::warn!("pile has no associated path -- perhaps no environment matched?");
         }
@@ -197,7 +198,7 @@ impl Pile {
             )
             .entered();
 
-            Self::copy(None, prefix, path)?;
+            Self::copy(None, prefix, prefix, path)?;
         } else {
             tracing::warn!("pile has no associated path -- perhaps no environment matched");
         }

@@ -16,7 +16,7 @@ exclusivity = [
     env = [{ var = "HOME" }]
 
 [config]
-    ignore = ["*global*"]
+    ignore = ["global*"]
 
 [hoards]
 [hoards.anon_dir]

@@ -47,8 +47,15 @@ impl Filter for IgnoreFilter {
             .map(|globs| IgnoreFilter { globs })
     }
 
-    fn keep(&self, path: &std::path::Path) -> bool {
-        self.globs.iter().all(|glob| !glob.matches_path(path))
+    fn keep(&self, prefix: &std::path::Path, path: &std::path::Path) -> bool {
+        let _span = tracing::trace_span!("ignore_filter", ?prefix, ?path).entered();
+        tracing::trace!("stripping {:?} from {:?}", prefix, path);
+        let rel_path = path.strip_prefix(prefix).unwrap_or(path);
+        self.globs.iter().all(|glob| {
+            let matches = glob.matches_path(rel_path);
+            tracing::trace!("{:?} matches glob {:?}: {}", rel_path, glob, matches);
+            !matches
+        })
     }
 }
 

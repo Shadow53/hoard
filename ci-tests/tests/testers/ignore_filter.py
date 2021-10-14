@@ -26,6 +26,8 @@ class IgnoreFilterTester(HoardTester):
     def run_test(self):
         # Run hoard
         self.run_hoard("backup")
+        # Run again to be sure
+        self.run_hoard("backup")
 
         # Delete unexpected files for assert_same_tree
         # Named dir1 pile should ignore all
@@ -38,23 +40,16 @@ class IgnoreFilterTester(HoardTester):
         os.remove(self.anon_dir_root.joinpath(self.global_file))
 
         # Assert trees
-        home = Path.home()
         data_dir = self.data_dir_path()
         self.assert_same_tree(
-            home.joinpath("first_anon_dir"),
+            self.anon_dir_root,
             data_dir.joinpath("hoards", "anon_dir"),
-            extra_files=[self.pile_file, self.hoard_file, self.nested_file]
         )
         self.assert_same_tree(
-            home.joinpath("first_named_dir1"),
+            self.named_dir1_root,
             data_dir.joinpath("hoards", "named", "dir1"),
-            # The file name should match the glob ".hidden",
-            # but the path should not match because it is not in the root
-            # of the pile directory.
-            extra_files=[self.nested_file]
         )
         self.assert_same_tree(
-            home.joinpath("first_named_dir2"),
+            self.named_dir2_root,
             data_dir.joinpath("hoards", "named", "dir2"),
-            extra_files=[self.pile_file, self.nested_file]
         )
