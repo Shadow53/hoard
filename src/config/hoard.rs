@@ -75,7 +75,12 @@ impl Pile {
     /// # Errors
     ///
     /// Various sorts of I/O errors as the different [`Error`] variants.
-    fn copy(filters: Option<&Filters>, root_prefix: &Path, src: &Path, dest: &Path) -> Result<(), Error> {
+    fn copy(
+        filters: Option<&Filters>,
+        root_prefix: &Path,
+        src: &Path,
+        dest: &Path,
+    ) -> Result<(), Error> {
         let _span = tracing::trace_span!(
             "copy",
             source = ?src,
@@ -84,7 +89,10 @@ impl Pile {
         )
         .entered();
 
-        if !filters.as_ref().map_or(true, |filters| filters.keep(root_prefix, src)) {
+        if !filters
+            .as_ref()
+            .map_or(true, |filters| filters.keep(root_prefix, src))
+        {
             // File should be ignored (not kept), so do nothing.
             tracing::trace!(path=%src.display(), "ignoring path based on filters");
             return Ok(());
