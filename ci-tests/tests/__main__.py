@@ -52,7 +52,6 @@ if __name__ == "__main__":
         elif sys.argv[1] == "ignore":
             print("Running ignore filter test")
             IgnoreFilterTester().run_test()
-            subprocess.run(["tree", "-a", str(Path.home())])
         elif sys.argv[1] == "cleanup":
             print("Running cleanup test")
             LogCleanupTester().run_test()
