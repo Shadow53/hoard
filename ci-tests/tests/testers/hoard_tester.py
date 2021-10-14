@@ -128,26 +128,25 @@ class HoardTester(ABC):
         assert cls.config_file_path().is_file()
 
     @classmethod
-    def assert_same_tree(cls, root1, root2, *, extra_files=None):
-        if Path(root1).is_file():
+    def assert_same_tree(cls, root1, root2):
+        root1 = Path(root1)
+        root2 = Path(root2)
+        if root1.is_file():
             if not filecmp.cmp(root1, root2, shallow=False):
                 raise RuntimeError(f"content of files {root1} and {root2} differ")
-        elif Path(root1).is_dir():
-            direntries = ["1", "2", "3"]
-            if extra_files is not None:
-                direntries.extend(extra_files)
+        elif root1.is_dir():
+            comparison = filecmp.dircmp(root1, root2)
+            if comparison.diff_files is not None and len(comparison.diff_files) > 0:
+                raise AssertionError(f"files differ in {root1} and {root2}: {comparison.diff_files}")
 
-            matches, mismatches, errors = filecmp.cmpfiles(
-                root1, root2, direntries, shallow=False
-            )
-            if errors:
-                raise RuntimeError(
-                    f"could not check {errors} inside {root1} and/or {root2}"
-                )
-            if mismatches:
-                raise RuntimeError(
-                    f"contents of files {mismatches} in {root1} and {root2} differ"
-                )
+            if comparison.left_only is not None and len(comparison.left_only) > 0:
+                raise AssertionError(f"files only in {root1}: {comparison.left_only}")
+
+            if comparison.right_only is not None and len(comparison.right_only) > 0:
+                raise AssertionError(f"files only in {root2}: {comparison.right_only}")
+
+            for subdir in comparison.common_dirs:
+                cls.assert_same_tree(root1.joinpath(subdir), root2.joinpath(subdir))
 
     @classmethod
     def assert_first_tree(cls):
