@@ -89,6 +89,11 @@ impl Pile {
         )
         .entered();
 
+        if !src.exists() {
+            tracing::warn!(path=?src, "source path does not exist; skipping");
+            return Ok(())
+        }
+
         if !filters
             .as_ref()
             .map_or(true, |filters| filters.keep(root_prefix, src))
