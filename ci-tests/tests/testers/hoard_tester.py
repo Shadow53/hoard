@@ -101,16 +101,15 @@ class HoardTester(ABC):
             content = secrets.token_bytes(size)
             file.write(content)
 
-    @classmethod
-    def reset(cls):
+    def reset(self, config_file="config.toml"):
         home = Path.home()
 
         try:
-            shutil.rmtree(cls.data_dir_path())
+            shutil.rmtree(self.data_dir_path())
         except FileNotFoundError:
             pass
 
-        config_parent = cls.config_file_path().parent
+        config_parent = self.config_file_path().parent
         try:
             shutil.rmtree(config_parent)
         except FileNotFoundError:
@@ -121,11 +120,11 @@ class HoardTester(ABC):
                 if item is HoardFile.AnonDir or item is HoardFile.NamedDir1 or item is HoardFile.NamedDir2:
                     continue
                 path = home.joinpath(f"{env}_{item}")
-                cls.generate_file(path)
+                self.generate_file(path)
         os.makedirs(config_parent, exist_ok=True)
-        config_file_src = Path.cwd().joinpath("ci-tests", "config.toml")
-        shutil.copy2(config_file_src, cls.config_file_path())
-        assert cls.config_file_path().is_file()
+        config_file_src = Path.cwd().joinpath("ci-tests", config_file)
+        shutil.copy2(config_file_src, self.config_file_path())
+        assert self.config_file_path().is_file()
 
     @classmethod
     def assert_same_tree(cls, root1, root2):
@@ -198,20 +197,24 @@ class HoardTester(ABC):
             data_dir.joinpath(HOARDS_DIRNAME, "named", "file"),
         )
 
-    def run_hoard(self, command):
+    def run_hoard(self, command, allow_failure=False, capture_output=False):
         # Run the specified hoard command
         # Should automatically operate on all hoards when targets is empty
         for key, val in self.env.items():
             os.environ[key] = val
 
-        args = ["target/debug/hoard"]
+        args = ["target/debug/hoard", "--config-file", self.config_file_path()]
         if self.force:
             args.append("--force")
         args.append(command)
         args += self.targets
 
-        subprocess.run(args, check=True)
+        result = subprocess.run(args, check=(not allow_failure), capture_output=capture_output)
+        if capture_output:
+            sys.stdout.buffer.write(result.stdout)
+            sys.stderr.buffer.write(result.stderr)
         sys.stdout.flush()
+        return result
 
     @classmethod
     def _read_file(cls, path, *, is_binary=True):
