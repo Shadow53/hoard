@@ -91,7 +91,7 @@ impl Pile {
 
         if !src.exists() {
             tracing::warn!(path=?src, "source path does not exist; skipping");
-            return Ok(())
+            return Ok(());
         }
 
         if !filters
