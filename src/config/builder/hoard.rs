@@ -60,9 +60,10 @@ pub enum Encryption {
 
 /// Hoard/Pile configuration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     /// The [`Encryption`] configuration for a pile.
-    #[serde(flatten)]
+    #[serde(default)]
     pub encryption: Option<Encryption>,
     /// A list of glob patterns matching files to ignore.
     #[serde(default)]

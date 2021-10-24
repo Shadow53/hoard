@@ -23,6 +23,8 @@ pub mod environment;
 pub mod envtrie;
 pub mod hoard;
 
+const CONFIG_KEY: &str = "config";
+
 /// Errors that can happen when using a [`Builder`].
 #[derive(Debug, Error)]
 pub enum Error {
@@ -38,6 +40,12 @@ pub enum Error {
     /// Error while determining which paths to use for configured hoards.
     #[error("failed to process hoard configuration: {0}")]
     ProcessHoard(#[from] hoard::Error),
+    /// The item "config" is not allowed at the given config location.
+    #[error("the name \"config\" is not allowed at: {0:?}")]
+    NameConfigNotAllowed(Vec<String>),
+    /// The item "config" is allowed but was not the expected type.
+    #[error("expected \"config\" to be a pile config: at {0:?}")]
+    ConfigWrongType(Vec<String>),
 }
 
 /// Intermediate data structure to build a [`Config`](crate::config::Config).
@@ -115,7 +123,67 @@ impl Builder {
     pub fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::debug!("reading configuration from \"{}\"", path.to_string_lossy());
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
-        toml::from_str(&s).map_err(Error::DeserializeConfig)
+        // Necessary because Deserialize on enums erases any errors returned by each variant.
+        let toml_value: toml::Value = toml::from_str(&s).map_err(Error::DeserializeConfig)?;
+        Self::validate_config_map(toml_value.clone())?;
+        toml_value.try_into().map_err(Error::DeserializeConfig)
+    }
+
+    fn ensure_config_not_exists(context: &[String], map: &toml::value::Table) -> Result<(), Error> {
+        if map.get(CONFIG_KEY).is_some() {
+            let mut context = context.to_vec();
+            context.push(CONFIG_KEY.into());
+            return Err(Error::NameConfigNotAllowed(context));
+        }
+
+        Ok(())
+    }
+
+    fn ensure_config_is_valid(context: &[String], config: toml::Value) -> Result<(), Error> {
+        if config.try_into::<'_, PileConfig>().is_err() {
+            let mut context = context.to_vec();
+            context.push(CONFIG_KEY.into());
+            return Err(Error::ConfigWrongType(context));
+        }
+
+        Ok(())
+    }
+
+    /// Currently only checks that the name "config" isn't being used in unexpected ways.
+    fn validate_config_map(config: toml::Value) -> Result<(), Error> {
+        tracing::trace!("validating that there a no invalid items named \"config\"");
+        let _span = tracing::trace_span!("validate_config_map").entered();
+        if let toml::Value::Table(mut table) = config {
+            if let Some(toml::Value::Table(envs)) = table.remove("envs") {
+                Self::ensure_config_not_exists(&["envs".into()], &envs)?;
+            }
+
+            if let Some(toml::Value::Table(hoards)) = table.remove("hoards") {
+                let mut context = vec!["hoards".into()];
+                Self::ensure_config_not_exists(&context, &hoards)?;
+
+                for (key, value) in hoards {
+                    context.push(key);
+                    if let toml::Value::Table(mut hoard) = value {
+                        if let Some(config) = hoard.remove(CONFIG_KEY) {
+                            Self::ensure_config_is_valid(&context, config)?;
+                        }
+                        for (key, value) in hoard {
+                            context.push(key);
+                            if let toml::Value::Table(mut pile) = value {
+                                if let Some(config) = pile.remove(CONFIG_KEY) {
+                                    Self::ensure_config_is_valid(&context, config)?;
+                                }
+                            }
+                            context.pop();
+                        }
+                    }
+                    context.pop();
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Helper method to process command-line arguments and the config file specified on CLI
@@ -267,7 +335,7 @@ impl Builder {
         tracing::debug!(?hoards_root);
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
         tracing::debug!(?config_file);
-        let command = self.command.unwrap_or_else(Command::default);
+        let command = self.command.unwrap_or_default();
         tracing::debug!(?command);
         let force = self.force;
         tracing::debug!(?force);

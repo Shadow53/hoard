@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "hoard"
-version = "0.2.0"
+version = "0.3.1-prerelease"
 dependencies = [
  "chrono",
  "directories",
