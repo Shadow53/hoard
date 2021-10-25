@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::{fs, io};
 use thiserror::Error;
+use time::OffsetDateTime;
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -139,7 +140,7 @@ impl Default for LastPaths {
 /// hoard.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HoardPaths {
-    timestamp: chrono::DateTime<chrono::Utc>,
+    timestamp: OffsetDateTime,
     piles: PilePaths,
 }
 
@@ -192,7 +193,7 @@ where
 {
     fn from(val: T) -> Self {
         Self {
-            timestamp: chrono::offset::Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             piles: val.into(),
         }
     }
@@ -201,7 +202,7 @@ where
 impl HoardPaths {
     /// Get the timestamp of the last operation on this hoard.
     #[must_use]
-    pub fn time(&self) -> &chrono::DateTime<chrono::Utc> {
+    pub fn time(&self) -> &OffsetDateTime {
         &self.timestamp
     }
 

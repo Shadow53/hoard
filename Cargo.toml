@@ -11,7 +11,6 @@ repository = "https://github.com/Shadow53/hoard"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = { version = "0.4", features = ["serde"] }
 directories = "3.0.1"
 glob = "0.3"
 hostname = "0.3"
@@ -23,9 +22,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3.21"
 thiserror = "1.0.24"
+time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
 toml = "0.5.8"
 tracing = "0.1"
-tracing-subscriber = { version = "0.2", features = ["ansi"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 which = "4.1"
 
