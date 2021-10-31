@@ -1,0 +1,8 @@
+[envs.valid]
+    env = []
+
+[hoards.invalid_named_pile]
+[hoards.invalid_named_pile.config]
+    "valid" = "/tmp"
+#[hoards.invalid_named_pile.other]
+    #"valid" = "/tmp/something"

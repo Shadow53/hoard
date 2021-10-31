@@ -18,9 +18,16 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
+use time::format_description::FormatItem;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
-const TIME_FORMAT_STR: &str = "%Y_%m_%d-%H_%M_%S%.6f";
+static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
+    time::format_description::parse(
+        "[year]_[month]_[day]-[hour repr:24]_[minute]_[second].[subsecond digits:6]",
+    )
+    .unwrap()
+});
 static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new("^[0-9]{4}(_[0-9]{2}){2}-([0-9]{2}_){2}([0-9]{2})\\.[0-9]{6}\\.log$")
         .expect("invalid log file regex")
@@ -29,6 +36,9 @@ static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Errors that may occur while working with operation logs.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Failed to format a datetime.
+    #[error("failed to format the current datetime: {0}")]
+    FormatDatetime(#[from] time::error::Format),
     /// Any I/O error.
     #[error("an I/O error occurred: {0}")]
     IO(#[from] io::Error),
@@ -49,7 +59,7 @@ pub enum Error {
 #[allow(clippy::module_name_repetitions)]
 pub struct HoardOperation {
     /// Timestamp of last operation
-    timestamp: chrono::DateTime<chrono::Utc>,
+    timestamp: OffsetDateTime,
     /// Whether this operation was a backup
     is_backup: bool,
     /// The name of the hoard for this `HoardOperation`.
@@ -63,7 +73,7 @@ impl Checker for HoardOperation {
 
     fn new(name: &str, hoard: &ConfigHoard, is_backup: bool) -> Result<Self, Self::Error> {
         Ok(Self {
-            timestamp: chrono::Utc::now(),
+            timestamp: OffsetDateTime::now_utc(),
             is_backup,
             hoard_name: name.into(),
             hoard: Hoard::try_from(hoard)?,
@@ -118,7 +128,12 @@ impl Checker for HoardOperation {
         let id = super::get_or_generate_uuid()?;
         let path = super::get_history_dir_for_id(id)
             .join(&self.hoard_name)
-            .join(format!("{}.log", self.timestamp.format(TIME_FORMAT_STR)));
+            .join(format!(
+                "{}.log",
+                self.timestamp
+                    .format(&TIME_FORMAT)
+                    .map_err(Error::FormatDatetime)?
+            ));
         tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
         path.parent().map(fs::create_dir_all).transpose()?;
         let file = fs::File::create(path)?;
@@ -241,7 +256,7 @@ impl HoardOperation {
                 (None, Some(right)) => Ok(Some(right)),
                 (None, None) => Ok(None),
                 (Some(left), Some(right)) => {
-                    if left.timestamp.timestamp() > right.timestamp.timestamp() {
+                    if left.timestamp > right.timestamp {
                         Ok(Some(left))
                     } else {
                         Ok(Some(right))

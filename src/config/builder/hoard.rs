@@ -34,23 +34,23 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SymmetricEncryption {
     /// Raw password.
-    #[serde(rename = "encrypt_pass")]
+    #[serde(rename = "password")]
     Password(String),
     /// Command whose first line of output to stdout is the password.
-    #[serde(rename = "encrypt_pass_cmd")]
+    #[serde(rename = "password_cmd")]
     PasswordCmd(Vec<String>),
 }
 
 /// Configuration for asymmetric (public key) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AsymmetricEncryption {
-    #[serde(rename = "encrypt_pub_key")]
+    #[serde(rename = "public_key")]
     public_key: String,
 }
 
 /// Configuration for hoard/pile encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "encrypt", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum Encryption {
     /// Symmetric encryption.
     Symmetric(SymmetricEncryption),
@@ -60,9 +60,10 @@ pub enum Encryption {
 
 /// Hoard/Pile configuration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     /// The [`Encryption`] configuration for a pile.
-    #[serde(flatten)]
+    #[serde(default, rename = "encrypt")]
     pub encryption: Option<Encryption>,
     /// A list of glob patterns matching files to ignore.
     #[serde(default)]
@@ -363,15 +364,25 @@ mod tests {
                     Token::Map { len: None },
                     Token::Str("config"),
                     Token::Some,
-                    Token::Map { len: None },
+                    Token::Struct {
+                        name: "Config",
+                        len: 2,
+                    },
                     Token::Str("encrypt"),
+                    Token::Some,
+                    Token::Struct {
+                        name: "AsymmetricEncryption",
+                        len: 2,
+                    },
+                    Token::Str("type"),
                     Token::Str("asymmetric"),
-                    Token::Str("encrypt_pub_key"),
+                    Token::Str("public_key"),
                     Token::Str("public key"),
+                    Token::StructEnd,
                     Token::Str("ignore"),
                     Token::Seq { len: Some(0) },
                     Token::SeqEnd,
-                    Token::MapEnd,
+                    Token::StructEnd,
                     Token::Str("bar_env|foo_env"),
                     Token::Str("/some/path"),
                     Token::MapEnd,
@@ -436,15 +447,22 @@ mod tests {
                     Token::Map { len: None },
                     Token::Str("config"),
                     Token::Some,
-                    Token::Map { len: None },
+                    Token::Struct {
+                        name: "Config",
+                        len: 2,
+                    },
                     Token::Str("encrypt"),
+                    Token::Some,
+                    Token::Map { len: Some(2) },
+                    Token::Str("type"),
                     Token::Str("symmetric"),
-                    Token::Str("encrypt_pass"),
+                    Token::Str("password"),
                     Token::Str("correcthorsebatterystaple"),
+                    Token::MapEnd,
                     Token::Str("ignore"),
                     Token::Seq { len: Some(0) },
                     Token::SeqEnd,
-                    Token::MapEnd,
+                    Token::StructEnd,
                     Token::Str("item1"),
                     Token::Map { len: None },
                     Token::Str("config"),

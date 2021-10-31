@@ -1,0 +1,6 @@
+[envs.ci]
+    env = [{ var = "CI" }]
+
+# invalid hoard name
+[hoards.config]
+    "ci" = "/does/not/exist"
