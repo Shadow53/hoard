@@ -10,7 +10,8 @@
 
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{expand_env_in_path, Error as EnvError};
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -58,6 +59,32 @@ pub enum Encryption {
     Asymmetric(AsymmetricEncryption),
 }
 
+#[allow(single_use_lifetimes)]
+fn deserialize_glob<'de, D>(deserializer: D) -> Result<Vec<glob::Pattern>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Vec::<String>::deserialize(deserializer)?
+        .iter()
+        .map(String::as_str)
+        .map(glob::Pattern::new)
+        .collect::<Result<_, _>>()
+        .map_err(D::Error::custom)
+}
+
+#[allow(clippy::ptr_arg)]
+fn serialize_glob<S>(value: &Vec<glob::Pattern>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let value = value
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
+
+    value.serialize(serializer)
+}
+
 /// Hoard/Pile configuration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -66,8 +93,12 @@ pub struct Config {
     #[serde(default, rename = "encrypt")]
     pub encryption: Option<Encryption>,
     /// A list of glob patterns matching files to ignore.
-    #[serde(default)]
-    pub ignore: Vec<String>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_glob",
+        serialize_with = "serialize_glob"
+    )]
+    pub ignore: Vec<glob::Pattern>,
 }
 
 impl Config {
@@ -233,7 +264,7 @@ mod tests {
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
-                ignore: vec!["ignore me".into()],
+                ignore: vec![glob::Pattern::new("ignore me").unwrap()],
             });
             let old_specific = specific.clone();
             let general = None;
@@ -248,7 +279,7 @@ mod tests {
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
-                ignore: vec!["ignore me".into()],
+                ignore: vec![glob::Pattern::new("ignore me").unwrap()],
             });
             Config::layer_options(&mut specific, general.as_ref());
             assert_eq!(specific, general);
@@ -260,14 +291,20 @@ mod tests {
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
-                ignore: vec!["ignore me".into(), "duplicate".into()],
+                ignore: vec![
+                    glob::Pattern::new("ignore me").unwrap(),
+                    glob::Pattern::new("duplicate").unwrap(),
+                ],
             });
             let old_specific = specific.clone();
             let general = Some(Config {
                 encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                     public_key: "somekey".into(),
                 })),
-                ignore: vec!["me too".into(), "duplicate".into()],
+                ignore: vec![
+                    glob::Pattern::new("me too").unwrap(),
+                    glob::Pattern::new("duplicate").unwrap(),
+                ],
             });
             Config::layer_options(&mut specific, general.as_ref());
             assert!(specific.is_some());
@@ -278,9 +315,9 @@ mod tests {
             assert_eq!(
                 specific.unwrap().ignore,
                 vec![
-                    "duplicate".to_string(),
-                    "ignore me".to_string(),
-                    "me too".to_string()
+                    glob::Pattern::new("duplicate").unwrap(),
+                    glob::Pattern::new("ignore me").unwrap(),
+                    glob::Pattern::new("me too").unwrap(),
                 ]
             );
         }
@@ -320,7 +357,7 @@ mod tests {
     mod serde {
         use super::*;
         use maplit::hashmap;
-        use serde_test::{assert_tokens, Token};
+        use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 
         #[test]
         fn single_entry_no_config() {
@@ -471,6 +508,56 @@ mod tests {
                     Token::Str("/some/path"),
                     Token::MapEnd,
                     Token::MapEnd,
+                ],
+            );
+        }
+
+        #[test]
+        fn test_invalid_glob() {
+            assert_de_tokens_error::<Config>(
+                &[
+                    Token::Struct {
+                        name: "Config",
+                        len: 2,
+                    },
+                    Token::Str("encrypt"),
+                    Token::None,
+                    Token::Str("ignore"),
+                    Token::Seq { len: Some(2) },
+                    Token::Str("**/valid*"),
+                    Token::Str("invalid**"),
+                    Token::SeqEnd,
+                    Token::StructEnd,
+                ],
+                "Pattern syntax error near position 6: recursive wildcards must form a single path component",
+            );
+        }
+
+        #[test]
+        fn test_valid_globs() {
+            let config = Config {
+                encryption: None,
+                ignore: vec![
+                    glob::Pattern::new("**/valid*").unwrap(),
+                    glob::Pattern::new("*/also_valid/**").unwrap(),
+                ],
+            };
+
+            assert_tokens::<Config>(
+                &config,
+                &[
+                    Token::Struct {
+                        name: "Config",
+                        len: 2,
+                    },
+                    Token::Str("encrypt"),
+                    Token::None,
+                    Token::Str("ignore"),
+                    Token::Seq { len: Some(2) },
+                    Token::Str("**/valid*"),
+                    Token::Str("*/also_valid/**"),
+                    Token::SeqEnd,
+                    Token::StructEnd,
                 ],
             );
         }
