@@ -34,17 +34,9 @@ impl Filter for IgnoreFilter {
     type Error = Error;
 
     fn new(pile_config: &Config) -> Result<Self, Self::Error> {
-        pile_config
-            .ignore
-            .iter()
-            .map(|pattern| {
-                Pattern::new(pattern).map_err(|error| Error::InvalidGlob {
-                    pattern: pattern.clone(),
-                    error,
-                })
-            })
-            .collect::<Result<_, _>>()
-            .map(|globs| IgnoreFilter { globs })
+        Ok(IgnoreFilter {
+            globs: pile_config.ignore.clone(),
+        })
     }
 
     fn keep(&self, prefix: &std::path::Path, path: &std::path::Path) -> bool {
@@ -62,44 +54,20 @@ impl Filter for IgnoreFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error::Error as _;
-
-    #[test]
-    fn test_invalid_glob() {
-        let config = Config {
-            encryption: None,
-            ignore: vec!["invalid**".to_string()],
-        };
-        let err = IgnoreFilter::new(&config).expect_err("glob pattern should be invalid");
-        let Error::InvalidGlob { pattern, .. } = err;
-        assert_eq!(&pattern, config.ignore.first().unwrap());
-    }
-
-    #[test]
-    fn test_error_derives() {
-        let config = Config {
-            encryption: None,
-            ignore: vec!["invalid**".to_string()],
-        };
-        let err = IgnoreFilter::new(&config).expect_err("glob pattern should be invalid");
-        assert!(format!("{:?}", err).contains("InvalidGlob"));
-        assert!(err.source().is_some());
-        assert!(err.to_string().contains("invalid glob pattern"));
-    }
 
     #[test]
     fn test_filter_derives() {
         let filter = {
             let config = Config {
                 encryption: None,
-                ignore: vec!["testing/**".to_string()],
+                ignore: vec![Pattern::new("testing/**").unwrap()],
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
         let other = {
             let config = Config {
                 encryption: None,
-                ignore: vec!["test/**".to_string()],
+                ignore: vec![Pattern::new("test/**").unwrap()],
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
