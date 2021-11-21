@@ -13,4 +13,4 @@ edition = "2021"
 preferred-dark-theme = "ayu"
 mathjax-support = false
 cname = "hoard.shadow53.dev"
-edit-url-template = "https://github.com/Shadow53/hoard/edit/master/{path}"
+edit-url-template = "https://github.com/Shadow53/hoard/edit/main/book/{path}"
