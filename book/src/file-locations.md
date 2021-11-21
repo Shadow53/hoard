@@ -12,7 +12,7 @@ configuration data.
 
 - Linux/BSD: `$XDG_CONFIG_HOME/hoard/` or `$HOME/.config/hoard/`
 - macos: `$HOME/Library/Application Support/com.shadow53.hoard/`
-- Windows: `C:\Users\$USER\AppData\Roaming\shadow53\hoard\`
+- Windows: `%AppData%\shadow53\hoard\`
 
 ### Config File
 
@@ -34,7 +34,7 @@ synchronized with the hoard files.
 
 - Linux/BSD: `$XDG_DATA_HOME/hoard/` or `/home/$USER/.local/share/hoard/`
 - macos: `$HOME/Library/Application Support/com.shadow53.hoard/`
-- Windows: `C:\Users\$USER\AppData\Roaming\shadow53\hoard\data\`
+- Windows: `%AppData%\shadow53\hoard\data\`
 
 ### Hoard Files
 
