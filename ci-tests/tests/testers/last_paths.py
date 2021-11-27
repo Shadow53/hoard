@@ -4,6 +4,7 @@ import subprocess
 
 class LastPathsTester(HoardTester):
     def __init__(self):
+        super().__init__()
         # Do setup
         self.reset()
 

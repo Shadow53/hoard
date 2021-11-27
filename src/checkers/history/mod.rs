@@ -68,7 +68,7 @@ fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<PathBuf>, io::Error> {
 /// writing the UUID file.
 pub fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
     let uuid_file = get_uuid_file();
-    let _span = tracing::debug_span!("get_uuid", file = ?uuid_file);
+    let _span = tracing::debug_span!("get_or_generate_uuid", file = ?uuid_file);
 
     tracing::debug!("attempting to read uuid from file");
     let id: Option<Uuid> = match fs::read_to_string(&uuid_file) {
@@ -98,6 +98,10 @@ pub fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
         || {
             let new_id = Uuid::new_v4();
             tracing::debug!(new_uuid = %new_id, "generated new uuid");
+            if let Err(err) = fs::create_dir_all(uuid_file.parent().expect("uuid file should always have a parent directory")) {
+                tracing::error!(error = %err, "error while create parent dir");
+                return Err(err);
+            }
             if let Err(err) = fs::write(&uuid_file, new_id.to_string()) {
                 tracing::error!(error = %err, "error while saving uuid to file");
                 return Err(err);

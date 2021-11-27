@@ -7,6 +7,7 @@ import subprocess
 
 class LogCleanupTester(HoardTester):
     def __init__(self):
+        super().__init__()
         self.reset()
         self.env = {"USE_ENV": "1"}
         self.system1 = str(uuid4())
