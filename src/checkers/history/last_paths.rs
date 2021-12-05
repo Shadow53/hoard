@@ -33,7 +33,7 @@ pub enum Error {
 }
 
 /// Collection of the last paths matched per hoard.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LastPaths(HashMap<String, HoardPaths>);
 
 fn get_last_paths_file_path() -> Result<PathBuf, io::Error> {
@@ -124,12 +124,6 @@ impl LastPaths {
         };
 
         serde_json::from_reader(reader).map_err(Into::into)
-    }
-}
-
-impl Default for LastPaths {
-    fn default() -> Self {
-        Self(HashMap::new())
     }
 }
 

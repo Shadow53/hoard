@@ -98,7 +98,11 @@ pub fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
         || {
             let new_id = Uuid::new_v4();
             tracing::debug!(new_uuid = %new_id, "generated new uuid");
-            if let Err(err) = fs::create_dir_all(uuid_file.parent().expect("uuid file should always have a parent directory")) {
+            if let Err(err) = fs::create_dir_all(
+                uuid_file
+                    .parent()
+                    .expect("uuid file should always have a parent directory"),
+            ) {
                 tracing::error!(error = %err, "error while create parent dir");
                 return Err(err);
             }
