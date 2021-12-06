@@ -364,6 +364,36 @@ mod tests {
     }
 
     #[test]
+    fn test_from_pathbuf() {
+        let path = PathBuf::from("/test/path");
+        let pile_paths = PilePaths::from(path.clone());
+        assert_eq!(pile_paths, PilePaths::Anonymous(Some(path)));
+    }
+
+    #[test]
+    fn test_from_some_pathbuf() {
+        let path = PathBuf::from("/test/path");
+        let pile_paths = PilePaths::from(Some(path.clone()));
+        assert_eq!(pile_paths, PilePaths::Anonymous(Some(path)));
+    }
+
+    #[test]
+    fn test_from_none_pathbuf() {
+        let pile_paths = PilePaths::from(None);
+        assert_eq!(pile_paths, PilePaths::Anonymous(None));
+    }
+
+    #[test]
+    fn test_from_hashmap() {
+        let map = hashmap! {
+            "first".into() => PathBuf::from("/first"),
+            "second".into() => PathBuf::from("/second"),
+        };
+        let pile_paths = PilePaths::from(map.clone());
+        assert_eq!(pile_paths, PilePaths::Named(map));
+    }
+
+    #[test]
     fn test_lastpaths_get_set_hoard() {
         let hoard_paths = anonymous_hoard_paths();
         let mut last_paths = LastPaths::default();
