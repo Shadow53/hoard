@@ -9,6 +9,7 @@ import subprocess
 
 class OperationCheckerTester(HoardTester):
     def __init__(self):
+        super().__init__()
         # Do setup
         self.reset()
         # We are not changing env on this test

@@ -9,6 +9,7 @@ from testers.operations import OperationCheckerTester
 from testers.cleanup import LogCleanupTester
 from testers.hoard_tester import HoardFile, Environment
 from testers.correct_errors import CorrectErrorsTester
+from testers.no_config_dir import MissingConfigDirTester
 
 for var in ["CI", "GITHUB_ACTIONS"]:
     val = os.environ.get(var)
@@ -59,8 +60,12 @@ if __name__ == "__main__":
         elif sys.argv[1] == "errors":
             print("Running errors test")
             CorrectErrorsTester().run_test()
+        elif sys.argv[1] == "missing_config":
+            print("Running missing config dir test")
+            MissingConfigDirTester().run_test()
         elif sys.argv[1] == "all":
             print("Running all tests")
+            MissingConfigDirTester().run_test()
             CorrectErrorsTester().run_test()
             LastPathsTester().run_test()
             IgnoreFilterTester().run_test()

@@ -5,6 +5,7 @@ import os
 
 class IgnoreFilterTester(HoardTester):
     def __init__(self):
+        super().__init__()
         self.reset()
         # We are not changing env on this test
         self.env = {"USE_ENV": "1"}

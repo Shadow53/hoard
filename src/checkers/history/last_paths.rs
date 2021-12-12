@@ -33,7 +33,7 @@ pub enum Error {
 }
 
 /// Collection of the last paths matched per hoard.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LastPaths(HashMap<String, HoardPaths>);
 
 fn get_last_paths_file_path() -> Result<PathBuf, io::Error> {
@@ -124,12 +124,6 @@ impl LastPaths {
         };
 
         serde_json::from_reader(reader).map_err(Into::into)
-    }
-}
-
-impl Default for LastPaths {
-    fn default() -> Self {
-        Self(HashMap::new())
     }
 }
 
@@ -367,6 +361,36 @@ mod tests {
     fn default_lastpaths_is_empty() {
         let last_paths = LastPaths::default();
         assert_eq!(last_paths.0.len(), 0);
+    }
+
+    #[test]
+    fn test_from_pathbuf() {
+        let path = PathBuf::from("/test/path");
+        let pile_paths = PilePaths::from(path.clone());
+        assert_eq!(pile_paths, PilePaths::Anonymous(Some(path)));
+    }
+
+    #[test]
+    fn test_from_some_pathbuf() {
+        let path = PathBuf::from("/test/path");
+        let pile_paths = PilePaths::from(Some(path.clone()));
+        assert_eq!(pile_paths, PilePaths::Anonymous(Some(path)));
+    }
+
+    #[test]
+    fn test_from_none_pathbuf() {
+        let pile_paths = PilePaths::from(None);
+        assert_eq!(pile_paths, PilePaths::Anonymous(None));
+    }
+
+    #[test]
+    fn test_from_hashmap() {
+        let map = hashmap! {
+            "first".into() => PathBuf::from("/first"),
+            "second".into() => PathBuf::from("/second"),
+        };
+        let pile_paths = PilePaths::from(map.clone());
+        assert_eq!(pile_paths, PilePaths::Named(map));
     }
 
     #[test]

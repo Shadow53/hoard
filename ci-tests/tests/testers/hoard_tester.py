@@ -52,9 +52,11 @@ class DataFile(str, Enum):
 
 
 class HoardTester(ABC):
-    env = {}
-    force = False
-    targets = []
+    def __init__(self):
+        self.env = {}
+        self.force = False
+        self.targets = []
+        self.args = []
 
     @classmethod
     def sync(cls):
@@ -203,9 +205,12 @@ class HoardTester(ABC):
         for key, val in self.env.items():
             os.environ[key] = val
 
-        args = ["target/debug/hoard", "--config-file", self.config_file_path()]
+        args = ["target/debug/hoard"]
+        if "--config-file" not in self.args:
+            args += ["--config-file", self.config_file_path()]
         if self.force:
             args.append("--force")
+        args += self.args
         args.append(command)
         args += self.targets
 
@@ -214,6 +219,7 @@ class HoardTester(ABC):
             sys.stdout.buffer.write(result.stdout)
             sys.stderr.buffer.write(result.stderr)
         sys.stdout.flush()
+        sys.stderr.flush()
         return result
 
     @classmethod
