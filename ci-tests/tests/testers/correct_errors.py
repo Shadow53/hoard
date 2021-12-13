@@ -1,3 +1,5 @@
+import os
+
 from .hoard_tester import HoardTester
 
 
@@ -30,11 +32,39 @@ class CorrectErrorsTester(HoardTester):
         assert self.uuid != invalid_id
         assert b'failed to parse uuid in file' in result.stdout
 
+    def _run_invalid_config_extension(self):
+        self.reset()
+        expected_text = b"configuration file must have file extension \""
+
+        # Missing extension
+        old_config_file = self.config_file_path()
+        new_config_file = old_config_file.parent.joinpath(old_config_file.stem)
+        os.rename(old_config_file, new_config_file)
+        self.args = ["--config-file", str(new_config_file)]
+        result = self.run_hoard("validate", allow_failure=True, capture_output=True)
+        assert expected_text in result.stdout
+
+        # Bad extension
+        old_config_file = new_config_file
+        new_config_file = old_config_file.parent.joinpath(f"{old_config_file.stem}.conf")
+        os.rename(old_config_file, new_config_file)
+        self.args = ["--config-file", str(new_config_file)]
+        result = self.run_hoard("validate", allow_failure=True, capture_output=True)
+        self.args = []
+        assert expected_text in result.stdout
+
+    def _run_missing_config(self):
+        self.reset()
+        os.remove(self.config_file_path())
+        result = self.run_hoard("validate", allow_failure=True, capture_output=True)
+        assert b"could not find any of config." in result.stdout
+
     def run_test(self):
         self._run_missing_parent_test()
         self._run_pile_named_config_test()
         self._run_env_string_named_config_test()
         self._run_hoard_named_config_test()
         self._run_warn_on_invalid_uuid()
-
+        self._run_invalid_config_extension()
+        self._run_missing_config()
 

@@ -54,7 +54,7 @@ pub enum Error {
     #[error("expected \"config\" to be a pile config: at {0:?}")]
     ConfigWrongType(Vec<String>),
     /// The given file has no or invalid file extension
-    #[error("configuration file must have file extension of \".toml\", \".yaml\", or \".yml\": {0}")]
+    #[error("configuration file must have file extension \".toml\", \".yaml\", or \".yml\": {0}")]
     InvalidExtension(PathBuf),
 }
 
@@ -85,7 +85,7 @@ impl Value {
         }
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item=(String, Value)> + '_> {
+    fn iter_map(&self) -> Box<dyn Iterator<Item=(String, Value)> + '_> {
         match self {
             Value::Toml(toml::Value::Table(table)) => Box::new(table.iter().map(|(key, val)| (key.clone(), Value::Toml(val.clone())))),
             Value::Yaml(serde_yaml::Value::Mapping(map)) => Box::new(map.iter().filter_map(|(key, val)| key.as_str().map(|key| (key.to_owned(), Value::Yaml(val.clone()))))),
@@ -223,13 +223,13 @@ impl Builder {
                 let mut context = vec!["hoards".into()];
                 Self::ensure_config_not_exists(&context, &hoards)?;
 
-                for (key, hoard) in hoards.iter() {
+                for (key, hoard) in hoards.iter_map() {
                     if hoard.is_map() {
                         context.push(key);
                         if let Some(config) = hoard.get(CONFIG_KEY) {
                             Self::ensure_config_is_valid(&context, config)?;
                         }
-                        for (key, pile) in hoard.iter() {
+                        for (key, pile) in hoard.iter_map() {
                             context.push(key);
                             if pile.is_map() {
                                 if let Some(config) = pile.get(CONFIG_KEY) {
@@ -616,6 +616,49 @@ mod tests {
             assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
             assert_eq!(Some(config.command), builder.command);
+        }
+    }
+
+    mod test_value {
+        // This provides coverage for the base cases where something is not a map
+        // The integration tests provide coverage for the map cases.
+        use super::*;
+
+        fn yaml_value() -> Value {
+            Value::Yaml(serde_yaml::Value::String("string value".into()))
+        }
+
+        fn toml_value() -> Value {
+            Value::Toml(toml::Value::Array(vec![toml::Value::Integer(0), toml::Value::Integer(1), toml::Value::Integer(2)]))
+        }
+
+        #[test]
+        fn test_value_is_map() {
+            assert!(!yaml_value().is_map());
+            assert!(!toml_value().is_map());
+        }
+
+        #[test]
+        fn test_value_get() {
+            assert!(yaml_value().get("0").is_none());
+            assert!(toml_value().get("0").is_none());
+        }
+
+        #[test]
+        fn test_value_has_key() {
+            assert!(!yaml_value().has_key("0"));
+            assert!(!toml_value().has_key("0"));
+        }
+
+        #[test]
+        fn test_value_iter_map() {
+            assert_eq!(0, yaml_value().iter_map().chain(toml_value().iter_map()).count());
+        }
+        
+        #[test]
+        fn test_value_deserialize() {
+            assert_eq!(String::from("string value"), yaml_value().deserialize::<String>().unwrap());
+            assert_eq!(vec![0, 1, 2], toml_value().deserialize::<Vec<i32>>().unwrap());
         }
     }
 }
