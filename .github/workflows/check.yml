@@ -134,6 +134,9 @@ jobs:
           RUSTDOCFLAGS: '-Zinstrument-coverage'
           LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
 
+      - name: Install dependencies
+        run: sudo apt-get install python3-yaml python3-toml
+
       - name: Run Integration Tests
         run: python ci-tests/tests all
         env:
