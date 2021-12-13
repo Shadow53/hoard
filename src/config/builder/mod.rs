@@ -66,13 +66,18 @@ enum Value {
 
 impl Value {
     fn is_map(&self) -> bool {
-        matches!(self, Value::Toml(toml::Value::Table(_)) | Value::Yaml(serde_yaml::Value::Mapping(_)))
+        matches!(
+            self,
+            Value::Toml(toml::Value::Table(_)) | Value::Yaml(serde_yaml::Value::Mapping(_))
+        )
     }
 
     fn has_key(&self, key: &str) -> bool {
         match self {
             Value::Toml(toml::Value::Table(table)) => table.contains_key(key),
-            Value::Yaml(serde_yaml::Value::Mapping(map)) => map.contains_key(&serde_yaml::Value::String(key.to_owned())),
+            Value::Yaml(serde_yaml::Value::Mapping(map)) => {
+                map.contains_key(&serde_yaml::Value::String(key.to_owned()))
+            }
             _ => false,
         }
     }
@@ -80,21 +85,36 @@ impl Value {
     fn get(&self, key: &str) -> Option<Value> {
         match self {
             Value::Toml(toml::Value::Table(table)) => table.get(key).cloned().map(Value::Toml),
-            Value::Yaml(serde_yaml::Value::Mapping(map)) => map.get(&serde_yaml::Value::String(key.to_owned())).cloned().map(Value::Yaml),
+            Value::Yaml(serde_yaml::Value::Mapping(map)) => map
+                .get(&serde_yaml::Value::String(key.to_owned()))
+                .cloned()
+                .map(Value::Yaml),
             _ => None,
         }
     }
 
-    fn iter_map(&self) -> Box<dyn Iterator<Item=(String, Value)> + '_> {
+    fn iter_map(&self) -> Box<dyn Iterator<Item = (String, Value)> + '_> {
         match self {
-            Value::Toml(toml::Value::Table(table)) => Box::new(table.iter().map(|(key, val)| (key.clone(), Value::Toml(val.clone())))),
-            Value::Yaml(serde_yaml::Value::Mapping(map)) => Box::new(map.iter().filter_map(|(key, val)| key.as_str().map(|key| (key.to_owned(), Value::Yaml(val.clone()))))),
+            Value::Toml(toml::Value::Table(table)) => Box::new(
+                table
+                    .iter()
+                    .map(|(key, val)| (key.clone(), Value::Toml(val.clone()))),
+            ),
+            Value::Yaml(serde_yaml::Value::Mapping(map)) => {
+                Box::new(map.iter().filter_map(|(key, val)| {
+                    key.as_str()
+                        .map(|key| (key.to_owned(), Value::Yaml(val.clone())))
+                }))
+            }
             _ => Box::new(None.into_iter()),
         }
     }
 
     #[allow(single_use_lifetimes)]
-    fn deserialize<D>(self) -> Result<D, Error> where D: DeserializeOwned {
+    fn deserialize<D>(self) -> Result<D, Error>
+    where
+        D: DeserializeOwned,
+    {
         match self {
             Value::Toml(t) => t.try_into().map_err(Error::DeserializeTOML),
             Value::Yaml(y) => serde_yaml::from_value(y).map_err(Error::DeserializeYAML),
@@ -141,7 +161,9 @@ impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        super::get_dirs().config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
+        super::get_dirs()
+            .config_dir()
+            .join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 
     /// Returns the default location for storing hoards.
@@ -181,10 +203,14 @@ impl Builder {
         let value = match path.extension().and_then(std::ffi::OsStr::to_str) {
             None => return Err(Error::InvalidExtension(path.to_owned())),
             Some(ext) => match ext {
-                "toml"|"TOML" => toml::from_str(&s).map(Value::Toml).map_err(Error::DeserializeTOML)?,
-                "yaml"|"yml"|"YAML"|"YML" => serde_yaml::from_str(&s).map(Value::Yaml).map_err(Error::DeserializeYAML)?,
-                _ => return Err(Error::InvalidExtension(path.to_owned()))
-            }
+                "toml" | "TOML" => toml::from_str(&s)
+                    .map(Value::Toml)
+                    .map_err(Error::DeserializeTOML)?,
+                "yaml" | "yml" | "YAML" | "YML" => serde_yaml::from_str(&s)
+                    .map(Value::Yaml)
+                    .map_err(Error::DeserializeYAML)?,
+                _ => return Err(Error::InvalidExtension(path.to_owned())),
+            },
         };
         Self::validate_config_map(&value)?;
         value.deserialize()
@@ -215,35 +241,39 @@ impl Builder {
         tracing::trace!("validating that there a no invalid items named \"config\"");
         let _span = tracing::trace_span!("validate_config_map").entered();
         if config.is_map() {
-            config.get("envs").map(|envs| {
-                Self::ensure_config_not_exists(&["envs".into()], &envs)
-            }).transpose()?;
+            config
+                .get("envs")
+                .map(|envs| Self::ensure_config_not_exists(&["envs".into()], &envs))
+                .transpose()?;
 
-            config.get("hoards").map(|hoards| -> Result<(), Error> {
-                let mut context = vec!["hoards".into()];
-                Self::ensure_config_not_exists(&context, &hoards)?;
+            config
+                .get("hoards")
+                .map(|hoards| -> Result<(), Error> {
+                    let mut context = vec!["hoards".into()];
+                    Self::ensure_config_not_exists(&context, &hoards)?;
 
-                for (key, hoard) in hoards.iter_map() {
-                    if hoard.is_map() {
-                        context.push(key);
-                        if let Some(config) = hoard.get(CONFIG_KEY) {
-                            Self::ensure_config_is_valid(&context, config)?;
-                        }
-                        for (key, pile) in hoard.iter_map() {
+                    for (key, hoard) in hoards.iter_map() {
+                        if hoard.is_map() {
                             context.push(key);
-                            if pile.is_map() {
-                                if let Some(config) = pile.get(CONFIG_KEY) {
-                                    Self::ensure_config_is_valid(&context, config)?;
+                            if let Some(config) = hoard.get(CONFIG_KEY) {
+                                Self::ensure_config_is_valid(&context, config)?;
+                            }
+                            for (key, pile) in hoard.iter_map() {
+                                context.push(key);
+                                if pile.is_map() {
+                                    if let Some(config) = pile.get(CONFIG_KEY) {
+                                        Self::ensure_config_is_valid(&context, config)?;
+                                    }
                                 }
+                                context.pop();
                             }
                             context.pop();
                         }
-                        context.pop();
                     }
-                }
 
-                Ok(())
-            }).transpose()?;
+                    Ok(())
+                })
+                .transpose()?;
         }
 
         Ok(())
@@ -629,7 +659,11 @@ mod tests {
         }
 
         fn toml_value() -> Value {
-            Value::Toml(toml::Value::Array(vec![toml::Value::Integer(0), toml::Value::Integer(1), toml::Value::Integer(2)]))
+            Value::Toml(toml::Value::Array(vec![
+                toml::Value::Integer(0),
+                toml::Value::Integer(1),
+                toml::Value::Integer(2),
+            ]))
         }
 
         #[test]
@@ -652,13 +686,25 @@ mod tests {
 
         #[test]
         fn test_value_iter_map() {
-            assert_eq!(0, yaml_value().iter_map().chain(toml_value().iter_map()).count());
+            assert_eq!(
+                0,
+                yaml_value()
+                    .iter_map()
+                    .chain(toml_value().iter_map())
+                    .count()
+            );
         }
-        
+
         #[test]
         fn test_value_deserialize() {
-            assert_eq!(String::from("string value"), yaml_value().deserialize::<String>().unwrap());
-            assert_eq!(vec![0, 1, 2], toml_value().deserialize::<Vec<i32>>().unwrap());
+            assert_eq!(
+                String::from("string value"),
+                yaml_value().deserialize::<String>().unwrap()
+            );
+            assert_eq!(
+                vec![0, 1, 2],
+                toml_value().deserialize::<Vec<i32>>().unwrap()
+            );
         }
     }
 }
