@@ -206,8 +206,6 @@ class HoardTester(ABC):
             os.environ[key] = val
 
         args = ["target/debug/hoard"]
-        if "--config-file" not in self.args:
-            args += ["--config-file", self.config_file_path()]
         if self.force:
             args.append("--force")
         args += self.args

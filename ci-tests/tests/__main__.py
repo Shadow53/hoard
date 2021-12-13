@@ -10,6 +10,8 @@ from testers.cleanup import LogCleanupTester
 from testers.hoard_tester import HoardFile, Environment
 from testers.correct_errors import CorrectErrorsTester
 from testers.no_config_dir import MissingConfigDirTester
+from testers.yaml_support import YAMLSupportTester
+
 
 for var in ["CI", "GITHUB_ACTIONS"]:
     val = os.environ.get(var)
@@ -63,8 +65,12 @@ if __name__ == "__main__":
         elif sys.argv[1] == "missing_config":
             print("Running missing config dir test")
             MissingConfigDirTester().run_test()
+        elif sys.argv[1] == "yaml":
+            print("Running YAML compat tests")
+            YAMLSupportTester().run_test()
         elif sys.argv[1] == "all":
             print("Running all tests")
+            YAMLSupportTester().run_test()
             MissingConfigDirTester().run_test()
             CorrectErrorsTester().run_test()
             LastPathsTester().run_test()
@@ -83,4 +89,12 @@ if __name__ == "__main__":
         subprocess.run(["tree", "-aL", "3", str(Path.home())])
         print_checksums()
         print_logs()
+        print("\n### Configs:")
+        config_dir = LastPathsTester.config_file_path().parent
+        for file in os.listdir(config_dir):
+            file_path = config_dir.joinpath(file)
+            if file_path.is_file():
+                with open(file_path, "r", encoding="utf-8") as opened:
+                    print(f"##### {file_path}\n")
+                    print(opened.read())
         raise

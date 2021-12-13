@@ -5,6 +5,7 @@ use std::convert::TryInto;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -13,7 +14,7 @@ use self::hoard::Hoard;
 use environment::Environment;
 
 use crate::command::Command;
-use crate::CONFIG_FILE_NAME;
+use crate::CONFIG_FILE_STEM;
 use crate::HOARDS_DIR_SLUG;
 
 use self::hoard::Config as PileConfig;
@@ -24,13 +25,19 @@ pub mod envtrie;
 pub mod hoard;
 
 const CONFIG_KEY: &str = "config";
+const DEFAULT_CONFIG_EXT: &str = "toml";
+/// The items are listed in descending order of precedence
+const SUPPORTED_CONFIG_EXTS: [&str; 3] = ["toml", "yaml", "yml"];
 
 /// Errors that can happen when using a [`Builder`].
 #[derive(Debug, Error)]
 pub enum Error {
     /// Error while parsing a TOML configuration file.
-    #[error("failed to parse configuration file: {0}")]
-    DeserializeConfig(toml::de::Error),
+    #[error("failed to parse TOML configuration file: {0}")]
+    DeserializeTOML(toml::de::Error),
+    /// Error while parsing a YAML configuration file.
+    #[error("failed to parse YAML configuration file: {0}")]
+    DeserializeYAML(serde_yaml::Error),
     /// Error while reading from a configuration file.
     #[error("failed to read configuration file: {0}")]
     ReadConfig(io::Error),
@@ -46,6 +53,53 @@ pub enum Error {
     /// The item "config" is allowed but was not the expected type.
     #[error("expected \"config\" to be a pile config: at {0:?}")]
     ConfigWrongType(Vec<String>),
+    /// The given file has no or invalid file extension
+    #[error("configuration file must have file extension of \".toml\", \".yaml\", or \".yml\": {0}")]
+    InvalidExtension(PathBuf),
+}
+
+#[derive(Debug)]
+enum Value {
+    Toml(toml::Value),
+    Yaml(serde_yaml::Value),
+}
+
+impl Value {
+    fn is_map(&self) -> bool {
+        matches!(self, Value::Toml(toml::Value::Table(_)) | Value::Yaml(serde_yaml::Value::Mapping(_)))
+    }
+
+    fn has_key(&self, key: &str) -> bool {
+        match self {
+            Value::Toml(toml::Value::Table(table)) => table.contains_key(key),
+            Value::Yaml(serde_yaml::Value::Mapping(map)) => map.contains_key(&serde_yaml::Value::String(key.to_owned())),
+            _ => false,
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<Value> {
+        match self {
+            Value::Toml(toml::Value::Table(table)) => table.get(key).cloned().map(Value::Toml),
+            Value::Yaml(serde_yaml::Value::Mapping(map)) => map.get(&serde_yaml::Value::String(key.to_owned())).cloned().map(Value::Yaml),
+            _ => None,
+        }
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item=(String, Value)> + '_> {
+        match self {
+            Value::Toml(toml::Value::Table(table)) => Box::new(table.iter().map(|(key, val)| (key.clone(), Value::Toml(val.clone())))),
+            Value::Yaml(serde_yaml::Value::Mapping(map)) => Box::new(map.iter().filter_map(|(key, val)| key.as_str().map(|key| (key.to_owned(), Value::Yaml(val.clone()))))),
+            _ => Box::new(None.into_iter()),
+        }
+    }
+
+    #[allow(single_use_lifetimes)]
+    fn deserialize<D>(self) -> Result<D, Error> where D: DeserializeOwned {
+        match self {
+            Value::Toml(t) => t.try_into().map_err(Error::DeserializeTOML),
+            Value::Yaml(y) => serde_yaml::from_value(y).map_err(Error::DeserializeYAML),
+        }
+    }
 }
 
 /// Intermediate data structure to build a [`Config`](crate::config::Config).
@@ -87,7 +141,7 @@ impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        super::get_dirs().config_dir().join(CONFIG_FILE_NAME)
+        super::get_dirs().config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 
     /// Returns the default location for storing hoards.
@@ -124,13 +178,20 @@ impl Builder {
         tracing::debug!("reading configuration from \"{}\"", path.to_string_lossy());
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
         // Necessary because Deserialize on enums erases any errors returned by each variant.
-        let toml_value: toml::Value = toml::from_str(&s).map_err(Error::DeserializeConfig)?;
-        Self::validate_config_map(toml_value.clone())?;
-        toml_value.try_into().map_err(Error::DeserializeConfig)
+        let value = match path.extension().and_then(std::ffi::OsStr::to_str) {
+            None => return Err(Error::InvalidExtension(path.to_owned())),
+            Some(ext) => match ext {
+                "toml"|"TOML" => toml::from_str(&s).map(Value::Toml).map_err(Error::DeserializeTOML)?,
+                "yaml"|"yml"|"YAML"|"YML" => serde_yaml::from_str(&s).map(Value::Yaml).map_err(Error::DeserializeYAML)?,
+                _ => return Err(Error::InvalidExtension(path.to_owned()))
+            }
+        };
+        Self::validate_config_map(&value)?;
+        value.deserialize()
     }
 
-    fn ensure_config_not_exists(context: &[String], map: &toml::value::Table) -> Result<(), Error> {
-        if map.get(CONFIG_KEY).is_some() {
+    fn ensure_config_not_exists(context: &[String], map: &Value) -> Result<(), Error> {
+        if map.has_key(CONFIG_KEY) {
             let mut context = context.to_vec();
             context.push(CONFIG_KEY.into());
             return Err(Error::NameConfigNotAllowed(context));
@@ -139,8 +200,8 @@ impl Builder {
         Ok(())
     }
 
-    fn ensure_config_is_valid(context: &[String], config: toml::Value) -> Result<(), Error> {
-        if config.try_into::<'_, PileConfig>().is_err() {
+    fn ensure_config_is_valid(context: &[String], config: Value) -> Result<(), Error> {
+        if config.deserialize::<PileConfig>().is_err() {
             let mut context = context.to_vec();
             context.push(CONFIG_KEY.into());
             return Err(Error::ConfigWrongType(context));
@@ -150,37 +211,39 @@ impl Builder {
     }
 
     /// Currently only checks that the name "config" isn't being used in unexpected ways.
-    fn validate_config_map(config: toml::Value) -> Result<(), Error> {
+    fn validate_config_map(config: &Value) -> Result<(), Error> {
         tracing::trace!("validating that there a no invalid items named \"config\"");
         let _span = tracing::trace_span!("validate_config_map").entered();
-        if let toml::Value::Table(mut table) = config {
-            if let Some(toml::Value::Table(envs)) = table.remove("envs") {
-                Self::ensure_config_not_exists(&["envs".into()], &envs)?;
-            }
+        if config.is_map() {
+            config.get("envs").map(|envs| {
+                Self::ensure_config_not_exists(&["envs".into()], &envs)
+            }).transpose()?;
 
-            if let Some(toml::Value::Table(hoards)) = table.remove("hoards") {
+            config.get("hoards").map(|hoards| -> Result<(), Error> {
                 let mut context = vec!["hoards".into()];
                 Self::ensure_config_not_exists(&context, &hoards)?;
 
-                for (key, value) in hoards {
-                    context.push(key);
-                    if let toml::Value::Table(mut hoard) = value {
-                        if let Some(config) = hoard.remove(CONFIG_KEY) {
+                for (key, hoard) in hoards.iter() {
+                    if hoard.is_map() {
+                        context.push(key);
+                        if let Some(config) = hoard.get(CONFIG_KEY) {
                             Self::ensure_config_is_valid(&context, config)?;
                         }
-                        for (key, value) in hoard {
+                        for (key, pile) in hoard.iter() {
                             context.push(key);
-                            if let toml::Value::Table(mut pile) = value {
-                                if let Some(config) = pile.remove(CONFIG_KEY) {
+                            if pile.is_map() {
+                                if let Some(config) = pile.get(CONFIG_KEY) {
                                     Self::ensure_config_is_valid(&context, config)?;
                                 }
                             }
                             context.pop();
                         }
+                        context.pop();
                     }
-                    context.pop();
                 }
-            }
+
+                Ok(())
+            }).transpose()?;
         }
 
         Ok(())
@@ -197,18 +260,48 @@ impl Builder {
         let from_args = Self::from_args();
 
         tracing::trace!("attempting to get configuration file from cli arguments or use default");
-        let config_file = from_args
+        let from_file = from_args
             .config_file
-            .clone()
-            .unwrap_or_else(Self::default_config_file);
+            .as_ref()
+            .map_or_else(|| {
+                SUPPORTED_CONFIG_EXTS.iter()
+                    .find_map(|suffix| {
+                        let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
+                        let path = Self::default_config_file()
+                            .parent()
+                            .expect("default config file should always have a file name")
+                            .join(path);
+                        match Self::from_file(&path) {
+                            Err(Error::ReadConfig(err)) => if let io::ErrorKind::NotFound = err.kind() {
+                                None
+                            } else {
+                                Some(Err(Error::ReadConfig(err)))
+                            },
+                            Ok(config) => Some(Ok(config)),
+                            Err(err) => Some(Err(err)),
+                        }
+                    })
+                    .ok_or_else(|| {
+                        let path = PathBuf::from(CONFIG_FILE_STEM);
+                        Error::ReadConfig(io::Error::new(
+                            io::ErrorKind::NotFound,
+                            format!(
+                                "could not find any of {name}.toml, {name}.yaml, or {name}.yml in {dir}",
+                                name = path.file_stem().expect("default config should always have a file name").to_string_lossy(),
+                                dir = path.parent().expect("default config should always have a parent").to_string_lossy()
+                            )
+                        ))
+                    })?
+            },
+            |config_file| {
+                tracing::trace!(
+                    ?config_file,
+                    "configuration file is \"{}\"",
+                    config_file.to_string_lossy()
+                );
 
-        tracing::trace!(
-            ?config_file,
-            "configuration file is \"{}\"",
-            config_file.to_string_lossy()
-        );
-
-        let from_file = Self::from_file(&config_file)?;
+                Self::from_file(config_file)
+            })?;
 
         tracing::debug!("merging configuration file and cli arguments");
         Ok(from_file.layer(from_args))
