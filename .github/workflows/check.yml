@@ -132,7 +132,7 @@ jobs:
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Zinstrument-coverage'
           RUSTDOCFLAGS: '-Zinstrument-coverage'
-          LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
+          LLVM_PROFILE_FILE: 'profraw/hoard-cargo-tests-%p-%m.profraw'
 
       - name: Install dependencies (Linux)
         run: pip install pyyaml toml
@@ -142,6 +142,7 @@ jobs:
         env:
           # Creates a lot of output but also makes sure all logging receives coverage
           HOARD_LOG: trace
+          LLVM_PROFILE_FILE: 'profraw/hoard-python-tests-%p-%m.profraw'
 
       - name: Run grcov
         run: |
