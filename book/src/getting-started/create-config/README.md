@@ -15,6 +15,9 @@ in hidden folders, so you may have to do some digging to find them.
 
 For the sake of this guide, we will consider three different programs:
 
+> **NOTE:** The examples use TOML as the config file format. Users looking to use YAML should be able to translate 
+> the configuration from TOML. See also [this other note](../../config/).
+
 1. [Hoard itself](./hoard.md)
 2. [Vim and Neovim](./vim.md)
 3. [*Mindustry* and *Death and Taxes*](./games.md)

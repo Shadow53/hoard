@@ -72,8 +72,8 @@ pub mod config;
 pub mod env_vars;
 pub mod filters;
 
-/// The default file name of the configuration file.
-pub const CONFIG_FILE_NAME: &str = "config.toml";
+/// The default file stem of the configuration file (i.e. without file extension).
+pub const CONFIG_FILE_STEM: &str = "config";
 
 /// The name of the directory containing the backed up hoards.
 pub const HOARDS_DIR_SLUG: &str = "hoards";

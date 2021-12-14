@@ -9,6 +9,9 @@ homepage = "https://github.com/Shadow53/hoard"
 repository = "https://github.com/Shadow53/hoard"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["yaml"]
+yaml = ["serde_yaml"]
 
 [dependencies]
 directories = "3.0.1"
@@ -20,6 +23,7 @@ petgraph = "0.5"
 regex = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = { version = "0.8", optional = true }
 structopt = "0.3.21"
 thiserror = "1.0.24"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }

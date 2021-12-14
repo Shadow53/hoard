@@ -7,8 +7,8 @@ using the `config_dir` and the `data_dir` of the `ProjectDirs` struct.
 
 ## Config Directory
 
-The configuration directory holds the configuration file (`config.toml`) as well as other local-only
-configuration data.
+The configuration directory holds the configuration file (`config.toml`, `config.yaml`, or `config.yml`) as well as 
+other local-only configuration data.
 
 - Linux/BSD: `$XDG_CONFIG_HOME/hoard/` or `$HOME/.config/hoard/`
 - macos: `$HOME/Library/Application Support/com.shadow53.hoard/`
