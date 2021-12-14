@@ -135,7 +135,7 @@ jobs:
           LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
 
       - name: Install dependencies (Linux)
-        run: sudo apt-get install python3-yaml python3-toml
+        run: pip install pyyaml toml
 
       - name: Run Integration Tests
         run: python ci-tests/tests all
@@ -201,17 +201,16 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Install dependencies (macos)
+      - name: Install tree (macos)
         if: matrix.os == 'macos-latest'
-        run: brew install tree && pip install pyyaml toml
+        run: brew install tree
 
-      - name: Install dependencies (windows)
+      - name: Install tree (windows)
         if: matrix.os == 'windows-latest'
-        run: choco install tree && pip install pyyaml toml
+        run: choco install tree
 
-      - name: Install dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install python3-yaml python3-toml
+      - name: Install Python dependencies
+        run: pip install pyyaml toml
 
       - name: Test Last Paths
         run: python ci-tests/tests last_paths
