@@ -134,7 +134,7 @@ jobs:
           RUSTDOCFLAGS: '-Zinstrument-coverage'
           LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
 
-      - name: Install dependencies
+      - name: Install dependencies (Linux)
         run: sudo apt-get install python3-yaml python3-toml
 
       - name: Run Integration Tests
@@ -201,13 +201,17 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Install tree (macos)
+      - name: Install dependencies (macos)
         if: matrix.os == 'macos-latest'
-        run: brew install tree
+        run: brew install tree && pip install pyyaml toml
 
-      - name: Install tree (windows)
+      - name: Install dependencies (windows)
         if: matrix.os == 'windows-latest'
-        run: choco install tree
+        run: choco install tree && pip install pyyaml toml
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install python3-yaml python3-toml
 
       - name: Test Last Paths
         run: python ci-tests/tests last_paths
