@@ -61,12 +61,20 @@ impl<'writer> FormatFields<'writer> for Formatter {
         fields.record(&mut visitor);
 
         let empty_prefix_newline = format!("\n{}", EMPTY_PREFIX);
-        let longest_name_len = visitor.fields.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
+        let longest_name_len = visitor
+            .fields
+            .iter()
+            .map(|(name, _)| name.len())
+            .max()
+            .unwrap_or(0);
         let fields = visitor
             .fields
             .iter()
             .map(|(name, value)| {
-                let value = value.split('\n').collect::<Vec<_>>().join(&empty_prefix_newline);
+                let value = value
+                    .split('\n')
+                    .collect::<Vec<_>>()
+                    .join(&empty_prefix_newline);
                 if is_terse {
                     format!("{}={}", name, value)
                 } else {
