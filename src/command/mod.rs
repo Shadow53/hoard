@@ -28,6 +28,8 @@ pub enum Command {
         /// The name(s) of the hoard(s) to restore. Will restore all hoards if empty.
         hoards: Vec<String>,
     },
+    /// List configured hoards
+    List,
 }
 
 impl Default for Command {
@@ -41,7 +43,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_command_is_help() {
+    fn default_command_is_validate() {
         // The default command is validate if one is not given
         assert_eq!(Command::Validate, Command::default());
     }

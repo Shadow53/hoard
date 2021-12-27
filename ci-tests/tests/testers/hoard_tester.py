@@ -119,9 +119,13 @@ class HoardTester(ABC):
 
         for env in list(Environment):
             for item in list(HoardFile):
-                if item is HoardFile.AnonDir or item is HoardFile.NamedDir1 or item is HoardFile.NamedDir2:
-                    continue
                 path = home.joinpath(f"{env}_{item}")
+                if item is HoardFile.AnonDir or item is HoardFile.NamedDir1 or item is HoardFile.NamedDir2:
+                    try:
+                        shutil.rmtree(path)
+                    except FileNotFoundError:
+                        pass
+                    continue
                 self.generate_file(path)
         os.makedirs(config_parent, exist_ok=True)
         config_file_src = Path.cwd().joinpath("ci-tests", config_file)

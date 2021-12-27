@@ -111,11 +111,11 @@ impl Config {
     ///
     /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
     pub fn load() -> Result<Self, Error> {
-        tracing::info!("loading configuration...");
+        tracing::debug!("loading configuration...");
         let config = Builder::from_args_then_file()
             .map(Builder::build)?
             .map_err(Error::Builder)?;
-        tracing::info!("loaded configuration.");
+        tracing::debug!("loaded configuration.");
         Ok(config)
     }
 
@@ -174,6 +174,12 @@ impl Config {
             Command::Validate => {
                 tracing::info!("configuration is valid");
             }
+            Command::List => {
+                let mut hoards: Vec<&str> = self.hoards.keys().map(String::as_str).collect();
+                hoards.sort_unstable();
+                let list = hoards.join("\n");
+                tracing::info!("{}", list);
+            }
             Command::Cleanup => match crate::checkers::history::operation::cleanup_operations() {
                 Ok(count) => tracing::info!("cleaned up {} log files", count),
                 Err((count, error)) => {
@@ -193,7 +199,7 @@ impl Config {
                 for (name, hoard) in hoards {
                     let prefix = self.get_prefix(name);
 
-                    tracing::info!(hoard = %name, "backing up hoard");
+                    tracing::info!(hoard = %name, "backing up");
                     let _span = tracing::info_span!("backup", hoard = %name).entered();
                     hoard.backup(&prefix).map_err(|error| Error::Backup {
                         name: name.to_string(),

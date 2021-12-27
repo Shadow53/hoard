@@ -1,5 +1,6 @@
-from .hoard_tester import HoardTester
+from pathlib import Path
 import subprocess
+from .hoard_tester import HoardTester, Environment, HoardFile, Hoard
 
 
 class LastPathsTester(HoardTester):
@@ -27,8 +28,15 @@ class LastPathsTester(HoardTester):
         # Doing it again with "first" should still succeed
         self.env = {"USE_ENV": "1"}
         self.run_hoard("backup")
+
+        home = Path.home()
+        ignored = [
+            home.joinpath(),
+        ]
+
         # Make sure the files are consistent with backing up "first"
         self.assert_first_tree()
+        
         # Doing it with "second" but forced should succeed
         self.env = {"USE_ENV": "2"}
         self.force = True
