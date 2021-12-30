@@ -33,9 +33,9 @@ pub enum Command {
         /// The name(s) of the hoard(s) to restore. Will restore all hoards if empty.
         hoards: Vec<String>,
     },
-    /// List configured hoards
+    /// List configured hoards.
     List,
-    /// Open the configuration file in the configured editor
+    /// Open the configuration file in the system default editor.
     Edit,
 }
 
