@@ -1,11 +1,12 @@
 import os
 import platform
-import pty
 import subprocess
 import sys
 
 if platform.system() == "Windows":
     import winreg
+else:
+    import pty
 
 from enum import Enum
 from pathlib import Path
