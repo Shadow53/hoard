@@ -103,7 +103,7 @@ class EditCommandTester(HoardTester):
             raise RuntimeError(f"Unexpected system {platform.system()}!")
 
     def _call_hoard(self, args, *, allow_failure, capture_output):
-        if self.using_gui:
+        if self.using_gui or platform.system() == "Windows":
             # Set capture_output to True to not use $EDITOR
             result =  super()._call_hoard(args, allow_failure=allow_failure, capture_output=True)
             sys.stdout.buffer.write(result.stdout)
