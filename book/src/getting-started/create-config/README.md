@@ -1,11 +1,12 @@
 # Creating the Configuration File
 
-## 0. Determine file Location
+## 0. Open configuration file
 
-Check the [File Locations](../../file-locations.md#config-directory) page for the location that the configuration file should be placed.
-If you are creating the file using your systems File Explorer, you may need to enable hidden files/folders. 
+Run [`hoard edit`](../../cli/flags-subcommands.md#hoard-edit) to open the configuration file in your default editor.
 
-> In the future, there will be a `hoard edit` command to automatically create and open the file.
+Alternatively, check the [File Locations](../../file-locations.md#config-directory) page for the location that
+the configuration file should be placed. If you are creating the file using your systems File Explorer, you may
+need to enable hidden files/folders. 
 
 ## 1. Choose files to back up
 
