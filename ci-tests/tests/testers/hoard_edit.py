@@ -151,9 +151,7 @@ class EditCommandTester(HoardTester):
         self.using_gui = False
         self._set_editor(Editor.good())
         self._set_gui_editor(Editor.bad())
-        self.flush()
         self.run_hoard("edit")
-        self.flush()
         self.verify_config()
 
     def _test_uses_gui_editor(self):
@@ -162,7 +160,6 @@ class EditCommandTester(HoardTester):
         self.using_gui = True
         self._set_editor(None)
         self._set_gui_editor(Editor.good())
-        self.flush()
         self.run_hoard("edit")
         self.verify_config()
 
@@ -172,7 +169,6 @@ class EditCommandTester(HoardTester):
         self.using_gui = False
         self._set_editor(Editor.bad())
         self._set_gui_editor(Editor.good())
-        self.flush()
         result = self.run_hoard("edit", allow_failure=True)
         assert result.returncode != 0, f"$EDITOR returned exit code {result.returncode}"
 
@@ -182,7 +178,6 @@ class EditCommandTester(HoardTester):
         self.using_gui = True
         self._set_editor(None)
         self._set_gui_editor(Editor.bad())
-        self.flush()
         result = self.run_hoard("edit", allow_failure=True)
         assert result.returncode != 0, f"GUI editor returned exit code {result.returncode}"
 
