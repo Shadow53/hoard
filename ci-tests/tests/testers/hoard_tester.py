@@ -64,6 +64,12 @@ class HoardTester(ABC):
             os.sync()
 
     @classmethod
+    def flush(cls):
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+
+    @classmethod
     def config_file_path(cls):
         system = platform.system()
         home = Path.home()
@@ -203,6 +209,9 @@ class HoardTester(ABC):
             data_dir.joinpath(HOARDS_DIRNAME, "named", "file"),
         )
 
+    def _call_hoard(self, args, *, allow_failure, capture_output):
+        return subprocess.run(args, check=(not allow_failure), capture_output=capture_output)
+
     def run_hoard(self, command, allow_failure=False, capture_output=False):
         # Run the specified hoard command
         # Should automatically operate on all hoards when targets is empty
@@ -216,12 +225,13 @@ class HoardTester(ABC):
         args.append(command)
         args += self.targets
 
-        result = subprocess.run(args, check=(not allow_failure), capture_output=capture_output)
+        # Write Python buffered output before calling Hoard
+        self.flush()
+        result = self._call_hoard(args, allow_failure=allow_failure, capture_output=capture_output)
         if capture_output:
             sys.stdout.buffer.write(result.stdout)
             sys.stderr.buffer.write(result.stderr)
-        sys.stdout.flush()
-        sys.stderr.flush()
+        self.flush()
         return result
 
     @classmethod

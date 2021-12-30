@@ -1,6 +1,11 @@
 //! See [`Command`].
+
+mod edit;
+
 use structopt::StructOpt;
 use thiserror::Error;
+
+pub(crate) use edit::{edit, Error as EditError};
 
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]
@@ -28,8 +33,10 @@ pub enum Command {
         /// The name(s) of the hoard(s) to restore. Will restore all hoards if empty.
         hoards: Vec<String>,
     },
-    /// List configured hoards
+    /// List configured hoards.
     List,
+    /// Open the configuration file in the system default editor.
+    Edit,
 }
 
 impl Default for Command {

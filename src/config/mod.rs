@@ -5,7 +5,7 @@ use self::hoard::Hoard;
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
-use crate::command::Command;
+use crate::command::{Command, EditError};
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -37,6 +37,9 @@ pub enum Error {
     /// Error occurred while building the configuration.
     #[error("error while building the configuration: {0}")]
     Builder(#[from] builder::Error),
+    /// Error occurred while editing the config file
+    #[error("error while editing the config file: {0}")]
+    Edit(#[from] EditError),
     /// The requested hoard does not exist.
     #[error("no such hoard is configured: {0}")]
     NoSuchHoard(String),
@@ -171,6 +174,12 @@ impl Config {
     pub fn run(&self) -> Result<(), Error> {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
+            Command::Edit => {
+                if let Err(error) = crate::command::edit(&self.config_file) {
+                    tracing::error!(%error, "error while editing config file");
+                    return Err(Error::Edit(error));
+                }
+            }
             Command::Validate => {
                 tracing::info!("configuration is valid");
             }

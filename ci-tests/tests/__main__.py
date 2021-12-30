@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from testers.cleanup import LogCleanupTester
 from testers.correct_errors import CorrectErrorsTester
+from testers.hoard_edit import EditCommandTester
 from testers.hoard_list import ListHoardsTester
 from testers.hoard_tester import HoardFile, Environment
 from testers.ignore_filter import IgnoreFilterTester
@@ -46,6 +47,7 @@ def print_checksums():
 
 TEST_MAPPING = {
     "cleanup": ("cleanup", LogCleanupTester),
+    "edit_command": ("edit command", EditCommandTester),
     "errors": ("expected errors", CorrectErrorsTester),
     "ignore": ("ignore filter", IgnoreFilterTester),
     "last_paths": ("last paths", LastPathsTester),
@@ -59,11 +61,11 @@ TEST_MAPPING = {
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         raise RuntimeError("One argument - the test - is required")
+    successful = []
     try:
         test_arg = sys.argv[1]
         if test_arg == "all":
             print("Running all tests")
-            successful = []
             for desc, cls in TEST_MAPPING.values():
                 print(f"=== Running {desc} test ===")
                 cls().run_test()
@@ -75,9 +77,10 @@ if __name__ == "__main__":
         else:
             raise RuntimeError(f"Invalid argument {test_arg}")
     except Exception:
+        sys.stdout.flush()
         if desc:
             print(f"=== Error while running {desc} test ===")
-        if successful and len(successful) > 0:
+        if len(successful) > 0:
             print(f"=== Successful tests: {', '.join(successful)} ===")
         data_dir = LastPathsTester.data_dir_path()
         print("\n### Hoards:")
