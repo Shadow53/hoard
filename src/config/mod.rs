@@ -1,7 +1,9 @@
 //! See [`Config`].
 
 pub use self::builder::Builder;
-use crate::hoard::{self, Hoard};
+use crate::diff::{diff_files, Diff};
+use crate::hoard::iter::HoardFilesIter;
+use crate::hoard::{self, Hoard, Direction, HoardPath, SystemPath};
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
@@ -66,6 +68,9 @@ pub enum Error {
         #[source]
         error: crate::checkers::history::operation::Error,
     },
+    /// An error occurred while diffing files.
+    #[error("error while diffing files: {0}")]
+    Diff(#[source] std::io::Error)
 }
 
 /// A (processed) configuration.
@@ -165,6 +170,13 @@ impl Config {
             .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
     }
 
+    fn iter_hoard_files(&self, name: &str, direction: Direction) -> Result<HoardFilesIter, Error> {
+        let hoard = self.get_hoard(name)?;
+        let hoards_root = self.get_hoards_root_path();
+
+        Ok(HoardFilesIter::new(&hoards_root, direction, name, hoard))
+    }
+
     /// Run the stored [`Command`] using this [`Config`].
     ///
     /// # Errors
@@ -173,6 +185,38 @@ impl Config {
     pub fn run(&self) -> Result<(), Error> {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
+            Command::Diff { hoard, verbose } => {
+                // Iterator by default filters out paths that don't exist in "source" based on
+                // direction. This merges both directions together for files that exist in one,
+                // other, or both.
+                let paths: HashMap<HoardPath, SystemPath> = self.iter_hoard_files(&hoard, Direction::Restore)?
+                    .chain(self.iter_hoard_files(&hoard, Direction::Backup)?)
+                    .collect::<Result<_, _>>().map_err(Error::Diff)?;
+
+                // Now that paths are collected and deduplicated, diff each pair.
+                let iter = paths.into_iter()
+                    .filter_map(|(h, s)| diff_files(&h.0, &s.0).transpose().map(|diff| (h, s, diff)));
+
+                for item in iter {
+                    let (hoard_path, system_path, diff) = item;
+                    let hoard_path = hoard_path.0.display();
+                    let system_path = system_path.0.display();
+                    match diff.map_err(Error::Diff)? {
+                        Diff::Binary => {
+                            tracing::info!("Binary files differ: {} and {}", hoard_path, system_path);
+                        }
+                        Diff::Permissions => {
+                            tracing::info!("Permissions differ: {} and {}", hoard_path, system_path);
+                        }
+                        Diff::Text(unified) => {
+                            tracing::info!("Text files differ: {} and {}", hoard_path, system_path);
+                            if *verbose {
+                                tracing::info!("Diff: {}", unified);
+                            }
+                        }
+                    }
+                }
+            }
             Command::Edit => {
                 if let Err(error) = crate::command::edit(&self.config_file) {
                     tracing::error!(%error, "error while editing config file");
@@ -197,42 +241,40 @@ impl Config {
                     });
                 }
             },
-            Command::Backup { hoards } => {
+            Command::Backup { hoards } | Command::Restore { hoards } => {
                 let hoards = self.get_hoards(hoards)?;
                 let mut checkers = Checkers::new(&hoards, true)?;
                 if !self.force {
                     checkers.check()?;
                 }
 
-                for (name, hoard) in hoards {
-                    let prefix = self.get_prefix(name);
-
-                    tracing::info!(hoard = %name, "backing up");
-                    let _span = tracing::info_span!("backup", hoard = %name).entered();
-                    hoard.backup(&prefix).map_err(|error| Error::Backup {
-                        name: name.to_string(),
-                        error,
-                    })?;
-                }
-
-                checkers.commit_to_disk()?;
-            }
-            Command::Restore { hoards } => {
-                let hoards = self.get_hoards(hoards)?;
-                let mut checkers = Checkers::new(&hoards, false)?;
-                if !self.force {
-                    checkers.check()?;
-                }
+                let direction = match self.command {
+                    Command::Backup { .. } => Direction::Backup,
+                    Command::Restore { .. } => Direction::Restore,
+                    _ => panic!("only Command::Backup and Command::Restore should be possible"),
+                };
 
                 for (name, hoard) in hoards {
                     let prefix = self.get_prefix(name);
 
-                    tracing::info!(hoard = %name, "restoring hoard");
-                    let _span = tracing::info_span!("restore", hoard = %name).entered();
-                    hoard.restore(&prefix).map_err(|error| Error::Restore {
-                        name: name.to_string(),
-                        error,
-                    })?;
+                    match direction {
+                        Direction::Backup => {
+                            tracing::info!(hoard = %name, "backing up");
+                            let _span = tracing::info_span!("backup", hoard = %name).entered();
+                            hoard.backup(&prefix).map_err(|error| Error::Backup {
+                                name: name.to_string(),
+                                error,
+                            })?;
+                        },
+                        Direction::Restore => {
+                            tracing::info!(hoard = %name, "restoring");
+                            let _span = tracing::info_span!("restore", hoard = %name).entered();
+                            hoard.restore(&prefix).map_err(|error| Error::Restore {
+                                name: name.to_string(),
+                                error,
+                            })?;
+                        }
+                    }
                 }
 
                 checkers.commit_to_disk()?;

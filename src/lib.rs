@@ -69,6 +69,7 @@ pub mod checkers;
 pub mod combinator;
 pub mod command;
 pub mod config;
+pub(crate) mod diff;
 pub mod env_vars;
 pub mod hoard;
 pub mod filters;

@@ -2,6 +2,7 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
+pub(crate) mod iter;
 pub(crate) mod pile_config;
 
 pub use pile_config::Config as PileConfig;
@@ -56,6 +57,18 @@ pub enum Error {
     #[error("error while filtering files: {0}")]
     Filter(#[from] FilterError),
 }
+
+pub enum Direction {
+    Backup,
+    Restore,
+}
+
+#[repr(transparent)]
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub(crate) struct HoardPath(pub PathBuf);
+#[repr(transparent)]
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub(crate) struct SystemPath(pub PathBuf);
 
 /// A single path to hoard, with configuration.
 #[derive(Clone, Debug, PartialEq)]
