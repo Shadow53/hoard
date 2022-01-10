@@ -8,9 +8,9 @@
 //! All environments in the condition must match the current system for its matching path to be
 //! used.
 
-use crate::hoard::PileConfig;
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{expand_env_in_path, Error as EnvError};
+use crate::hoard::PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -30,7 +30,6 @@ pub enum Error {
     #[error("error while expanding environment variables in path: {0}")]
     ExpandEnv(#[from] EnvError),
 }
-
 
 /// A single pile in the hoard.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -149,7 +148,9 @@ impl Hoard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hoard::pile_config::{AsymmetricEncryption, Config as PileConfig, Encryption, SymmetricEncryption};
+    use crate::hoard::pile_config::{
+        AsymmetricEncryption, Config as PileConfig, Encryption, SymmetricEncryption,
+    };
 
     mod config {
         use super::*;

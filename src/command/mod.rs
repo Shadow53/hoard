@@ -42,8 +42,8 @@ pub enum Command {
     Diff {
         hoard: String,
         #[structopt(long, short)]
-        verbose: bool
-    }
+        verbose: bool,
+    },
 }
 
 impl Default for Command {

@@ -1,13 +1,13 @@
 //! See [`Config`].
 
 pub use self::builder::Builder;
-use crate::diff::{diff_files, Diff};
-use crate::hoard::iter::HoardFilesIter;
-use crate::hoard::{self, Hoard, Direction, HoardPath, SystemPath};
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
 use crate::command::{Command, EditError};
+use crate::diff::{diff_files, Diff};
+use crate::hoard::iter::HoardFilesIter;
+use crate::hoard::{self, Direction, Hoard, HoardPath, SystemPath};
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -70,7 +70,7 @@ pub enum Error {
     },
     /// An error occurred while diffing files.
     #[error("error while diffing files: {0}")]
-    Diff(#[source] std::io::Error)
+    Diff(#[source] std::io::Error),
 }
 
 /// A (processed) configuration.
@@ -189,13 +189,16 @@ impl Config {
                 // Iterator by default filters out paths that don't exist in "source" based on
                 // direction. This merges both directions together for files that exist in one,
                 // other, or both.
-                let paths: HashMap<HoardPath, SystemPath> = self.iter_hoard_files(&hoard, Direction::Restore)?
+                let paths: HashMap<HoardPath, SystemPath> = self
+                    .iter_hoard_files(&hoard, Direction::Restore)?
                     .chain(self.iter_hoard_files(&hoard, Direction::Backup)?)
-                    .collect::<Result<_, _>>().map_err(Error::Diff)?;
+                    .collect::<Result<_, _>>()
+                    .map_err(Error::Diff)?;
 
                 // Now that paths are collected and deduplicated, diff each pair.
-                let iter = paths.into_iter()
-                    .filter_map(|(h, s)| diff_files(&h.0, &s.0).transpose().map(|diff| (h, s, diff)));
+                let iter = paths.into_iter().filter_map(|(h, s)| {
+                    diff_files(&h.0, &s.0).transpose().map(|diff| (h, s, diff))
+                });
 
                 for item in iter {
                     let (hoard_path, system_path, diff) = item;
@@ -203,10 +206,18 @@ impl Config {
                     let system_path = system_path.0.display();
                     match diff.map_err(Error::Diff)? {
                         Diff::Binary => {
-                            tracing::info!("Binary files differ: {} and {}", hoard_path, system_path);
+                            tracing::info!(
+                                "Binary files differ: {} and {}",
+                                hoard_path,
+                                system_path
+                            );
                         }
                         Diff::Permissions => {
-                            tracing::info!("Permissions differ: {} and {}", hoard_path, system_path);
+                            tracing::info!(
+                                "Permissions differ: {} and {}",
+                                hoard_path,
+                                system_path
+                            );
                         }
                         Diff::Text(unified) => {
                             tracing::info!("Text files differ: {} and {}", hoard_path, system_path);
@@ -265,7 +276,7 @@ impl Config {
                                 name: name.to_string(),
                                 error,
                             })?;
-                        },
+                        }
                         Direction::Restore => {
                             tracing::info!(hoard = %name, "restoring");
                             let _span = tracing::info_span!("restore", hoard = %name).entered();

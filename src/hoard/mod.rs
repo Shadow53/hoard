@@ -5,9 +5,9 @@
 pub(crate) mod iter;
 pub(crate) mod pile_config;
 
-pub use pile_config::Config as PileConfig;
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::{Error as FilterError, Filter, Filters};
+pub use pile_config::Config as PileConfig;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
