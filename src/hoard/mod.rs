@@ -2,7 +2,9 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
-pub use super::builder::hoard::Config;
+pub(crate) mod pile_config;
+
+pub use pile_config::Config as PileConfig;
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::{Error as FilterError, Filter, Filters};
 use std::collections::HashMap;
@@ -59,7 +61,7 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pile {
     /// Optional configuration for this path.
-    pub config: Option<Config>,
+    pub config: Option<PileConfig>,
     /// The path to hoard.
     ///
     /// The path is optional because it will almost always be set by processing a configuration

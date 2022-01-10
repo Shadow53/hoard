@@ -8,10 +8,10 @@
 //! All environments in the condition must match the current system for its matching path to be
 //! used.
 
+use crate::hoard::PileConfig;
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{expand_env_in_path, Error as EnvError};
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -31,108 +31,11 @@ pub enum Error {
     ExpandEnv(#[from] EnvError),
 }
 
-/// Configuration for symmetric (password) encryption.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum SymmetricEncryption {
-    /// Raw password.
-    #[serde(rename = "password")]
-    Password(String),
-    /// Command whose first line of output to stdout is the password.
-    #[serde(rename = "password_cmd")]
-    PasswordCmd(Vec<String>),
-}
-
-/// Configuration for asymmetric (public key) encryption.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AsymmetricEncryption {
-    #[serde(rename = "public_key")]
-    public_key: String,
-}
-
-/// Configuration for hoard/pile encryption.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Encryption {
-    /// Symmetric encryption.
-    Symmetric(SymmetricEncryption),
-    /// Asymmetric encryption.
-    Asymmetric(AsymmetricEncryption),
-}
-
-#[allow(single_use_lifetimes)]
-fn deserialize_glob<'de, D>(deserializer: D) -> Result<Vec<glob::Pattern>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Vec::<String>::deserialize(deserializer)?
-        .iter()
-        .map(String::as_str)
-        .map(glob::Pattern::new)
-        .collect::<Result<_, _>>()
-        .map_err(D::Error::custom)
-}
-
-#[allow(clippy::ptr_arg)]
-fn serialize_glob<S>(value: &Vec<glob::Pattern>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let value = value
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<String>>();
-
-    value.serialize(serializer)
-}
-
-/// Hoard/Pile configuration.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Config {
-    /// The [`Encryption`] configuration for a pile.
-    #[serde(default, rename = "encrypt")]
-    pub encryption: Option<Encryption>,
-    /// A list of glob patterns matching files to ignore.
-    #[serde(
-        default,
-        deserialize_with = "deserialize_glob",
-        serialize_with = "serialize_glob"
-    )]
-    pub ignore: Vec<glob::Pattern>,
-}
-
-impl Config {
-    /// Merge the `other` configuration with this one, preferring the content of this one, when
-    /// appropriate.
-    fn layer(&mut self, other: &Self) {
-        // Overlay a more general encryption config, if a specific one doesn't exist.
-        if self.encryption.is_none() {
-            self.encryption = other.encryption.clone();
-        }
-
-        // Merge ignore lists.
-        self.ignore.extend(other.ignore.clone());
-        self.ignore.sort_unstable();
-        self.ignore.dedup();
-    }
-
-    /// Layer the `general` config with the `specific` one, modifying the `specific` one in place.
-    pub fn layer_options(specific: &mut Option<Self>, general: Option<&Self>) {
-        if let Some(general) = general {
-            match specific {
-                None => {
-                    specific.replace(general.clone());
-                }
-                Some(this_config) => this_config.layer(general),
-            }
-        }
-    }
-}
 
 /// A single pile in the hoard.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pile {
-    config: Option<Config>,
+    config: Option<PileConfig>,
     #[serde(flatten)]
     items: HashMap<String, String>,
 }
@@ -156,15 +59,15 @@ impl Pile {
         Ok(ConfigSingle { config, path })
     }
 
-    pub(crate) fn layer_config(&mut self, config: Option<&Config>) {
-        Config::layer_options(&mut self.config, config);
+    pub(crate) fn layer_config(&mut self, config: Option<&PileConfig>) {
+        PileConfig::layer_options(&mut self.config, config);
     }
 }
 
 /// A set of multiple related piles (i.e. in a single hoard).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MultipleEntries {
-    config: Option<Config>,
+    config: Option<PileConfig>,
     #[serde(flatten)]
     items: HashMap<String, Pile>,
 }
@@ -190,8 +93,8 @@ impl MultipleEntries {
         Ok(ConfigMultiple { piles: items })
     }
 
-    pub(crate) fn layer_config(&mut self, config: Option<&Config>) {
-        Config::layer_options(&mut self.config, config);
+    pub(crate) fn layer_config(&mut self, config: Option<&PileConfig>) {
+        PileConfig::layer_options(&mut self.config, config);
     }
 }
 
@@ -235,7 +138,7 @@ impl Hoard {
         }
     }
 
-    pub(crate) fn layer_config(&mut self, config: Option<&Config>) {
+    pub(crate) fn layer_config(&mut self, config: Option<&PileConfig>) {
         match self {
             Hoard::Single(pile) => pile.layer_config(config),
             Hoard::Multiple(multi) => multi.layer_config(config),
@@ -246,21 +149,22 @@ impl Hoard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hoard::pile_config::{AsymmetricEncryption, Config as PileConfig, Encryption, SymmetricEncryption};
 
     mod config {
-        use super::{AsymmetricEncryption, Config, Encryption, SymmetricEncryption};
+        use super::*;
 
         #[test]
         fn test_layer_configs_both_none() {
             let mut specific = None;
             let general = None;
-            Config::layer_options(&mut specific, general);
+            PileConfig::layer_options(&mut specific, general);
             assert!(specific.is_none());
         }
 
         #[test]
         fn test_layer_specific_some_general_none() {
-            let mut specific = Some(Config {
+            let mut specific = Some(PileConfig {
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
@@ -268,26 +172,26 @@ mod tests {
             });
             let old_specific = specific.clone();
             let general = None;
-            Config::layer_options(&mut specific, general);
+            PileConfig::layer_options(&mut specific, general);
             assert_eq!(specific, old_specific);
         }
 
         #[test]
         fn test_layer_specific_none_general_some() {
             let mut specific = None;
-            let general = Some(Config {
+            let general = Some(PileConfig {
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
                 ignore: vec![glob::Pattern::new("ignore me").unwrap()],
             });
-            Config::layer_options(&mut specific, general.as_ref());
+            PileConfig::layer_options(&mut specific, general.as_ref());
             assert_eq!(specific, general);
         }
 
         #[test]
         fn test_layer_configs_both_some() {
-            let mut specific = Some(Config {
+            let mut specific = Some(PileConfig {
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
@@ -297,7 +201,7 @@ mod tests {
                 ],
             });
             let old_specific = specific.clone();
-            let general = Some(Config {
+            let general = Some(PileConfig {
                 encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                     public_key: "somekey".into(),
                 })),
@@ -306,7 +210,7 @@ mod tests {
                     glob::Pattern::new("duplicate").unwrap(),
                 ],
             });
-            Config::layer_options(&mut specific, general.as_ref());
+            PileConfig::layer_options(&mut specific, general.as_ref());
             assert!(specific.is_some());
             assert_eq!(
                 specific.as_ref().unwrap().encryption,
@@ -325,7 +229,7 @@ mod tests {
 
     mod process {
         use super::*;
-        use crate::config::hoard::Pile as ConfigPile;
+        use crate::hoard::Pile as RealPile;
         use maplit::hashmap;
         use std::path::PathBuf;
 
@@ -340,7 +244,7 @@ mod tests {
             };
 
             let home = std::env::var("HOME").expect("failed to read $HOME");
-            let expected = ConfigPile {
+            let expected = RealPile {
                 config: None,
                 path: Some(PathBuf::from(format!("{}/something", home))),
             };
@@ -384,7 +288,7 @@ mod tests {
         #[test]
         fn single_entry_with_config() {
             let hoard = Hoard::Single(Pile {
-                config: Some(Config {
+                config: Some(PileConfig {
                     encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                         public_key: "public key".to_string(),
                     })),
@@ -462,7 +366,7 @@ mod tests {
         #[test]
         fn multiple_entry_with_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
-                config: Some(Config {
+                config: Some(PileConfig {
                     encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                         "correcthorsebatterystaple".into(),
                     ))),
@@ -514,7 +418,7 @@ mod tests {
 
         #[test]
         fn test_invalid_glob() {
-            assert_de_tokens_error::<Config>(
+            assert_de_tokens_error::<PileConfig>(
                 &[
                     Token::Struct {
                         name: "Config",
@@ -535,7 +439,7 @@ mod tests {
 
         #[test]
         fn test_valid_globs() {
-            let config = Config {
+            let config = PileConfig {
                 encryption: None,
                 ignore: vec![
                     glob::Pattern::new("**/valid*").unwrap(),
@@ -543,7 +447,7 @@ mod tests {
                 ],
             };
 
-            assert_tokens::<Config>(
+            assert_tokens::<PileConfig>(
                 &config,
                 &[
                     Token::Struct {

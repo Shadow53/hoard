@@ -1,4 +1,4 @@
-use crate::config::builder::hoard::Config;
+use crate::hoard::PileConfig;
 /// Provides a [`Filter`] based on glob ignore patterns.
 ///
 /// To use this filter, add an list of glob patterns to `ignore` under `config`. For example:
@@ -33,7 +33,7 @@ pub(crate) struct IgnoreFilter {
 impl Filter for IgnoreFilter {
     type Error = Error;
 
-    fn new(pile_config: &Config) -> Result<Self, Self::Error> {
+    fn new(pile_config: &PileConfig) -> Result<Self, Self::Error> {
         Ok(IgnoreFilter {
             globs: pile_config.ignore.clone(),
         })
@@ -58,14 +58,14 @@ mod tests {
     #[test]
     fn test_filter_derives() {
         let filter = {
-            let config = Config {
+            let config = PileConfig {
                 encryption: None,
                 ignore: vec![Pattern::new("testing/**").unwrap()],
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
         let other = {
-            let config = Config {
+            let config = PileConfig {
                 encryption: None,
                 ignore: vec![Pattern::new("test/**").unwrap()],
             };

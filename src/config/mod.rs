@@ -1,7 +1,7 @@
 //! See [`Config`].
 
 pub use self::builder::Builder;
-use self::hoard::Hoard;
+use crate::hoard::{self, Hoard};
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
@@ -12,7 +12,6 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 pub mod builder;
-pub mod hoard;
 
 /// Get the project directories for this project.
 #[must_use]

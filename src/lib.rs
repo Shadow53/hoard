@@ -70,6 +70,7 @@ pub mod combinator;
 pub mod command;
 pub mod config;
 pub mod env_vars;
+pub mod hoard;
 pub mod filters;
 
 /// The default file stem of the configuration file (i.e. without file extension).

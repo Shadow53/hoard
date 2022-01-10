@@ -5,7 +5,7 @@
 
 pub mod history;
 
-use crate::config::hoard::Hoard;
+use crate::hoard::Hoard;
 
 /// Trait for validating [`Hoard`]s.
 ///

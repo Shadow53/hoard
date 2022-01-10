@@ -8,7 +8,7 @@
 //! was the last one to touch a file.
 
 use crate::checkers::Checker;
-use crate::config::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
+use crate::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
 use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
 use regex::Regex;
