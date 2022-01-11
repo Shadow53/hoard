@@ -40,7 +40,9 @@ pub enum Command {
     /// Show which files differ for a given hoard. Optionally show unified diffs for text files
     /// too.
     Diff {
+        /// The name of the hoard to diff.
         hoard: String,
+        /// If true, prints unified diffs for text files.
         #[structopt(long, short)]
         verbose: bool,
     },

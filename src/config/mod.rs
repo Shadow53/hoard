@@ -190,20 +190,20 @@ impl Config {
                 // direction. This merges both directions together for files that exist in one,
                 // other, or both.
                 let paths: HashMap<HoardPath, SystemPath> = self
-                    .iter_hoard_files(&hoard, Direction::Restore)?
-                    .chain(self.iter_hoard_files(&hoard, Direction::Backup)?)
+                    .iter_hoard_files(hoard, Direction::Restore)?
+                    .chain(self.iter_hoard_files(hoard, Direction::Backup)?)
                     .collect::<Result<_, _>>()
                     .map_err(Error::Diff)?;
 
                 // Now that paths are collected and deduplicated, diff each pair.
                 let iter = paths.into_iter().filter_map(|(h, s)| {
-                    diff_files(&h.0, &s.0).transpose().map(|diff| (h, s, diff))
+                    diff_files(h.as_ref(), s.as_ref()).transpose().map(|diff| (h, s, diff))
                 });
 
                 for item in iter {
                     let (hoard_path, system_path, diff) = item;
-                    let hoard_path = hoard_path.0.display();
-                    let system_path = system_path.0.display();
+                    let hoard_path = hoard_path.as_ref().display();
+                    let system_path = system_path.as_ref().display();
                     match diff.map_err(Error::Diff)? {
                         Diff::Binary => {
                             tracing::info!(
@@ -262,7 +262,8 @@ impl Config {
                 let direction = match self.command {
                     Command::Backup { .. } => Direction::Backup,
                     Command::Restore { .. } => Direction::Restore,
-                    _ => panic!("only Command::Backup and Command::Restore should be possible"),
+                    // Only Command::Backup and Command::Restore should be possible
+                    _ => return Ok(()),
                 };
 
                 for (name, hoard) in hoards {

@@ -75,8 +75,8 @@ impl Iterator for HoardFilesIter {
                         if src.is_file() {
                             return Some(Ok((hoard_path, system_path)));
                         } else if src.is_dir() {
-                            self.src_root = Some(src.to_path_buf());
-                            self.dest_root = Some(dest.to_path_buf());
+                            self.src_root = Some(src.clone());
+                            self.dest_root = Some(dest.clone());
                             match fs::read_dir(src) {
                                 Ok(iter) => self.dir_entries = Some(iter.peekable()),
                                 Err(err) => return Some(Err(err)),

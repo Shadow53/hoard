@@ -58,17 +58,34 @@ pub enum Error {
     Filter(#[from] FilterError),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+/// Indicates which direction files are being copied in. Used to determine which files are required
+/// to exist.
 pub enum Direction {
+    /// Backing up from system to hoards.
     Backup,
+    /// Restoring from hoards to system.
     Restore,
 }
 
 #[repr(transparent)]
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub(crate) struct HoardPath(pub PathBuf);
+pub(crate) struct HoardPath(PathBuf);
 #[repr(transparent)]
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub(crate) struct SystemPath(pub PathBuf);
+pub(crate) struct SystemPath(PathBuf);
+
+impl AsRef<Path> for HoardPath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for SystemPath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
 
 /// A single path to hoard, with configuration.
 #[derive(Clone, Debug, PartialEq)]
