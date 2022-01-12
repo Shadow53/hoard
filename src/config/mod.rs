@@ -13,6 +13,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 pub mod builder;
 
 /// Get the project directories for this project.
@@ -183,6 +186,7 @@ impl Config {
     ///
     /// Any [`enum@Error`] that might happen while running the command.
     pub fn run(&self) -> Result<(), Error> {
+        #![allow(clippy::too_many_lines)]
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Diff { hoard, verbose } => {
@@ -201,29 +205,43 @@ impl Config {
                 });
 
                 for item in iter {
-                    let (hoard_path, system_path, diff) = item;
-                    let hoard_path = hoard_path.as_ref().display();
+                    let (_, system_path, diff) = item;
                     let system_path = system_path.as_ref().display();
                     match diff.map_err(Error::Diff)? {
                         Diff::Binary => {
                             tracing::info!(
-                                "Binary files differ: {} and {}",
-                                hoard_path,
+                                "{}: binary file changed",
                                 system_path
                             );
                         }
-                        Diff::Permissions => {
-                            tracing::info!(
-                                "Permissions differ: {} and {}",
-                                hoard_path,
-                                system_path
-                            );
+                        Diff::Permissions(left, right) => {
+                            if cfg!(unix) {
+                                tracing::info!(
+                                    "{}: permissions changed: hoard ({:o}), system ({:o})",
+                                    system_path,
+                                    left.mode(),
+                                    right.mode(),
+                                );
+                            } else {
+                                tracing::info!(
+                                    "{}: permissions changed: hoard ({}), system ({})",
+                                    system_path,
+                                    left.readonly().then(|| "readonly").unwrap_or("writable"),
+                                    right.readonly().then(|| "readonly").unwrap_or("writable"),
+                                );
+                            }
                         }
                         Diff::Text(unified) => {
-                            tracing::info!("Text files differ: {} and {}", hoard_path, system_path);
+                            tracing::info!("{}: text file changed", system_path);
                             if *verbose {
-                                tracing::info!("Diff: {}", unified);
+                                tracing::info!("{}", unified);
                             }
+                        }
+                        Diff::LeftNotExists => {
+                            tracing::info!("{}: on system, not in the hoard", system_path);
+                        }
+                        Diff::RightNotExists => {
+                            tracing::info!("{}: in hoard, not on the system", system_path);
                         }
                     }
                 }

@@ -109,9 +109,7 @@ class HoardTester(ABC):
             content = secrets.token_bytes(size)
             file.write(content)
 
-    def reset(self, config_file="config.toml"):
-        home = Path.home()
-
+    def clean(self, config_file="config.toml"):
         try:
             shutil.rmtree(self.data_dir_path())
         except FileNotFoundError:
@@ -123,6 +121,13 @@ class HoardTester(ABC):
         except FileNotFoundError:
             pass
 
+        os.makedirs(config_parent, exist_ok=True)
+        config_file_src = Path.cwd().joinpath("ci-tests", config_file)
+        shutil.copy2(config_file_src, self.config_file_path())
+        assert self.config_file_path().is_file()
+
+    def setup(self):
+        home = Path.home()
         for env in list(Environment):
             for item in list(HoardFile):
                 path = home.joinpath(f"{env}_{item}")
@@ -133,10 +138,10 @@ class HoardTester(ABC):
                         pass
                     continue
                 self.generate_file(path)
-        os.makedirs(config_parent, exist_ok=True)
-        config_file_src = Path.cwd().joinpath("ci-tests", config_file)
-        shutil.copy2(config_file_src, self.config_file_path())
-        assert self.config_file_path().is_file()
+
+    def reset(self, config_file="config.toml"):
+        self.clean(config_file)
+        self.setup()
 
     @classmethod
     def assert_same_tree(cls, root1, root2):

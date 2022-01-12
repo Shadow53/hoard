@@ -16,7 +16,7 @@ pub enum SymmetricEncryption {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AsymmetricEncryption {
     #[serde(rename = "public_key")]
-    pub public_key: String,
+    pub(crate) public_key: String,
 }
 
 /// Configuration for hoard/pile encryption.

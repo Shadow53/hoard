@@ -13,6 +13,7 @@ const CONTEXT_RADIUS: usize = 5;
 enum FileContent {
     Text(String),
     Binary(Vec<u8>),
+    Missing,
 }
 
 impl FileContent {
@@ -24,36 +25,59 @@ impl FileContent {
         }
     }
 
-    fn into_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Option<Vec<u8>> {
         match self {
-            Self::Text(s) => s.into_bytes(),
-            Self::Binary(v) => v,
+            Self::Text(s) => Some(s.into_bytes()),
+            Self::Binary(v) => Some(v),
+            Self::Missing => None,
         }
     }
 }
 
+#[allow(variant_size_differences)]
 pub(crate) enum Diff {
     /// Text content differs. Contains the generated unified diff.
     Text(String),
     /// Binary content differs. Also occurs if a file changes between text and binary formats.
     Binary,
     /// Content is the same, but permissions differ.
-    Permissions,
+    Permissions(fs::Permissions, fs::Permissions),
+    /// The left path to diff_files did not exist, but the right path did.
+    LeftNotExists,
+    /// The left path to diff_paths existed, but the right path did not.
+    RightNotExists,
+}
+
+fn content_and_meta_for(path: &Path) -> io::Result<(FileContent, Option<fs::Metadata>)> {
+    match fs::File::open(path) {
+        Ok(file) => {
+            let meta = file.metadata()?;
+            let content = FileContent::read(file)?;
+            Ok((content, Some(meta)))
+        }
+        Err(err) => match err.kind() {
+            io::ErrorKind::NotFound => Ok((FileContent::Missing, None)),
+            _ => Err(err),
+        }
+    }
 }
 
 pub(crate) fn diff_files(left_path: &Path, right_path: &Path) -> io::Result<Option<Diff>> {
-    let left_file = fs::File::open(left_path)?;
-    let left_meta = left_file.metadata()?;
-    let right_file = fs::File::open(right_path)?;
-    let right_meta = right_file.metadata()?;
+    let (left, left_meta) = content_and_meta_for(left_path)?;
+    let (right, right_meta) = content_and_meta_for(right_path)?;
 
-    let left = FileContent::read(left_file)?;
-    let right = FileContent::read(right_file)?;
-
-    let permissions_diff =
-        (left_meta.permissions() != right_meta.permissions()).then(|| Diff::Permissions);
+    let permissions_diff = if let (Some(left_meta), Some(right_meta)) = (left_meta, right_meta) {
+        let left_perms = left_meta.permissions();
+        let right_perms = right_meta.permissions();
+        (left_perms != right_perms).then(|| Diff::Permissions(left_perms, right_perms))
+    } else {
+        None
+    };
 
     let diff = match (left, right) {
+        (FileContent::Missing, FileContent::Missing) => None,
+        (FileContent::Missing, _) => Some(Diff::LeftNotExists),
+        (_, FileContent::Missing) => Some(Diff::RightNotExists),
         (FileContent::Text(left_text), FileContent::Text(right_text)) => {
             let text_diff = TextDiff::from_lines(&left_text, &right_text);
 
