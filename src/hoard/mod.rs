@@ -58,7 +58,7 @@ pub enum Error {
     Filter(#[from] FilterError),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// Indicates which direction files are being copied in. Used to determine which files are required
 /// to exist.
 pub enum Direction {

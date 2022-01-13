@@ -8,7 +8,7 @@
 //! was the last one to touch a file.
 
 use crate::checkers::Checker;
-use crate::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
+use crate::hoard::{Hoard as ConfigHoard, Pile as ConfigPile, Direction};
 use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -71,10 +71,10 @@ pub struct HoardOperation {
 impl Checker for HoardOperation {
     type Error = Error;
 
-    fn new(name: &str, hoard: &ConfigHoard, is_backup: bool) -> Result<Self, Self::Error> {
+    fn new(name: &str, hoard: &ConfigHoard, direction: Direction) -> Result<Self, Self::Error> {
         Ok(Self {
             timestamp: OffsetDateTime::now_utc(),
-            is_backup,
+            is_backup: matches!(direction, Direction::Backup),
             hoard_name: name.into(),
             hoard: Hoard::try_from(hoard)?,
         })

@@ -272,17 +272,17 @@ impl Config {
             },
             Command::Backup { hoards } | Command::Restore { hoards } => {
                 let hoards = self.get_hoards(hoards)?;
-                let mut checkers = Checkers::new(&hoards, true)?;
-                if !self.force {
-                    checkers.check()?;
-                }
-
                 let direction = match self.command {
                     Command::Backup { .. } => Direction::Backup,
                     Command::Restore { .. } => Direction::Restore,
                     // Only Command::Backup and Command::Restore should be possible
                     _ => return Ok(()),
                 };
+
+                let mut checkers = Checkers::new(&hoards, direction)?;
+                if !self.force {
+                    checkers.check()?;
+                }
 
                 for (name, hoard) in hoards {
                     let prefix = self.get_prefix(name);
@@ -321,13 +321,13 @@ struct Checkers {
 }
 
 impl Checkers {
-    fn new(hoard_map: &HashMap<&str, &Hoard>, is_backup: bool) -> Result<Self, Error> {
+    fn new(hoard_map: &HashMap<&str, &Hoard>, direction: Direction) -> Result<Self, Error> {
         let mut last_paths = HashMap::new();
         let mut operations = HashMap::new();
 
         for (name, hoard) in hoard_map {
-            let lp = LastPaths::new(name, hoard, is_backup)?;
-            let op = HoardOperation::new(name, hoard, is_backup)?;
+            let lp = LastPaths::new(name, hoard, direction)?;
+            let op = HoardOperation::new(name, hoard, direction)?;
             last_paths.insert((*name).to_string(), lp);
             operations.insert((*name).to_string(), op);
         }

@@ -5,7 +5,7 @@
 
 pub mod history;
 
-use crate::hoard::Hoard;
+use crate::hoard::{Hoard, Direction};
 
 /// Trait for validating [`Hoard`]s.
 ///
@@ -19,7 +19,7 @@ pub trait Checker: Sized {
     /// # Errors
     ///
     /// Any errors that may occur while creating an instance, such as I/O or consistency errors.
-    fn new(name: &str, hoard: &Hoard, is_backup: bool) -> Result<Self, Self::Error>;
+    fn new(name: &str, hoard: &Hoard, direction: Direction) -> Result<Self, Self::Error>;
     /// Returns an error if it is not safe to operate on the given [`Hoard`].
     ///
     /// # Errors
