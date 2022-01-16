@@ -74,6 +74,9 @@ pub enum Error {
     /// An error occurred while diffing files.
     #[error("error while diffing files: {0}")]
     Diff(#[source] std::io::Error),
+    /// An error occurred while creating the [`HoardFilesIter`].
+    #[error("error creating file iterator: {0}")]
+    Iterator(#[from] crate::filters::Error),
 }
 
 /// A (processed) configuration.
@@ -177,7 +180,7 @@ impl Config {
         let hoard = self.get_hoard(name)?;
         let hoards_root = self.get_hoards_root_path();
 
-        Ok(HoardFilesIter::new(&hoards_root, direction, name, hoard))
+        HoardFilesIter::new(&hoards_root, direction, name, hoard).map_err(Error::from)
     }
 
     /// Run the stored [`Command`] using this [`Config`].
