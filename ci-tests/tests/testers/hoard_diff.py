@@ -126,8 +126,8 @@ class DiffCommandTester(HoardTester):
             self._assert_diff_contains("anon_txt", f"{anon_path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
             self._assert_diff_contains("named", f"{named_path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
 
-        os.chmod(anon_path, anon_perms ^ stat.S_IWUSR)
-        os.chmod(named_path, named_perms ^ stat.S_IWUSR)
+        os.chmod(anon_path, anon_perms)
+        os.chmod(named_path, named_perms)
 
         self._write_file(anon_path, CHANGED_TEXT_CONTENT, is_binary=False)
         self._write_file(named_path, CHANGED_TEXT_CONTENT, is_binary=False)
