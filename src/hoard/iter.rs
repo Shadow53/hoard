@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::{Direction, Hoard, HoardPath, SystemPath};
 use crate::filters::Filter;
-use crate::filters::{Filters, Error as FilterError};
+use crate::filters::{Error as FilterError, Filters};
 
 pub(crate) struct HoardFilesIter {
     root_paths: Vec<(HoardPath, SystemPath, Option<Filters>)>,
@@ -81,7 +81,11 @@ impl Iterator for HoardFilesIter {
                             Direction::Restore => (&hoard_path.0, &system_path.0),
                         };
 
-                        if src.is_file() && filters.as_ref().map_or(true, |filter| filter.keep(&PathBuf::new(), src)) {
+                        if src.is_file()
+                            && filters
+                                .as_ref()
+                                .map_or(true, |filter| filter.keep(&PathBuf::new(), src))
+                        {
                             return Some(Ok((hoard_path, system_path)));
                         } else if src.is_dir() {
                             self.src_root = Some(src.clone());
@@ -114,12 +118,19 @@ impl Iterator for HoardFilesIter {
                 let keep = match self.direction {
                     Direction::Backup => {
                         let prefix = self.src_root.as_ref().expect("src_root should not be None");
-                        self.filter.as_ref().map_or(true, |filter| filter.keep(prefix, &src))
-                    },
+                        self.filter
+                            .as_ref()
+                            .map_or(true, |filter| filter.keep(prefix, &src))
+                    }
                     Direction::Restore => {
-                        let prefix = self.dest_root.as_ref().expect("dest_root should not be None");
-                        self.filter.as_ref().map_or(true, |filter| filter.keep(prefix, &dest))
-                    },
+                        let prefix = self
+                            .dest_root
+                            .as_ref()
+                            .expect("dest_root should not be None");
+                        self.filter
+                            .as_ref()
+                            .map_or(true, |filter| filter.keep(prefix, &dest))
+                    }
                 };
 
                 let (hoard_path, system_path) = match self.direction {
@@ -131,7 +142,8 @@ impl Iterator for HoardFilesIter {
                     if is_file {
                         return Some(Ok((hoard_path, system_path)));
                     } else if is_dir {
-                        self.root_paths.push((hoard_path, system_path, self.filter.clone()));
+                        self.root_paths
+                            .push((hoard_path, system_path, self.filter.clone()));
                     }
                 }
             }

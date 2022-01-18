@@ -62,11 +62,11 @@ class DiffCommandTester(HoardTester):
         os.chmod(named_path, named_perms ^ stat.S_IWUSR)
 
         if sys.platform == "Windows":
-            self._assert_diff_contains("anon_bin", b"/root/anon.bin: permissions changed: hoard (writable), system (readonly)\n")
-            self._assert_diff_contains("named", b"/root/named.bin: permissions changed: hoard (writable), system (readonly)\n")
+            self._assert_diff_contains("anon_bin", b"/root/anon.bin: permissions changed locally: hoard (writable), system (readonly)\n")
+            self._assert_diff_contains("named", b"/root/named.bin: permissions changed locally: hoard (writable), system (readonly)\n")
         else:
-            self._assert_diff_contains("anon_bin", b"/root/anon.bin: permissions changed: hoard (100644), system (100444)\n")
-            self._assert_diff_contains("named", b"/root/named.bin: permissions changed: hoard (100644), system (100444)\n")
+            self._assert_diff_contains("anon_bin", b"/root/anon.bin: permissions changed locally: hoard (100644), system (100444)\n")
+            self._assert_diff_contains("named", b"/root/named.bin: permissions changed locally: hoard (100644), system (100444)\n")
 
         os.chmod(anon_path, anon_perms ^ stat.S_IWUSR)
         os.chmod(named_path, named_perms ^ stat.S_IWUSR)
@@ -74,20 +74,20 @@ class DiffCommandTester(HoardTester):
         self._write_file(anon_path, CHANGED_TEXT_CONTENT, is_binary=False)
         self._write_file(named_path, CHANGED_TEXT_CONTENT, is_binary=False)
         # Anon diff
-        self._assert_diff_contains("anon_bin", b"/root/anon.bin: binary file changed\n")
+        self._assert_diff_contains("anon_bin", b"/root/anon.bin: binary file changed locally\n")
         # Named diff
-        self._assert_diff_contains("named", b"/root/named.bin: binary file changed\n")
+        self._assert_diff_contains("named", b"/root/named.bin: binary file changed locally\n")
 
         # Verbose (Unified Diff)
         # Anon diff
         self._assert_diff_contains(
             "anon_bin",
-            b"/root/anon.bin: binary file changed\n",
+            b"/root/anon.bin: binary file changed locally\n",
             verbose=True)
         # Named diff
         self._assert_diff_contains(
             "named",
-            b"/root/named.bin: binary file changed\n",
+            b"/root/named.bin: binary file changed locally\n",
             verbose=True)
 
         os.remove(anon_path)
@@ -120,11 +120,11 @@ class DiffCommandTester(HoardTester):
         os.chmod(named_path, named_perms ^ stat.S_IWUSR)
 
         if sys.platform == "Windows":
-            self._assert_diff_contains("anon_txt", b"/root/anon.txt: permissions changed: hoard (writable), system (readonly)\n")
-            self._assert_diff_contains("named", b"/root/named.txt: permissions changed: hoard (writable), system (readonly)\n")
+            self._assert_diff_contains("anon_txt", b"/root/anon.txt: permissions changed locally: hoard (writable), system (readonly)\n")
+            self._assert_diff_contains("named", b"/root/named.txt: permissions changed locally: hoard (writable), system (readonly)\n")
         else:
-            self._assert_diff_contains("anon_txt", b"/root/anon.txt: permissions changed: hoard (100644), system (100444)\n")
-            self._assert_diff_contains("named", b"/root/named.txt: permissions changed: hoard (100644), system (100444)\n")
+            self._assert_diff_contains("anon_txt", b"/root/anon.txt: permissions changed locally: hoard (100644), system (100444)\n")
+            self._assert_diff_contains("named", b"/root/named.txt: permissions changed locally: hoard (100644), system (100444)\n")
 
         os.chmod(anon_path, anon_perms ^ stat.S_IWUSR)
         os.chmod(named_path, named_perms ^ stat.S_IWUSR)
@@ -132,16 +132,16 @@ class DiffCommandTester(HoardTester):
         self._write_file(anon_path, CHANGED_TEXT_CONTENT, is_binary=False)
         self._write_file(named_path, CHANGED_TEXT_CONTENT, is_binary=False)
         # Anon diff
-        self._assert_diff_contains("anon_txt", b"/root/anon.txt: text file changed\n")
+        self._assert_diff_contains("anon_txt", b"/root/anon.txt: text file changed locally\n")
         # Named diff
-        self._assert_diff_contains("named", b"/root/named.txt: text file changed\n")
+        self._assert_diff_contains("named", b"/root/named.txt: text file changed locally\n")
 
         # Verbose (Unified Diff)
         # Anon diff
         self._assert_diff_contains(
             "anon_txt",
             (
-                b"/root/anon.txt: text file changed\n"
+                b"/root/anon.txt: text file changed locally\n"
                 b"--- /root/.local/share/hoard/hoards/anon_txt\n"
                 b"+++ /root/anon.txt\n"
                 b"@@ -1 +1 @@\n"
@@ -155,7 +155,7 @@ class DiffCommandTester(HoardTester):
         self._assert_diff_contains(
             "named",
             (
-                b"/root/named.txt: text file changed\n"
+                b"/root/named.txt: text file changed locally\n"
                 b"--- /root/.local/share/hoard/hoards/named/text\n"
                 b"+++ /root/named.txt\n"
                 b"@@ -1 +1 @@\n"

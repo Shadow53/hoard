@@ -204,47 +204,77 @@ impl Config {
 
                 // Now that paths are collected and deduplicated, diff each pair.
                 let iter = paths.into_iter().filter_map(|(h, s)| {
-                    diff_files(h.as_ref(), s.as_ref()).transpose().map(|diff| (h, s, diff))
+                    diff_files(h.as_ref(), s.as_ref())
+                        .transpose()
+                        .map(|diff| (h, s, diff))
                 });
 
                 for item in iter {
                     let (_, system_path, diff) = item;
-                    let system_path = system_path.as_ref().display();
+                    let system_path_disp = system_path.as_ref().display();
+                    let has_remote_changes = {
+                        let prefix = match self.get_hoard(hoard)? {
+                            Hoard::Anonymous(pile) => pile
+                                .path
+                                .as_ref()
+                                .expect("hoard path should be guaranteed here"),
+                            Hoard::Named(piles) => piles
+                                .piles
+                                .values()
+                                .filter_map(|pile| pile.path.as_ref())
+                                .find(|path| system_path.as_ref().starts_with(path))
+                                .expect("path should always start with a pile path"),
+                        };
+                        let rel_path = system_path
+                            .as_ref()
+                            .strip_prefix(prefix)
+                            .expect("prefix should always match path");
+                        HoardOperation::file_has_remote_changes(hoard, rel_path)?
+                    };
+                    let change_location =
+                        has_remote_changes.then(|| "remotely").unwrap_or("locally");
                     match diff.map_err(Error::Diff)? {
                         Diff::Binary => {
                             tracing::info!(
-                                "{}: binary file changed",
-                                system_path
+                                "{}: binary file changed {}",
+                                system_path_disp,
+                                change_location,
                             );
                         }
                         Diff::Permissions(left, right) => {
                             if cfg!(unix) {
                                 tracing::info!(
-                                    "{}: permissions changed: hoard ({:o}), system ({:o})",
-                                    system_path,
+                                    "{}: permissions changed {}: hoard ({:o}), system ({:o})",
+                                    system_path_disp,
+                                    change_location,
                                     left.mode(),
                                     right.mode(),
                                 );
                             } else {
                                 tracing::info!(
-                                    "{}: permissions changed: hoard ({}), system ({})",
-                                    system_path,
+                                    "{}: permissions changed {}: hoard ({}), system ({})",
+                                    system_path_disp,
+                                    change_location,
                                     left.readonly().then(|| "readonly").unwrap_or("writable"),
                                     right.readonly().then(|| "readonly").unwrap_or("writable"),
                                 );
                             }
                         }
                         Diff::Text(unified) => {
-                            tracing::info!("{}: text file changed", system_path);
+                            tracing::info!(
+                                "{}: text file changed {}",
+                                system_path_disp,
+                                change_location
+                            );
                             if *verbose {
                                 tracing::info!("{}", unified);
                             }
                         }
                         Diff::LeftNotExists => {
-                            tracing::info!("{}: on system, not in the hoard", system_path);
+                            tracing::info!("{}: on system, not in the hoard", system_path_disp);
                         }
                         Diff::RightNotExists => {
-                            tracing::info!("{}: in hoard, not on the system", system_path);
+                            tracing::info!("{}: in hoard, not on the system", system_path_disp);
                         }
                     }
                 }

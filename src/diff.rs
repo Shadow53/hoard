@@ -58,7 +58,7 @@ fn content_and_meta_for(path: &Path) -> io::Result<(FileContent, Option<fs::Meta
         Err(err) => match err.kind() {
             io::ErrorKind::NotFound => Ok((FileContent::Missing, None)),
             _ => Err(err),
-        }
+        },
     }
 }
 

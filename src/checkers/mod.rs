@@ -5,7 +5,7 @@
 
 pub mod history;
 
-use crate::hoard::{Hoard, Direction};
+use crate::hoard::{Direction, Hoard};
 
 /// Trait for validating [`Hoard`]s.
 ///

@@ -5,7 +5,7 @@
 //! explanation of why this is useful.
 
 use super::super::Checker;
-use crate::hoard::{Hoard, Direction};
+use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
