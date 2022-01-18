@@ -242,23 +242,22 @@ impl Config {
                             );
                         }
                         Diff::Permissions(left, right) => {
-                            if cfg!(unix) {
-                                tracing::info!(
-                                    "{}: permissions changed {}: hoard ({:o}), system ({:o})",
-                                    system_path_disp,
-                                    change_location,
-                                    left.mode(),
-                                    right.mode(),
-                                );
-                            } else {
-                                tracing::info!(
-                                    "{}: permissions changed {}: hoard ({}), system ({})",
-                                    system_path_disp,
-                                    change_location,
-                                    left.readonly().then(|| "readonly").unwrap_or("writable"),
-                                    right.readonly().then(|| "readonly").unwrap_or("writable"),
-                                );
-                            }
+                            #[cfg(unix)]
+                            tracing::info!(
+                                "{}: permissions changed {}: hoard ({:o}), system ({:o})",
+                                system_path_disp,
+                                change_location,
+                                left.mode(),
+                                right.mode(),
+                            );
+                            #[cfg(not(unix))]
+                            tracing::info!(
+                                "{}: permissions changed {}: hoard ({}), system ({})",
+                                system_path_disp,
+                                change_location,
+                                left.readonly().then(|| "readonly").unwrap_or("writable"),
+                                right.readonly().then(|| "readonly").unwrap_or("writable"),
+                            );
                         }
                         Diff::Text(unified) => {
                             tracing::info!(
