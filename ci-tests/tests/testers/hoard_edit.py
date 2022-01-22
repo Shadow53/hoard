@@ -193,7 +193,7 @@ class EditCommandTester(HoardTester):
         self.verify_editor_called(path)
 
     def run_test(self):
-        if platform.system() == "Darwin":
+        if platform.system() == "Darwin" or platform.system() == "Windows":
             # See note in _set_gui_editor
             return
 
