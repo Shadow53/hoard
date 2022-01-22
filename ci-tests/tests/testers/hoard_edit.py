@@ -24,7 +24,7 @@ class Editor(str, Enum):
 
     @property
     def absolute_path(self) -> Path:
-        return Path(__file__).parent.parent.parent.joinpath("bin", self.value)
+        return Path(__file__).parent.parent.parent.joinpath("bin", self.value).resolve()
 
     @property
     def desktop_file(self) -> str:
@@ -93,10 +93,16 @@ class EditCommandTester(HoardTester):
             value = f"{editor.absolute_path} \"%1\""
             key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command")
             winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
+            winreg.FlushKey(key)
+            key.Close()
             key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command")
             winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
+            winreg.FlushKey(key)
+            key.Close()
             key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command")
             winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
+            winreg.FlushKey(key)
+            key.Close()
         elif platform.system() == "Darwin":
             # I cannot for the life of me figure out how to do this. Best option seems to be `duti`,
             # but it does not look like it supports arbitrary script files, only installed packages.
