@@ -191,7 +191,10 @@ class EditCommandTester(HoardTester):
 
     def _ensure_watchdog_works(self):
         path = Path.home().joinpath("test.txt")
-        subprocess.run([Editor.good().absolute_path, path], check=True)
+        if platform.system() == "Windows":
+            subprocess.run(["powershell.exe", Editor.good().absolute_path, path], check=True)
+        else:
+            subprocess.run([Editor.good().absolute_path, path], check=True)
         self.verify_editor_called(path)
 
     def run_test(self):
