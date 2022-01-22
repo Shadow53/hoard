@@ -57,20 +57,21 @@ class EditCommandTester(HoardTester):
 
     @staticmethod
     def _install_desktop_file_for(editor: Editor) -> None:
-        with TemporaryDirectory() as tempdir:
-            file_name = f"{tempdir}/{editor.desktop_file}"
-            with open(file_name, "w", encoding="utf-8") as file:
-                file.write(dedent(f"""\
-                    [Desktop Entry]
-                    Type=Application
-                    Name=Fake Editor
-                    GenericName=Editor
-                    Categories=System
-                    MimeType=text/plain;application/x-yaml
-                    Exec={editor.absolute_path} %f
-                    """))
-                file.close()
-                subprocess.run(["xdg-desktop-menu", "install", "--novendor", "--mode", "user", file_name], check=True)
+        if platform.system() == "Linux":
+            with TemporaryDirectory() as tempdir:
+                file_name = f"{tempdir}/{editor.desktop_file}"
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.write(dedent(f"""\
+                        [Desktop Entry]
+                        Type=Application
+                        Name=Fake Editor
+                        GenericName=Editor
+                        Categories=System
+                        MimeType=text/plain;application/x-yaml
+                        Exec={editor.absolute_path} %f
+                        """))
+                    file.close()
+                    subprocess.run(["xdg-desktop-menu", "install", "--novendor", "--mode", "user", file_name], check=True)
 
     @staticmethod
     def _set_editor(editor: Editor) -> None:
@@ -96,7 +97,7 @@ class EditCommandTester(HoardTester):
             winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
             key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command")
             winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-        elif platform.system() == "macOS":
+        elif platform.system() == "Darwin":
             # I cannot for the life of me figure out how to do this. Best option seems to be `duti`,
             # but it does not look like it supports arbitrary script files, only installed packages.
             pass
@@ -182,7 +183,7 @@ class EditCommandTester(HoardTester):
         assert result.returncode != 0, f"GUI editor returned exit code {result.returncode}"
 
     def run_test(self):
-        if platform.system() == "macOS":
+        if platform.system() == "Darwin":
             # See note in _set_gui_editor
             return
 
