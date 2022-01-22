@@ -252,6 +252,9 @@ class HoardTester(ABC):
         access = "w"
         if is_binary:
             access += "b"
+        path = Path(path)
+        if not path.parent.exists():
+            os.makedirs(path.parent)
         with open(path, access) as file:
             file.write(content)
             file.flush()

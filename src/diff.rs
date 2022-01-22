@@ -10,6 +10,7 @@ use similar::{ChangeTag, TextDiff};
 
 const CONTEXT_RADIUS: usize = 5;
 
+#[derive(Debug, Clone, PartialEq)]
 enum FileContent {
     Text(String),
     Binary(Vec<u8>),
@@ -35,6 +36,7 @@ impl FileContent {
 }
 
 #[allow(variant_size_differences)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Diff {
     /// Text content differs. Contains the generated unified diff.
     Text(String),
@@ -109,4 +111,42 @@ pub(crate) fn diff_files(left_path: &Path, right_path: &Path) -> io::Result<Opti
     };
 
     Ok(diff)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_diff_non_existent_files() {
+        let left_path = PathBuf::from("/does/not/exist");
+        let right_path = PathBuf::from("/also/does/not/exist");
+        let diff = diff_files(&left_path, &right_path).expect("diff should not fail");
+
+        assert!(diff.is_none());
+    }
+
+    mod file_content {
+        use super::*;
+
+        #[test]
+        fn test_text_into_bytes() {
+            let string_content = String::from("text content");
+            let s = FileContent::Text(string_content.clone());
+            assert_eq!(s.into_bytes(), Some(string_content.into_bytes()));
+        }
+
+        #[test]
+        fn test_binary_into_bytes() {
+            let bytes = vec![23u8, 244u8, 0u8, 12u8, 17u8];
+            let b = FileContent::Binary(bytes.clone());
+            assert_eq!(b.into_bytes(), Some(bytes));
+        }
+
+        #[test]
+        fn test_missing_into_bytes() {
+            assert_eq!(FileContent::Missing.into_bytes(), None);
+        }
+    }
 }

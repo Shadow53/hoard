@@ -1,8 +1,9 @@
-from .hoard_tester import HoardTester
+from dataclasses import dataclass
 from pathlib import Path
 import os
+import platform
 import stat
-import sys
+from .hoard_tester import HoardTester
 
 
 CONFIG_FILE = "hoard-diff-config.toml"
@@ -12,19 +13,17 @@ DEFAULT_BIN_CONTENT = b"\x12\xFE\x2D\x8A\xC1"
 CHANGED_BIN_CONTENT = b"\x12\xFE\xD2\x8A\xC1"
 
 
+@dataclass
+class TestEntry:
+    path: Path
+    hoard_path: Path
+    is_text: bool
+
+
 class DiffCommandTester(HoardTester):
     def setup(self):
         home = Path.home()
         self.env["HOARD_LOG"] = "info"
-        content = {
-            "txt": DEFAULT_TEXT_CONTENT,
-            "bin": DEFAULT_BIN_CONTENT,
-        }
-
-        for hoard_type in ["anon", "named"]:
-            for ext, file_content in content.items():
-                path = home.joinpath(f"{hoard_type}.{ext}")
-                self._write_file(path, file_content, is_binary=(ext == "bin"))
 
     def _assert_diff_contains(self, target, content, *, partial=False, verbose=False):
         if verbose:
@@ -39,144 +38,113 @@ class DiffCommandTester(HoardTester):
         else:
             assert result.stdout == content, f"expected \"{content}\", got \"{result.stdout}\""
 
-    def _test_bin_files(self):
+    def _test_files(self, hoard_pile_mapping):
         self.reset(config_file=CONFIG_FILE)
-        home = Path.home()
-        anon_path = home.joinpath("anon.bin")
-        named_path = home.joinpath("named.bin")
 
-        # Not yet backed up
-        self._assert_diff_contains("anon_bin", f"{anon_path}: on system, not in the hoard\n".encode())
-        self._assert_diff_contains("named", f"{named_path}: on system, not in the hoard\n".encode(), partial=True)
+        for files in hoard_pile_mapping.values():
+            for file in files:
+                content = DEFAULT_TEXT_CONTENT if file.is_text else DEFAULT_BIN_CONTENT
+                self._write_file(file.path, content, is_binary=not file.is_text)
 
-        self.targets = []
-        self.run_hoard("backup")
+        for hoard, files in hoard_pile_mapping.items():
+            has_multiple_files = len(files) > 1
+            for file in files:
+                self._assert_diff_contains(hoard, f"{file.path}: on system, not in the hoard\n".encode(), partial=has_multiple_files)
 
-        anon_perms = os.stat(anon_path).st_mode
-        named_perms = os.stat(named_path).st_mode
+            self.run_hoard("backup")
 
-        # No diff
-        self._assert_diff_contains("anon_bin", b"")
+            for file in files:
+                file_perms = os.stat(file.path).st_mode
+                # No diff yet
+                self._assert_diff_contains(hoard, b"")
+                # Toggle write permission
+                os.chmod(file.path, file_perms ^ stat.S_IWUSR)
 
-        os.chmod(anon_path, anon_perms ^ stat.S_IWUSR)
-        os.chmod(named_path, named_perms ^ stat.S_IWUSR)
+                if platform.system() == "Windows":
+                    self._assert_diff_contains(hoard, f"{file.path}: permissions changed locally: hoard (writable), system (readonly)\n".encode())
+                else:
+                    self._assert_diff_contains(hoard, f"{file.path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
 
-        if sys.platform == "Windows":
-            self._assert_diff_contains("anon_bin", f"{anon_path}: permissions changed locally: hoard (writable), system (readonly)\n".encode())
-            self._assert_diff_contains("named", f"{named_path}: permissions changed locally: hoard (writable), system (readonly)\n".encode())
-        else:
-            self._assert_diff_contains("anon_bin", f"{anon_path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
-            self._assert_diff_contains("named", f"{named_path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
+                # Restore permissions
+                os.chmod(file.path, file_perms)
 
-        os.chmod(anon_path, anon_perms)
-        os.chmod(named_path, named_perms)
+                self._write_file(
+                    file.path,
+                    CHANGED_TEXT_CONTENT if file.is_text else CHANGED_BIN_CONTENT,
+                    is_binary=not file.is_text
+                )
 
-        self._write_file(anon_path, CHANGED_TEXT_CONTENT, is_binary=False)
-        self._write_file(named_path, CHANGED_TEXT_CONTENT, is_binary=False)
-        # Anon diff
-        self._assert_diff_contains("anon_bin", f"{anon_path}: binary file changed locally\n".encode())
-        # Named diff
-        self._assert_diff_contains("named", f"{named_path}: binary file changed locally\n".encode())
+                file_type = "text" if file.is_text else "binary"
+                full_diff = (
+                    f"--- {file.hoard_path}\n"
+                    f"+++ {file.path}\n"
+                    "@@ -1 +1 @@\n"
+                    "-This is a text file\n"
+                    "\\ No newline at end of file\n"
+                    "+This is different text content\n"
+                    "\\ No newline at end of file\n\n"
+                ) if file.is_text else ""
+                self._assert_diff_contains(hoard, f"{file.path}: {file_type} file changed locally\n".encode(), verbose=False)
+                self._assert_diff_contains(
+                    hoard,
+                    f"{file.path}: {file_type} file changed locally\n{full_diff}".encode(),
+                    verbose=True
+                )
 
-        # Verbose (Unified Diff)
-        # Anon diff
-        self._assert_diff_contains(
-            "anon_bin",
-            f"{anon_path}: binary file changed locally\n".encode(),
-            verbose=True)
-        # Named diff
-        self._assert_diff_contains(
-            "named",
-            f"{named_path}: binary file changed locally\n".encode(),
-            verbose=True)
+                os.remove(file.path)
 
-        os.remove(anon_path)
-        os.remove(named_path)
-        # Anon diff
-        self._assert_diff_contains("anon_bin", f"{anon_path}: in hoard, not on the system\n".encode())
-        # Named diff
-        self._assert_diff_contains("named", f"{named_path}: in hoard, not on the system\n".encode())
+                self._assert_diff_contains(hoard, f"{file.path}: in hoard, not on the system\n".encode())
 
-    def _test_text_files(self):
-        self.reset(config_file=CONFIG_FILE)
-        home = Path.home()
-        anon_path = home.joinpath("anon.txt")
-        named_path = home.joinpath("named.txt")
+                # Restore to previous state
+                content = DEFAULT_TEXT_CONTENT if file.is_text else DEFAULT_BIN_CONTENT
+                self._write_file(file.path, content, is_binary=not file.is_text)
 
-        # Not yet backed up
-        self._assert_diff_contains("anon_txt", f"{anon_path}: on system, not in the hoard\n".encode())
-        self._assert_diff_contains("named", f"{named_path}: on system, not in the hoard\n".encode(), partial=True)
-
-        self.targets = []
-        self.run_hoard("backup")
-
-        anon_perms = os.stat(anon_path).st_mode
-        named_perms = os.stat(named_path).st_mode
-
-        # No diff
-        self._assert_diff_contains("anon_txt", b"")
-
-        os.chmod(anon_path, anon_perms ^ stat.S_IWUSR)
-        os.chmod(named_path, named_perms ^ stat.S_IWUSR)
-
-        if sys.platform == "Windows":
-            self._assert_diff_contains("anon_txt", f"{anon_path}: permissions changed locally: hoard (writable), system (readonly)\n".encode())
-            self._assert_diff_contains("named", f"{named_path}: permissions changed locally: hoard (writable), system (readonly)\n".encode())
-        else:
-            self._assert_diff_contains("anon_txt", f"{anon_path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
-            self._assert_diff_contains("named", f"{named_path}: permissions changed locally: hoard (100644), system (100444)\n".encode())
-
-        os.chmod(anon_path, anon_perms)
-        os.chmod(named_path, named_perms)
-
-        self._write_file(anon_path, CHANGED_TEXT_CONTENT, is_binary=False)
-        self._write_file(named_path, CHANGED_TEXT_CONTENT, is_binary=False)
-        # Anon diff
-        self._assert_diff_contains("anon_txt", f"{anon_path}: text file changed locally\n".encode())
-        # Named diff
-        self._assert_diff_contains("named", f"{named_path}: text file changed locally\n".encode())
-
-        # Verbose (Unified Diff)
-        # Anon diff
-        self._assert_diff_contains(
-            "anon_txt",
-            (
-                f"{anon_path}: text file changed locally\n"
-                f"--- {home}/.local/share/hoard/hoards/anon_txt\n"
-                f"+++ {anon_path}\n"
-            ).encode() + (
-                b"@@ -1 +1 @@\n"
-                b"-This is a text file\n"
-                b"\\ No newline at end of file\n"
-                b"+This is different text content\n"
-                b"\\ No newline at end of file\n\n"
-            ),
-            verbose=True)
-        # Named diff
-        self._assert_diff_contains(
-            "named",
-            (
-                f"{named_path}: text file changed locally\n"
-                f"--- {home}/.local/share/hoard/hoards/named/text\n"
-                f"+++ {named_path}\n"
-            ).encode() + (
-                b"@@ -1 +1 @@\n"
-                b"-This is a text file\n"
-                b"\\ No newline at end of file\n"
-                b"+This is different text content\n"
-                b"\\ No newline at end of file\n\n"
-            ),
-            verbose=True)
-
-        os.remove(anon_path)
-        os.remove(named_path)
-        # Anon diff
-        self._assert_diff_contains("anon_txt", f"{anon_path}: in hoard, not on the system\n".encode())
-        # Named diff
-        self._assert_diff_contains("named", f"{named_path}: in hoard, not on the system\n".encode())
-
-
+    @staticmethod
+    def _get_hoard_path(relative_path):
+        system = platform.system()
+        if system == "Windows":
+            return Path.home().joinpath("AppData/shadow53/hoard/data/hoards").joinpath(relative_path)
+        if system == "Darwin":
+            return Path.home().joinpath("Library/Application Support/com.shadow53/hoard/hoards").joinpath(relative_path)
+        if system == "Linux":
+            return Path.home().joinpath(".local/share/hoard/hoards").joinpath(relative_path)
+        raise RuntimeError(f"Unexpected system: {system}")
 
     def run_test(self):
-        self._test_text_files()
-        self._test_bin_files()
+        home = Path.home()
+
+        mapping = {
+            "anon_dir": [
+                TestEntry(
+                    path=home.joinpath("testdir", "test.txt"),
+                    hoard_path=self._get_hoard_path("anon_dir/test.txt"),
+                    is_text=True
+                ),
+                TestEntry(
+                    path=home.joinpath("testdir", "test.bin"),
+                    hoard_path=self._get_hoard_path("anon_dir/test.bin"),
+                    is_text=False
+                )
+            ],
+            "anon_txt": [
+                TestEntry(
+                    path=home.joinpath("anon.txt"),
+                    hoard_path=self._get_hoard_path("anon_txt"),
+                    is_text=True
+                )
+            ],
+            "named": [
+                TestEntry(
+                    path=home.joinpath("named.txt"),
+                    hoard_path=self._get_hoard_path("named/text"),
+                    is_text=True
+                ),
+                TestEntry(
+                    path=home.joinpath("named.bin"),
+                    hoard_path=self._get_hoard_path("named/binary"),
+                    is_text=False
+                )
+            ],
+        }
+
+        self._test_files(mapping)

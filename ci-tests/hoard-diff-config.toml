@@ -24,10 +24,6 @@ exclusivity = [
     "unix"    = "${HOME}/anon.bin"
     "windows" = "${USERPROFILE}/anon.bin"
 
-[hoards.anon_perms]
-    "unix"    = "${HOME}/anon.perms"
-    "windows" = "${USERPROFILE}/anon.perms"
-
 [hoards.named]
 [hoards.named.text]
     "unix"    = "${HOME}/named.txt"
@@ -35,6 +31,7 @@ exclusivity = [
 [hoards.named.binary]
     "unix"    = "${HOME}/named.bin"
     "windows" = "${USERPROFILE}/named.bin"
-[hoards.named.perms]
-    "unix"    = "${HOME}/named.perms"
-    "windows" = "${USERPROFILE}/named.perms"
+
+[hoards.anon_dir]
+    "unix"    = "${HOME}/testdir"
+    "windows" = "${USERPROFILE}/testdir"
