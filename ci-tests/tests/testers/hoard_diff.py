@@ -18,14 +18,14 @@ class TestEntry:
     path: Path
     hoard_path: Path
     is_text: bool
+    ignored: bool = False
 
 
 class DiffCommandTester(HoardTester):
     def setup(self):
-        home = Path.home()
         self.env["HOARD_LOG"] = "info"
 
-    def _assert_diff_contains(self, target, content, *, partial=False, verbose=False):
+    def _assert_diff_contains(self, target, content, *, partial=False, verbose=False, invert=False):
         if verbose:
             self.targets = ["-v"]
         else:
@@ -33,7 +33,9 @@ class DiffCommandTester(HoardTester):
         self.targets += [target]
 
         result = self.run_hoard("diff", capture_output=True)
-        if partial:
+        if invert:
+            assert content not in result.stdout
+        elif partial:
             assert content in result.stdout, f"expected \"{content}\" in \"{result.stdout}\""
         else:
             assert result.stdout == content, f"expected \"{content}\", got \"{result.stdout}\""
@@ -49,11 +51,18 @@ class DiffCommandTester(HoardTester):
         for hoard, files in hoard_pile_mapping.items():
             has_multiple_files = len(files) > 1
             for file in files:
-                self._assert_diff_contains(hoard, f"{file.path}: on system, not in the hoard\n".encode(), partial=has_multiple_files)
+                self._assert_diff_contains(
+                    hoard,
+                    f"{file.path}: on system, not in the hoard\n".encode(),
+                    partial=has_multiple_files,
+                    invert=file.ignored
+                )
 
             self.run_hoard("backup")
 
             for file in files:
+                if file.ignored:
+                    continue
                 file_perms = os.stat(file.path).st_mode
                 # No diff yet
                 self._assert_diff_contains(hoard, b"")
@@ -124,7 +133,13 @@ class DiffCommandTester(HoardTester):
                     path=home.joinpath("testdir", "test.bin"),
                     hoard_path=self._get_hoard_path("anon_dir/test.bin"),
                     is_text=False
-                )
+                ),
+                TestEntry(
+                    path=home.joinpath("testdir", "ignore.txt"),
+                    hoard_path=None,
+                    is_text=True,
+                    ignored=True,
+                ),
             ],
             "anon_txt": [
                 TestEntry(
