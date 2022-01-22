@@ -91,18 +91,13 @@ class EditCommandTester(HoardTester):
         elif platform.system() == "Windows":
             # Based on https://fekir.info/post/default-text-editor-in-windows/
             value = f"powershell.exe -Path {editor.absolute_path} \"%1\""
-            key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command")
-            winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-            winreg.FlushKey(key)
-            key.Close()
-            key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command")
-            winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-            winreg.FlushKey(key)
-            key.Close()
-            key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command")
-            winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-            winreg.FlushKey(key)
-            key.Close()
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell", winreg.REG_SZ, "editor")
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command", winreg.REG_SZ, value)
+            assert winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command") == value
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command", winreg.REG_SZ, value)
+            assert winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command") == value
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command", winreg.REG_SZ, value)
+            assert winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command") == value
         elif platform.system() == "Darwin":
             # I cannot for the life of me figure out how to do this. Best option seems to be `duti`,
             # but it does not look like it supports arbitrary script files, only installed packages.
