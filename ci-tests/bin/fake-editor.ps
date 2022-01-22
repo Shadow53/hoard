@@ -1,2 +1,3 @@
-Set-Content -NoNewline -Path $args[1] -Value "opened $($args[1]) in fake editor"
-Set-Content -NoNewline -Path "$Env:userprofile\watchdog.txt" -Value "opened $($args[1]) in fake editor"
+param ( [Parameter(Mandatory=$true)][string]$target )
+Set-Content -NoNewline -Path $target -Value "opened $target in fake editor"
+Set-Content -NoNewline -Path "$Env:userprofile\watchdog.txt" -Value "opened $target in fake editor"
