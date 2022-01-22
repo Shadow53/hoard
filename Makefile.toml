@@ -4,28 +4,36 @@
     rm -rf profraw
     """
 
-[tasks.install-nightly]
+[tasks.create-profraw-dir]
+    command = "mkdir"
+    args = ["-p", "./profraw"]
+
+[tasks.install-stable]
     ignore_errors = true
     command = "rustup"
-    args = ["toolchain", "install", "nightly", "--component", "llvm-tools-preview", "--target", "x86_64-unknown-linux-musl"]
+    args = ["toolchain", "install", "stable", "--component", "llvm-tools-preview", "--target", "x86_64-unknown-linux-musl"]
 
-[tasks.build-nightly]
+[tasks.build-stable]
     install_crate = false
-    dependencies = ["install-nightly"]
+    dependencies = ["install-stable"]
     command = "cargo"
-    args = ["+nightly", "build", "--target", "x86_64-unknown-linux-musl"]
+    args = ["+stable", "build", "--target", "x86_64-unknown-linux-musl"]
+    [tasks.build-stable.env]
+        RUSTC_BOOTSTRAP="1"
+        RUSTFLAGS="-Zinstrument-coverage"
 
-[tasks.test-nightly]
+[tasks.test-stable]
     install_crate = false
-    dependencies = ["install-nightly"]
+    dependencies = ["install-stable", "create-profraw-dir"]
     command = "cargo"
-    args = ["+nightly", "test", "--target", "x86_64-unknown-linux-musl"]
-    [tasks.test-nightly.env]
+    args = ["+stable", "test", "--target", "x86_64-unknown-linux-musl"]
+    [tasks.test-stable.env]
+        RUSTC_BOOTSTRAP="1"
         RUSTFLAGS="-Zinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
 [tasks.integration-tests]
-    dependencies = ["build-nightly"]
+    dependencies = ["build-stable", "create-profraw-dir"]
     script = """
     mkdir -p ./profraw
     sudo docker image build . -t hoard-tests --no-cache
@@ -33,9 +41,13 @@
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
     echo "Ran tests"
     """
+    [tasks.integration-tests.env]
+        RUSTC_BOOTSTRAP="1"
+        RUSTFLAGS="-Zinstrument-coverage"
+        LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
 [tasks.grcov]
-    dependencies = ["clean-all", "test-nightly", "integration-tests"]
+    dependencies = ["clean-all", "test-stable", "integration-tests"]
     # Using `script` is necessary to get the glob expansion
     script = """
     grcov profraw/*.profraw --binary-path ./target/x86_64-unknown-linux-musl/debug \
@@ -47,7 +59,8 @@
     """
     [tasks.grcov.env]
         RUSTFLAGS="-Zinstrument-coverage"
-        RUSTUP_TOOLCHAIN="nightly"
+        RUSTC_BOOTSTRAP="1"
+        RUSTUP_TOOLCHAIN="stable"
         HOARD_LOG="trace"
         EXCLUDE_DERIVE="#\\[derive\\("
         EXCLUDE_PANICS="panic!|todo!|unimplemented!"
