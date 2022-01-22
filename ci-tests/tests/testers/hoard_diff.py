@@ -114,7 +114,7 @@ class DiffCommandTester(HoardTester):
         if system == "Windows":
             return Path.home().joinpath("AppData/shadow53/hoard/data/hoards").joinpath(relative_path)
         if system == "Darwin":
-            return Path.home().joinpath("Library/Application Support/com.shadow53/hoard/hoards").joinpath(relative_path)
+            return Path.home().joinpath("Library/Application Support/com.shadow53.hoard/hoards").joinpath(relative_path)
         if system == "Linux":
             return Path.home().joinpath(".local/share/hoard/hoards").joinpath(relative_path)
         raise RuntimeError(f"Unexpected system: {system}")
