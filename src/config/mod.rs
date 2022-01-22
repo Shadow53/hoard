@@ -212,7 +212,7 @@ impl Config {
                 for item in iter {
                     let (_, system_path, diff) = item;
                     let system_path_disp = system_path.as_ref().display();
-                    let has_remote_changes = {
+                    let (has_remote_changes, has_hoard_records, has_local_records) = {
                         let prefix = match self.get_hoard(hoard)? {
                             Hoard::Anonymous(pile) => pile
                                 .path
@@ -229,7 +229,11 @@ impl Config {
                             .as_ref()
                             .strip_prefix(prefix)
                             .expect("prefix should always match path");
-                        HoardOperation::file_has_remote_changes(hoard, rel_path)?
+                        (
+                            HoardOperation::file_has_remote_changes(hoard, rel_path)?,
+                            HoardOperation::file_has_records(hoard, rel_path)?,
+                            HoardOperation::latest_local(hoard, Some(rel_path))?.is_some()
+                        )
                     };
                     let change_location =
                         has_remote_changes.then(|| "remotely").unwrap_or("locally");
@@ -270,10 +274,37 @@ impl Config {
                             }
                         }
                         Diff::LeftNotExists => {
-                            tracing::info!("{}: on system, not in the hoard", system_path_disp);
+                            // File not in hoard directory
+                            if has_hoard_records {
+                                // Used to exist in hoard directory
+                                if has_remote_changes {
+                                    // Most recent operation is remote, probably deleted
+                                    tracing::info!("{}: deleted {}", system_path_disp, change_location);
+                                } else {
+                                    // Most recent operation is local, probably recreated file
+                                    tracing::info!("{}: recreated {}", system_path_disp, change_location);
+                                }
+                            } else {
+                                // Never existed in hoard, newly created
+                                tracing::info!("{}: created {}", system_path_disp, change_location);
+                            }
                         }
                         Diff::RightNotExists => {
-                            tracing::info!("{}: in hoard, not on the system", system_path_disp);
+                            // File not on system
+                            if has_hoard_records {
+                                // File exists in the hoard
+                                if has_local_records {
+                                    if has_remote_changes {
+                                        tracing::info!("{}: recreated {}", system_path_disp, change_location);
+                                    } else {
+                                        tracing::info!("{}: deleted {}", system_path_disp, change_location);
+                                    }
+                                } else {
+                                    tracing::info!("{}: created {}", system_path_disp, change_location);
+                                }
+                            } else {
+                                tracing::info!("{}: created directly in hoard ???", system_path_disp);
+                            }
                         }
                     }
                 }

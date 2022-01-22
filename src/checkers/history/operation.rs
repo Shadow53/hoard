@@ -310,6 +310,20 @@ impl HoardOperation {
 
         Ok(result)
     }
+
+    /// Returns whether the given `file` has unapplied remote changes.
+    ///
+    /// `file` must be a path relative to the root of one of the Hoard's Piles.
+    ///
+    /// # Errors
+    ///
+    /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
+    pub fn file_has_records(hoard: &str, file: &Path) -> Result<bool, Error> {
+        let remote = Self::latest_remote_backup(hoard, Some(file))?;
+        let local = Self::latest_local(hoard, Some(file))?;
+
+        Ok(remote.is_some() || local.is_some())
+    }
 }
 
 /// Operation log information for a single hoard.
