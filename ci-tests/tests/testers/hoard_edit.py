@@ -90,7 +90,7 @@ class EditCommandTester(HoardTester):
             assert editor.desktop_file == result.stdout.decode().strip(), f"expected {editor.desktop_file} == {result.stdout}"
         elif platform.system() == "Windows":
             # Based on https://fekir.info/post/default-text-editor-in-windows/
-            value = f"{editor.absolute_path} \"%1\""
+            value = f"powershell.exe -Path {editor.absolute_path} \"%1\""
             key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command")
             winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
             winreg.FlushKey(key)
