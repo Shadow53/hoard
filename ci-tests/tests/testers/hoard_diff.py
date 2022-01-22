@@ -211,7 +211,7 @@ class DiffCommandTester(HoardTester):
     def _get_hoard_path(relative_path):
         system = platform.system()
         if system == "Windows":
-            return Path.home().joinpath("AppData/shadow53/hoard/data/hoards").joinpath(relative_path)
+            return Path.home().joinpath("AppData/Roaming/shadow53/hoard/data/hoards").joinpath(relative_path)
         if system == "Darwin":
             return Path.home().joinpath("Library/Application Support/com.shadow53.hoard/hoards").joinpath(relative_path)
         if system == "Linux":
