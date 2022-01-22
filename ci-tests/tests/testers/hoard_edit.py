@@ -131,8 +131,9 @@ class EditCommandTester(HoardTester):
                 stdout=b"" if capture_output else None,
                 stderr=b"" if capture_output else None)
 
-    def verify_config(self):
-        config_file = self.config_file_path()
+    def verify_editor_called(self, config_file=None):
+        if config_file is None:
+            config_file = self.config_file_path()
         watch_file = Path.home().joinpath("watchdog.txt")
         with open(watch_file, "r") as file:
             # Assert that editor was called
@@ -150,7 +151,7 @@ class EditCommandTester(HoardTester):
         self.flush()
         subprocess.run(["xdg-open", self.config_file_path()], check=True)
         self.flush()
-        self.verify_config()
+        self.verify_editor_called()
 
     def _test_uses_editor(self):
         print("=== Editor: $EDITOR ===")
@@ -159,7 +160,7 @@ class EditCommandTester(HoardTester):
         self._set_editor(Editor.good())
         self._set_gui_editor(Editor.bad())
         self.run_hoard("edit")
-        self.verify_config()
+        self.verify_editor_called()
 
     def _test_uses_gui_editor(self):
         print("=== Editor: XDG ===")
@@ -168,7 +169,7 @@ class EditCommandTester(HoardTester):
         self._set_editor(None)
         self._set_gui_editor(Editor.good())
         self.run_hoard("edit")
-        self.verify_config()
+        self.verify_editor_called()
 
     def _test_uses_editor_fails(self):
         print("=== Editor: $EDITOR (with error) ===")
@@ -188,11 +189,17 @@ class EditCommandTester(HoardTester):
         result = self.run_hoard("edit", allow_failure=True)
         assert result.returncode != 0, f"GUI editor returned exit code {result.returncode}"
 
+    def _ensure_watchdog_works(self):
+        path = Path.home().joinpath("test.txt")
+        subprocess.run([Editor.good().absolute_path, path], check=True)
+        self.verify_editor_called(path)
+
     def run_test(self):
         if platform.system() == "Darwin":
             # See note in _set_gui_editor
             return
 
+        self._ensure_watchdog_works()
         self._test_uses_editor()
         self._test_uses_editor_fails()
         self._test_xdg_open_works()
