@@ -5,9 +5,8 @@ use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
 use crate::command::{Command, EditError};
-use crate::diff::{diff_files, Diff};
-use crate::hoard::iter::HoardFilesIter;
-use crate::hoard::{self, Direction, Hoard, HoardPath, SystemPath};
+use crate::hoard::iter::{HoardDiff, HoardFilesIter};
+use crate::hoard::{self, Direction, Hoard};
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -73,7 +72,7 @@ pub enum Error {
     },
     /// An error occurred while diffing files.
     #[error("error while diffing files: {0}")]
-    Diff(#[source] std::io::Error),
+    Diff(#[from] crate::hoard::iter::Error),
     /// An error occurred while creating the [`HoardFilesIter`].
     #[error("error creating file iterator: {0}")]
     Iterator(#[from] crate::filters::Error),
@@ -176,11 +175,19 @@ impl Config {
             .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
     }
 
+    #[allow(dead_code)]
     fn iter_hoard_files(&self, name: &str, direction: Direction) -> Result<HoardFilesIter, Error> {
         let hoard = self.get_hoard(name)?;
         let hoards_root = self.get_hoards_root_path();
 
         HoardFilesIter::new(&hoards_root, direction, name, hoard).map_err(Error::from)
+    }
+
+    fn hoard_file_diffs(&self, name: &str) -> Result<Vec<HoardDiff>, Error> {
+        let hoard = self.get_hoard(name)?;
+        let hoards_root = self.get_hoards_root_path();
+
+        HoardFilesIter::file_diffs(&hoards_root, name, hoard).map_err(Error::from)
     }
 
     /// Run the stored [`Command`] using this [`Config`].
@@ -193,141 +200,43 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Diff { hoard, verbose } => {
-                // Iterator by default filters out paths that don't exist in "source" based on
-                // direction. This merges both directions together for files that exist in one,
-                // other, or both.
-                let paths: HashMap<HoardPath, SystemPath> = self
-                    .iter_hoard_files(hoard, Direction::Restore)?
-                    .chain(self.iter_hoard_files(hoard, Direction::Backup)?)
-                    .collect::<Result<_, _>>()
-                    .map_err(Error::Diff)?;
-
-                // Now that paths are collected and deduplicated, diff each pair.
-                let iter = paths.into_iter().filter_map(|(h, s)| {
-                    diff_files(h.as_ref(), s.as_ref())
-                        .transpose()
-                        .map(|diff| (h, s, diff))
-                });
-
-                for item in iter {
-                    let (_, system_path, diff) = item;
-                    let system_path_disp = system_path.as_ref().display();
-                    let (has_remote_changes, has_hoard_records, has_local_records) = {
-                        let prefix = match self.get_hoard(hoard)? {
-                            Hoard::Anonymous(pile) => pile
-                                .path
-                                .as_ref()
-                                .expect("hoard path should be guaranteed here"),
-                            Hoard::Named(piles) => piles
-                                .piles
-                                .values()
-                                .filter_map(|pile| pile.path.as_ref())
-                                .find(|path| system_path.as_ref().starts_with(path))
-                                .expect("path should always start with a pile path"),
-                        };
-                        let rel_path = system_path
-                            .as_ref()
-                            .strip_prefix(prefix)
-                            .expect("prefix should always match path");
-                        (
-                            HoardOperation::file_has_remote_changes(hoard, rel_path)?,
-                            HoardOperation::file_has_records(hoard, rel_path)?,
-                            HoardOperation::latest_local(hoard, Some(rel_path))?.is_some(),
-                        )
-                    };
-                    let change_location =
-                        has_remote_changes.then(|| "remotely").unwrap_or("locally");
-                    match diff.map_err(Error::Diff)? {
-                        Diff::Binary => {
-                            tracing::info!(
-                                "{}: binary file changed {}",
-                                system_path_disp,
-                                change_location,
-                            );
+                for hoard_diff in self.hoard_file_diffs(hoard)? {
+                    match hoard_diff {
+                        HoardDiff::BinaryModified { path, diff_source } => {
+                            tracing::info!("{}: binary file changed {}", path.display(), diff_source);
                         }
-                        Diff::Permissions(left, right) => {
+                        HoardDiff::TextModified { path, unified_diff, diff_source } => {
+                            tracing::info!("{}: text file changed {}", path.display(), diff_source);
+                            if *verbose {
+                                tracing::info!("{}", unified_diff);
+                            }
+                        }
+                        HoardDiff::PermissionsModified { path, hoard_perms, system_perms, diff_source } => {
                             #[cfg(unix)]
                             tracing::info!(
                                 "{}: permissions changed {}: hoard ({:o}), system ({:o})",
-                                system_path_disp,
-                                change_location,
-                                left.mode(),
-                                right.mode(),
+                                path.display(),
+                                diff_source,
+                                hoard_perms.mode(),
+                                system_perms.mode(),
                             );
                             #[cfg(not(unix))]
                             tracing::info!(
                                 "{}: permissions changed {}: hoard ({}), system ({})",
-                                system_path_disp,
-                                change_location,
-                                left.readonly().then(|| "readonly").unwrap_or("writable"),
-                                right.readonly().then(|| "readonly").unwrap_or("writable"),
+                                path.display(),
+                                diff_source,
+                                if hoard_perms.readonly() { "readonly" } else { "writable" },
+                                if system_perms.readonly() { "readonly" } else { "writable" },
                             );
                         }
-                        Diff::Text(unified) => {
-                            tracing::info!(
-                                "{}: text file changed {}",
-                                system_path_disp,
-                                change_location
-                            );
-                            if *verbose {
-                                tracing::info!("{}", unified);
-                            }
+                        HoardDiff::Created { path, diff_source } => {
+                            tracing::info!("{}: created {}", path.display(), diff_source);
                         }
-                        Diff::LeftNotExists => {
-                            // File not in hoard directory
-                            if has_hoard_records {
-                                // Used to exist in hoard directory
-                                if has_remote_changes {
-                                    // Most recent operation is remote, probably deleted
-                                    tracing::info!(
-                                        "{}: deleted {}",
-                                        system_path_disp,
-                                        change_location
-                                    );
-                                } else {
-                                    // Most recent operation is local, probably recreated file
-                                    tracing::info!(
-                                        "{}: recreated {}",
-                                        system_path_disp,
-                                        change_location
-                                    );
-                                }
-                            } else {
-                                // Never existed in hoard, newly created
-                                tracing::info!("{}: created {}", system_path_disp, change_location);
-                            }
+                        HoardDiff::Recreated { path, diff_source } => {
+                            tracing::info!("{}: recreated {}", path.display(), diff_source);
                         }
-                        Diff::RightNotExists => {
-                            // File not on system
-                            if has_hoard_records {
-                                // File exists in the hoard
-                                if has_local_records {
-                                    if has_remote_changes {
-                                        tracing::info!(
-                                            "{}: recreated {}",
-                                            system_path_disp,
-                                            change_location
-                                        );
-                                    } else {
-                                        tracing::info!(
-                                            "{}: deleted {}",
-                                            system_path_disp,
-                                            change_location
-                                        );
-                                    }
-                                } else {
-                                    tracing::info!(
-                                        "{}: created {}",
-                                        system_path_disp,
-                                        change_location
-                                    );
-                                }
-                            } else {
-                                tracing::info!(
-                                    "{}: created directly in hoard ???",
-                                    system_path_disp
-                                );
-                            }
+                        HoardDiff::Deleted { path, diff_source } => {
+                            tracing::info!("{}: deleted {}", path.display(), diff_source);
                         }
                     }
                 }
