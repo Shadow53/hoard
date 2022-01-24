@@ -201,7 +201,8 @@ impl Config {
         match &self.command {
             Command::Status => {
                 for hoard in self.hoards.keys() {
-                    let source = self.hoard_file_diffs(hoard)?
+                    let source = self
+                        .hoard_file_diffs(hoard)?
                         .into_iter()
                         .map(|hoard_diff| {
                             #[allow(clippy::match_same_arms)]
@@ -234,20 +235,33 @@ impl Config {
                         }
                     }
                 }
-            },
+            }
             Command::Diff { hoard, verbose } => {
                 for hoard_diff in self.hoard_file_diffs(hoard)? {
                     match hoard_diff {
                         HoardDiff::BinaryModified { path, diff_source } => {
-                            tracing::info!("{}: binary file changed {}", path.display(), diff_source);
+                            tracing::info!(
+                                "{}: binary file changed {}",
+                                path.display(),
+                                diff_source
+                            );
                         }
-                        HoardDiff::TextModified { path, unified_diff, diff_source } => {
+                        HoardDiff::TextModified {
+                            path,
+                            unified_diff,
+                            diff_source,
+                        } => {
                             tracing::info!("{}: text file changed {}", path.display(), diff_source);
                             if *verbose {
                                 tracing::info!("{}", unified_diff);
                             }
                         }
-                        HoardDiff::PermissionsModified { path, hoard_perms, system_perms, .. } => {
+                        HoardDiff::PermissionsModified {
+                            path,
+                            hoard_perms,
+                            system_perms,
+                            ..
+                        } => {
                             #[cfg(unix)]
                             tracing::info!(
                                 "{}: permissions changed: hoard ({:o}), system ({:o})",
@@ -259,8 +273,16 @@ impl Config {
                             tracing::info!(
                                 "{}: permissions changed: hoard ({}), system ({})",
                                 path.display(),
-                                if hoard_perms.readonly() { "readonly" } else { "writable" },
-                                if system_perms.readonly() { "readonly" } else { "writable" },
+                                if hoard_perms.readonly() {
+                                    "readonly"
+                                } else {
+                                    "writable"
+                                },
+                                if system_perms.readonly() {
+                                    "readonly"
+                                } else {
+                                    "writable"
+                                },
                             );
                         }
                         HoardDiff::Created { path, diff_source } => {

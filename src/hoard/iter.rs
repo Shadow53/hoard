@@ -1,14 +1,16 @@
-use std::{fmt, fs};
+use md5::Digest;
 use std::collections::HashSet;
 use std::fmt::Formatter;
 use std::io;
 use std::iter::Peekable;
 use std::path::{Path, PathBuf};
-use md5::Digest;
+use std::{fmt, fs};
 
 use super::{Direction, Hoard, HoardPath, SystemPath};
-use crate::checkers::history::operation::{HoardOperation, Hoard as OpHoard, Error as OperationError};
-use crate::diff::{Diff, diff_files};
+use crate::checkers::history::operation::{
+    Error as OperationError, Hoard as OpHoard, HoardOperation,
+};
+use crate::diff::{diff_files, Diff};
 use crate::filters::Filter;
 use crate::filters::{Error as FilterError, Filters};
 
@@ -134,12 +136,18 @@ impl HoardFilesIter {
     pub(crate) fn file_diffs(
         hoards_root: &Path,
         hoard_name: &str,
-        hoard: &Hoard
+        hoard: &Hoard,
     ) -> Result<Vec<HoardDiff>, Error> {
         let _span = tracing::trace_span!("file_diffs_iterator").entered();
-        let paths: HashSet<(Option<String>, HoardPath, SystemPath)> = Self::new(hoards_root, Direction::Backup, hoard_name, hoard)?
-            .chain(Self::new(hoards_root, Direction::Restore, hoard_name, hoard)?)
-            .collect::<Result<_, _>>()?;
+        let paths: HashSet<(Option<String>, HoardPath, SystemPath)> =
+            Self::new(hoards_root, Direction::Backup, hoard_name, hoard)?
+                .chain(Self::new(
+                    hoards_root,
+                    Direction::Restore,
+                    hoard_name,
+                    hoard,
+                )?)
+                .collect::<Result<_, _>>()?;
 
         paths
             .into_iter()
@@ -398,8 +406,12 @@ impl Iterator for HoardFilesIter {
                     if is_file {
                         return Some(Ok((self.pile_name.clone(), hoard_path, system_path)));
                     } else if is_dir {
-                        self.root_paths
-                            .push((self.pile_name.clone(), hoard_path, system_path, self.filter.clone()));
+                        self.root_paths.push((
+                            self.pile_name.clone(),
+                            hoard_path,
+                            system_path,
+                            self.filter.clone(),
+                        ));
                     }
                 }
             }
