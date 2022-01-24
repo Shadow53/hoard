@@ -46,6 +46,9 @@ pub enum Command {
         #[structopt(long, short)]
         verbose: bool,
     },
+    /// Provides a summary of which hoards have changes and if the diffs can be resolved
+    /// with a single command.
+    Status,
 }
 
 impl Default for Command {

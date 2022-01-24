@@ -59,13 +59,13 @@ pub enum Error {
 #[allow(clippy::module_name_repetitions)]
 pub struct HoardOperation {
     /// Timestamp of last operation
-    timestamp: OffsetDateTime,
+    pub(crate) timestamp: OffsetDateTime,
     /// Whether this operation was a backup
-    is_backup: bool,
+    pub(crate) is_backup: bool,
     /// The name of the hoard for this `HoardOperation`.
-    hoard_name: String,
+    pub(crate) hoard_name: String,
     /// Mapping of pile files to checksums
-    hoard: Hoard,
+    pub(crate) hoard: Hoard,
 }
 
 impl Checker for HoardOperation {
@@ -366,6 +366,12 @@ pub enum Checksum {
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pile(HashMap<PathBuf, String>);
+
+impl Pile {
+    pub(crate) fn get(&'_ self, key: &Path) -> Option<&'_ str> {
+        self.0.get(key).map(String::as_str)
+    }
+}
 
 fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
     let mut map = HashMap::new();

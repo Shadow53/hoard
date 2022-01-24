@@ -232,11 +232,18 @@ class HoardTester(ABC):
 
         # Write Python buffered output before calling Hoard
         self.flush()
-        result = self._call_hoard(args, allow_failure=allow_failure, capture_output=capture_output)
-        if capture_output:
-            sys.stdout.buffer.write(result.stdout)
-            sys.stderr.buffer.write(result.stderr)
-        self.flush()
+        try:
+            result = self._call_hoard(args, allow_failure=allow_failure, capture_output=capture_output)
+            if capture_output:
+                sys.stdout.buffer.write(result.stdout)
+                sys.stderr.buffer.write(result.stderr)
+        except subprocess.CalledProcessError as e:
+            if capture_output:
+                sys.stdout.buffer.write(e.stdout)
+                sys.stderr.buffer.write(e.stderr)
+            raise
+        finally:
+            self.flush()
         return result
 
     @classmethod
@@ -260,8 +267,8 @@ class HoardTester(ABC):
             file.flush()
             os.fsync(file.fileno())
         cls.sync()
-        time.sleep(2)
-        cls.sync()
+        #time.sleep(2)
+        #cls.sync()
 
     @classmethod
     def read_hoard_file(cls, env, file):

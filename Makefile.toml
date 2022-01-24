@@ -24,7 +24,7 @@
 
 [tasks.test-stable]
     install_crate = false
-    dependencies = ["install-stable", "create-profraw-dir"]
+    dependencies = ["clean-all", "install-stable", "create-profraw-dir"]
     command = "cargo"
     args = ["+stable", "test", "--target", "x86_64-unknown-linux-musl"]
     [tasks.test-stable.env]
@@ -35,8 +35,9 @@
 [tasks.integration-tests]
     dependencies = ["build-stable", "create-profraw-dir"]
     script = """
+    rm -rf ./profraw
     mkdir -p ./profraw
-    sudo docker image build . -t hoard-tests --no-cache
+    sudo docker image build . -t hoard-tests
     echo "Running tests"
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
     echo "Ran tests"

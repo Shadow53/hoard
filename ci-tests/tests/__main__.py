@@ -8,6 +8,7 @@ from testers.correct_errors import CorrectErrorsTester
 from testers.hoard_diff import DiffCommandTester
 from testers.hoard_edit import EditCommandTester
 from testers.hoard_list import ListHoardsTester
+from testers.hoard_status import StatusCommandTester
 from testers.hoard_tester import HoardFile, Environment
 from testers.ignore_filter import IgnoreFilterTester
 from testers.last_paths import LastPathsTester
@@ -57,6 +58,7 @@ TEST_MAPPING = {
     "list_hoards": ("list command", ListHoardsTester),
     "missing_config": ("missing config dir", MissingConfigDirTester),
     "operation": ("operation", OperationCheckerTester),
+    "status_command": ("status command", StatusCommandTester),
     "yaml": ("YAML compat", YAMLSupportTester),
 }
 
@@ -67,6 +69,7 @@ if __name__ == "__main__":
     successful = []
     try:
         test_arg = sys.argv[1]
+        desc = None
         if test_arg == "all":
             print("Running all tests")
             for desc, cls in TEST_MAPPING.values():

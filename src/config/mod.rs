@@ -5,7 +5,7 @@ use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
 use crate::command::{Command, EditError};
-use crate::hoard::iter::{HoardDiff, HoardFilesIter};
+use crate::hoard::iter::{DiffSource, HoardDiff, HoardFilesIter};
 use crate::hoard::{self, Direction, Hoard};
 use directories::ProjectDirs;
 use std::collections::HashMap;
@@ -199,6 +199,42 @@ impl Config {
         #![allow(clippy::too_many_lines)]
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
+            Command::Status => {
+                for hoard in self.hoards.keys() {
+                    let source = self.hoard_file_diffs(hoard)?
+                        .into_iter()
+                        .map(|hoard_diff| {
+                            #[allow(clippy::match_same_arms)]
+                            match hoard_diff {
+                                HoardDiff::BinaryModified { diff_source, .. } => diff_source,
+                                HoardDiff::TextModified { diff_source, .. } => diff_source,
+                                HoardDiff::PermissionsModified { diff_source, .. } => diff_source,
+                                HoardDiff::Created { diff_source, .. } => diff_source,
+                                HoardDiff::Recreated { diff_source, .. } => diff_source,
+                                HoardDiff::Deleted { diff_source, .. } => diff_source,
+                            }
+                        })
+                        .reduce(|acc, source| {
+                            if acc == DiffSource::Unknown || source == DiffSource::Unknown {
+                                DiffSource::Unknown
+                            } else if acc == source {
+                                acc
+                            } else {
+                                DiffSource::Mixed
+                            }
+                        });
+
+                    match source {
+                        None => println!("{}: up to date", hoard),
+                        Some(source) => match source {
+                            DiffSource::Local => println!("{}: modified {} -- sync with `hoard backup {}`", hoard, source, hoard),
+                            DiffSource::Remote => println!("{}: modified {} -- sync with `hoard restore {}`", hoard, source, hoard),
+                            DiffSource::Mixed => println!("{}: mixed changes -- manual intervention required (see `hoard diff`)", hoard),
+                            DiffSource::Unknown => println!("{}: unexpected changes -- manual intervention required (see `hoard diff`)", hoard),
+                        }
+                    }
+                }
+            },
             Command::Diff { hoard, verbose } => {
                 for hoard_diff in self.hoard_file_diffs(hoard)? {
                     match hoard_diff {
@@ -211,20 +247,18 @@ impl Config {
                                 tracing::info!("{}", unified_diff);
                             }
                         }
-                        HoardDiff::PermissionsModified { path, hoard_perms, system_perms, diff_source } => {
+                        HoardDiff::PermissionsModified { path, hoard_perms, system_perms, .. } => {
                             #[cfg(unix)]
                             tracing::info!(
-                                "{}: permissions changed {}: hoard ({:o}), system ({:o})",
+                                "{}: permissions changed: hoard ({:o}), system ({:o})",
                                 path.display(),
-                                diff_source,
                                 hoard_perms.mode(),
                                 system_perms.mode(),
                             );
                             #[cfg(not(unix))]
                             tracing::info!(
-                                "{}: permissions changed {}: hoard ({}), system ({})",
+                                "{}: permissions changed: hoard ({}), system ({})",
                                 path.display(),
-                                diff_source,
                                 if hoard_perms.readonly() { "readonly" } else { "writable" },
                                 if system_perms.readonly() { "readonly" } else { "writable" },
                             );
