@@ -291,8 +291,12 @@ class DiffCommandTester(HoardTester):
         for files in mapping.values():
             for file in files:
                 if file.path.exists():
+                    # Prevent issue on Windows with deleting readonly files
+                    os.chmod(file.path, stat.S_IWRITE)
                     os.remove(file.path)
                 if file.hoard_path is not None and file.hoard_path.exists():
+                    # Prevent issue on Windows with deleting readonly files
+                    os.chmod(file.hoard_path, stat.S_IWRITE)
                     os.remove(file.hoard_path)
 
     def run_test(self):
