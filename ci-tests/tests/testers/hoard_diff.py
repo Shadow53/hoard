@@ -70,21 +70,13 @@ class DiffCommandTester(HoardTester):
         self.args = []
         self.run_hoard("restore")
 
-    def _test_files_unchanged(self, hoard_pile_mapping, *, remote):
-        self.reset(config_file=CONFIG_FILE)
-        for hoard, files in hoard_pile_mapping.items():
-            self._reset_all(files)
-            self._backup(hoard, is_remote=remote)
-            if remote:
-                self._restore(hoard, is_remote=False)
-            self._assert_diff_contains(hoard, b"")
-
     def _get_hoard_path(self, relative_path):
         return self.data_dir_path().joinpath("hoards", relative_path)
 
     def _test_local(self, hoard_pile_mapping, *, setup, file_contents, modify_file, check_diff):
         # Last update locally, then local changes
         location = "locally"
+        self.delete_all(hoard_pile_mapping)
         self.reset(config_file=CONFIG_FILE)
         for hoard, files in hoard_pile_mapping.items():
             for file in files:
@@ -104,6 +96,7 @@ class DiffCommandTester(HoardTester):
 
         # Last update remotely, then local changes
         self.reset(config_file=CONFIG_FILE)
+        self.delete_all(hoard_pile_mapping)
         for hoard, files in hoard_pile_mapping.items():
             for file in files:
                 setup(path=file.path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
@@ -123,6 +116,7 @@ class DiffCommandTester(HoardTester):
     def _test_remote(self, hoard_pile_mapping, *, setup, file_contents, modify_file, check_diff):
         location = "remotely"
         self.reset(config_file=CONFIG_FILE)
+        self.delete_all(hoard_pile_mapping)
         for hoard, files in hoard_pile_mapping.items():
             for file in files:
                 setup(path=file.path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
@@ -146,9 +140,10 @@ class DiffCommandTester(HoardTester):
     def _test_mixed(self, hoard_pile_mapping, *, setup, file_contents, modify_file, check_diff):
         location = "locally and remotely"
         self.reset(config_file=CONFIG_FILE)
+        self.delete_all(hoard_pile_mapping)
         for hoard, files in hoard_pile_mapping.items():
             for file in files:
-                setup(path=file.hoard_path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
+                setup(path=file.path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
             for file in files:
                 modify_file(path=file.path, content=file_contents[ContentType.CHANGE_FILE_A], is_text=file.is_text, hoard=hoard)
             self._backup(hoard, is_remote=True)
@@ -167,6 +162,7 @@ class DiffCommandTester(HoardTester):
     def _test_unexpected(self, hoard_pile_mapping, *, setup, file_contents, modify_file, check_diff):
         location = "out-of-band"
         self.reset(config_file=CONFIG_FILE)
+        self.delete_all(hoard_pile_mapping)
         for hoard, files in hoard_pile_mapping.items():
             for file in files:
                 setup(path=file.path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
@@ -183,6 +179,7 @@ class DiffCommandTester(HoardTester):
 
     def _test_unchanged(self, hoard_pile_mapping, *, setup, file_contents, modify_file):
         self.reset(config_file=CONFIG_FILE)
+        self.delete_all(hoard_pile_mapping)
         for hoard, files in hoard_pile_mapping.items():
             for file in files:
                 setup(path=file.path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
@@ -191,7 +188,7 @@ class DiffCommandTester(HoardTester):
                 modify_file(path=file.path, content=file_contents[ContentType.DEFAULT], is_text=file.is_text, hoard=hoard)
                 self._assert_diff_contains(hoard, b"")
 
-    def no_op(self, *, hoard, path, is_text):
+    def no_op(self, *, hoard, content, path, is_text):
         return None
 
     def setup_modify(self, *, path, content, is_text, hoard):
@@ -290,6 +287,14 @@ class DiffCommandTester(HoardTester):
             invert=file.ignored
         )
 
+    def delete_all(self, mapping):
+        for files in mapping.values():
+            for file in files:
+                if file.path.exists():
+                    os.remove(file.path)
+                if file.hoard_path is not None and file.hoard_path.exists():
+                    os.remove(file.hoard_path)
+
     def run_test(self):
         home = Path.home()
 
@@ -360,7 +365,7 @@ class DiffCommandTester(HoardTester):
         # [ setup, file_contents, modify_file, check_diff ]
         funcs = [
             # Created
-            (self.modify_file, create_file_contents, self.modify_file, self.check_created_file),
+            (self.no_op, create_file_contents, self.modify_file, self.check_created_file),
             # Modified
             (self.setup_modify, modify_file_contents, self.modify_file, self.check_modified_file),
             # Permissions
