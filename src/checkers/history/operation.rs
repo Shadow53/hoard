@@ -311,7 +311,7 @@ impl HoardOperation {
         Ok(result)
     }
 
-    /// Returns whether the given `file` has unapplied remote changes.
+    /// Returns whether the given `file` has any records from `hoard`.
     ///
     /// `file` must be a path relative to the root of one of the Hoard's Piles.
     ///
