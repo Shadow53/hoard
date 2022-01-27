@@ -179,7 +179,7 @@ pub fn get_subscriber() -> impl Subscriber {
     };
 
     let env_filter = EnvFilter::try_from_env(LOG_ENV)
-        .unwrap_or_else(|_| EnvFilter::new("").add_directive(max_level.into()));
+        .unwrap_or_else(|_| EnvFilter::default().add_directive(max_level.into()));
 
     FmtSubscriber::builder()
         .with_env_filter(env_filter)
