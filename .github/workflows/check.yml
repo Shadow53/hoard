@@ -26,6 +26,21 @@ jobs:
             pytests:
               - 'ci-tests/**'
 
+  fossa:
+    name: Fossa License Check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.cargo == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: fossa-contrib/fossa-action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Push-only API key
+          fossa-api-key: 7b6d2d5fb78bb718019e16184020ef6d
+
   fmt:
     name: Cargo fmt
     runs-on: ubuntu-latest
