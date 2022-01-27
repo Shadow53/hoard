@@ -90,5 +90,5 @@ class StatusCommandTester(HoardTester):
         assert b"no_changes: up to date\n" in result.stdout
         assert b"local_changes: modified locally -- sync with `hoard backup local_changes`\n" in result.stdout, f"got \"{result.stdout}\""
         assert b"remote_changes: modified remotely -- sync with `hoard restore remote_changes`\n" in result.stdout, f"got \"{result.stdout}\""
-        assert b"mixed_changes: mixed changes -- manual intervention required (see `hoard diff`)\n" in result.stdout, f"got \"{result.stdout}\""
-        assert b"unexpected_changes: unexpected changes -- manual intervention required (see `hoard diff`)\n" in result.stdout, f"got \"{result.stdout}\""
+        assert b"mixed_changes: mixed changes -- manual intervention recommended (see `hoard diff`)\n" in result.stdout, f"got \"{result.stdout}\""
+        assert b"unexpected_changes: unexpected changes -- manual intervention recommended (see `hoard diff`)\n" in result.stdout, f"got \"{result.stdout}\""

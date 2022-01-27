@@ -230,8 +230,8 @@ impl Config {
                         Some(source) => match source {
                             DiffSource::Local => println!("{}: modified {} -- sync with `hoard backup {}`", hoard, source, hoard),
                             DiffSource::Remote => println!("{}: modified {} -- sync with `hoard restore {}`", hoard, source, hoard),
-                            DiffSource::Mixed => println!("{}: mixed changes -- manual intervention required (see `hoard diff`)", hoard),
-                            DiffSource::Unknown => println!("{}: unexpected changes -- manual intervention required (see `hoard diff`)", hoard),
+                            DiffSource::Mixed => println!("{}: mixed changes -- manual intervention recommended (see `hoard diff`)", hoard),
+                            DiffSource::Unknown => println!("{}: unexpected changes -- manual intervention recommended (see `hoard diff`)", hoard),
                         }
                     }
                 }
