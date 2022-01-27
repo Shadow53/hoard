@@ -256,7 +256,7 @@ class HoardTester(ABC):
 
     @classmethod
     def _write_file(cls, path, content, *, is_binary=True):
-        access = "w"
+        access = "w+"
         if is_binary:
             access += "b"
         path = Path(path)
