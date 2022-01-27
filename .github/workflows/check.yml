@@ -123,7 +123,7 @@ jobs:
 
       - name: Run grcov
         run: |
-          grcov profraw/*.profraw --binary-path target/debug/ \
+          grcov profraw/*.profraw --binary-path target/debug \
             -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov \
           --excl-br-line "($EXCLUDE_DERIVE|$EXCLUDE_PANICS|$EXCLUDE_TRACING|$EXCLUDE_PROPAGATE_ERROR|$EXCLUDE_MANUAL|$EXCLUDE_LONE_CLOSING_BRACE)" \
           --excl-line "($EXCLUDE_DERIVE|$EXCLUDE_PANICS|$EXCLUDE_TRACING|$EXCLUDE_PROPAGATE_ERROR|$EXCLUDE_MANUAL|$EXCLUDE_LONE_CLOSING_BRACE)" \
@@ -131,8 +131,8 @@ jobs:
           --excl-br-stop "grcov: ignore-end" --excl-stop "grcov: ignore-end"
         env:
           RUSTFLAGS: "-Zinstrument-coverage"
-          LLVM_PROFILE_FILE: "default.profraw"
-          RUSTUP_TOOLCHAIN: "nightly"
+          RUSTC_BOOTSTRAP: "1"
+          RUSTUP_TOOLCHAIN: "stable"
           HOARD_LOG: "trace"
           EXCLUDE_DERIVE: "#\\[derive\\("
           EXCLUDE_PANICS: "panic!|todo!|unimplemented!"
@@ -143,10 +143,10 @@ jobs:
 
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
+        uses: codecov/codecov-action@v2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: coverage.lcov
+          files: coverage.lcov
 
   integration-tests:
     name: "Integration Tests"
