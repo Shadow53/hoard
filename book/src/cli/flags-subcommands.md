@@ -26,6 +26,17 @@ hoard [flags...] cleanup
 Deletes all extra [operation log files](../file-locations.md#history-files)
 that are unnecessary for the related [check](./checks.md#remote-operations).
 
+## `hoard diff`
+
+```
+hoard [flags...] diff [-v|--verbose] <name>
+```
+
+Shows a list of all files that differ between the system and the hoard given by `<name>`. This
+can detect files that were created, modified, or deleted, locally or remotely.
+
+If `-v` or `--verbose` is passed, the output will show unified diffs of text files.
+
 ## `hoard edit`
 
 ```
@@ -52,6 +63,24 @@ hoard [flags...] restore [name] [name] [...]
 ```
 
 Restore the specified hoard(s). If no `name` is specified, all hoards are restored.
+
+## `hoard status`
+
+```
+hoard [flags...] status
+```
+
+Displays the current status of every configured hoard:
+
+- `modified locally`: all changes are local, and this hoard can be safely backed up with
+  `hoard backup`.
+- `modified remotely`: all changes are remote, and this hoard can be safely applied locally
+  with `hoard restore`.
+- `mixed changes`: changes are a combination of local and remote, and manual intervention is
+  recommended. Using [`hoard diff`](#hoard-diff) may be useful in reconciling changes.
+- `unexpected changes`: at least one hoard file appears to have been directly modified instead
+  of using `hoard backup`. [`hoard diff`](#hoard-diff) may be useful in handling the unexpected
+  change.
 
 ## `hoard validate`
 

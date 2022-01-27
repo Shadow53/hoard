@@ -24,7 +24,7 @@ class Editor(str, Enum):
 
     @property
     def absolute_path(self) -> Path:
-        return Path(__file__).parent.parent.parent.joinpath("bin", self.value)
+        return Path(__file__).parent.parent.parent.joinpath("bin", self.value).resolve()
 
     @property
     def desktop_file(self) -> str:
@@ -57,20 +57,21 @@ class EditCommandTester(HoardTester):
 
     @staticmethod
     def _install_desktop_file_for(editor: Editor) -> None:
-        with TemporaryDirectory() as tempdir:
-            file_name = f"{tempdir}/{editor.desktop_file}"
-            with open(file_name, "w", encoding="utf-8") as file:
-                file.write(dedent(f"""\
-                    [Desktop Entry]
-                    Type=Application
-                    Name=Fake Editor
-                    GenericName=Editor
-                    Categories=System
-                    MimeType=text/plain;application/x-yaml
-                    Exec={editor.absolute_path} %f
-                    """))
-                file.close()
-                subprocess.run(["xdg-desktop-menu", "install", "--novendor", "--mode", "user", file_name], check=True)
+        if platform.system() == "Linux":
+            with TemporaryDirectory() as tempdir:
+                file_name = f"{tempdir}/{editor.desktop_file}"
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.write(dedent(f"""\
+                        [Desktop Entry]
+                        Type=Application
+                        Name=Fake Editor
+                        GenericName=Editor
+                        Categories=System
+                        MimeType=text/plain;application/x-yaml
+                        Exec={editor.absolute_path} %f
+                        """))
+                    file.close()
+                    subprocess.run(["xdg-desktop-menu", "install", "--novendor", "--mode", "user", file_name], check=True)
 
     @staticmethod
     def _set_editor(editor: Editor) -> None:
@@ -89,14 +90,15 @@ class EditCommandTester(HoardTester):
             assert editor.desktop_file == result.stdout.decode().strip(), f"expected {editor.desktop_file} == {result.stdout}"
         elif platform.system() == "Windows":
             # Based on https://fekir.info/post/default-text-editor-in-windows/
-            value = f"{editor.absolute_path} \"%1\""
-            key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command")
-            winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-            key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command")
-            winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-            key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command")
-            winreg.SetValue(key, "(Default)", winreg.REG_SZ, value)
-        elif platform.system() == "macOS":
+            value = f"powershell.exe -Path {editor.absolute_path} \"%1\""
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell", winreg.REG_SZ, "editor")
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command", winreg.REG_SZ, value)
+            assert winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\editor\\command") == value
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command", winreg.REG_SZ, value)
+            assert winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, "Unknown\\shell\\Open\\command") == value
+            winreg.SetValue(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command", winreg.REG_SZ, value)
+            assert winreg.QueryValue(winreg.HKEY_CLASSES_ROOT, "txtfile\\shell\\Open\\command") == value
+        elif platform.system() == "Darwin":
             # I cannot for the life of me figure out how to do this. Best option seems to be `duti`,
             # but it does not look like it supports arbitrary script files, only installed packages.
             pass
@@ -124,8 +126,9 @@ class EditCommandTester(HoardTester):
                 stdout=b"" if capture_output else None,
                 stderr=b"" if capture_output else None)
 
-    def verify_config(self):
-        config_file = self.config_file_path()
+    def verify_editor_called(self, config_file=None):
+        if config_file is None:
+            config_file = self.config_file_path()
         watch_file = Path.home().joinpath("watchdog.txt")
         with open(watch_file, "r") as file:
             # Assert that editor was called
@@ -143,7 +146,7 @@ class EditCommandTester(HoardTester):
         self.flush()
         subprocess.run(["xdg-open", self.config_file_path()], check=True)
         self.flush()
-        self.verify_config()
+        self.verify_editor_called()
 
     def _test_uses_editor(self):
         print("=== Editor: $EDITOR ===")
@@ -152,7 +155,7 @@ class EditCommandTester(HoardTester):
         self._set_editor(Editor.good())
         self._set_gui_editor(Editor.bad())
         self.run_hoard("edit")
-        self.verify_config()
+        self.verify_editor_called()
 
     def _test_uses_gui_editor(self):
         print("=== Editor: XDG ===")
@@ -161,7 +164,7 @@ class EditCommandTester(HoardTester):
         self._set_editor(None)
         self._set_gui_editor(Editor.good())
         self.run_hoard("edit")
-        self.verify_config()
+        self.verify_editor_called()
 
     def _test_uses_editor_fails(self):
         print("=== Editor: $EDITOR (with error) ===")
@@ -181,11 +184,20 @@ class EditCommandTester(HoardTester):
         result = self.run_hoard("edit", allow_failure=True)
         assert result.returncode != 0, f"GUI editor returned exit code {result.returncode}"
 
+    def _ensure_watchdog_works(self):
+        path = Path.home().joinpath("test.txt")
+        if platform.system() == "Windows":
+            subprocess.run(["powershell.exe", Editor.good().absolute_path, path], check=True)
+        else:
+            subprocess.run([Editor.good().absolute_path, path], check=True)
+        self.verify_editor_called(path)
+
     def run_test(self):
-        if platform.system() == "macOS":
+        if platform.system() == "Darwin" or platform.system() == "Windows":
             # See note in _set_gui_editor
             return
 
+        self._ensure_watchdog_works()
         self._test_uses_editor()
         self._test_uses_editor_fails()
         self._test_xdg_open_works()

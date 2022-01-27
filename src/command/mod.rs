@@ -37,6 +37,18 @@ pub enum Command {
     List,
     /// Open the configuration file in the system default editor.
     Edit,
+    /// Show which files differ for a given hoard. Optionally show unified diffs for text files
+    /// too.
+    Diff {
+        /// The name of the hoard to diff.
+        hoard: String,
+        /// If true, prints unified diffs for text files.
+        #[structopt(long, short)]
+        verbose: bool,
+    },
+    /// Provides a summary of which hoards have changes and if the diffs can be resolved
+    /// with a single command.
+    Status,
 }
 
 impl Default for Command {

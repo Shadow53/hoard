@@ -5,7 +5,7 @@
 //! explanation of why this is useful.
 
 use super::super::Checker;
-use crate::config::hoard::Hoard;
+use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -50,7 +50,7 @@ fn read_last_paths_file() -> Result<fs::File, io::Error> {
 
 impl Checker for LastPaths {
     type Error = Error;
-    fn new(name: &str, hoard: &Hoard, _is_backup: bool) -> Result<Self, Self::Error> {
+    fn new(name: &str, hoard: &Hoard, _direction: Direction) -> Result<Self, Self::Error> {
         Ok(LastPaths({
             let mut map = HashMap::new();
             map.insert(name.into(), HoardPaths::from(hoard.clone()));

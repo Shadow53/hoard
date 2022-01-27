@@ -8,7 +8,7 @@
 //! was the last one to touch a file.
 
 use crate::checkers::Checker;
-use crate::config::hoard::{Hoard as ConfigHoard, Pile as ConfigPile};
+use crate::hoard::{Direction, Hoard as ConfigHoard, Pile as ConfigPile};
 use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -59,33 +59,28 @@ pub enum Error {
 #[allow(clippy::module_name_repetitions)]
 pub struct HoardOperation {
     /// Timestamp of last operation
-    timestamp: OffsetDateTime,
+    pub(crate) timestamp: OffsetDateTime,
     /// Whether this operation was a backup
-    is_backup: bool,
+    pub(crate) is_backup: bool,
     /// The name of the hoard for this `HoardOperation`.
-    hoard_name: String,
+    pub(crate) hoard_name: String,
     /// Mapping of pile files to checksums
-    hoard: Hoard,
+    pub(crate) hoard: Hoard,
 }
 
 impl Checker for HoardOperation {
     type Error = Error;
 
-    fn new(name: &str, hoard: &ConfigHoard, is_backup: bool) -> Result<Self, Self::Error> {
-        Ok(Self {
-            timestamp: OffsetDateTime::now_utc(),
-            is_backup,
-            hoard_name: name.into(),
-            hoard: Hoard::try_from(hoard)?,
-        })
+    fn new(name: &str, hoard: &ConfigHoard, direction: Direction) -> Result<Self, Self::Error> {
+        HoardOperation::new(name, hoard, direction)
     }
 
     fn check(&mut self) -> Result<(), Self::Error> {
         let _span =
             tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name).entered();
         tracing::debug!("checking if the hoard operation is safe to perform");
-        let last_local = Self::latest_local(&self.hoard_name)?;
-        let last_remote = Self::latest_remote_backup(&self.hoard_name)?;
+        let last_local = Self::latest_local(&self.hoard_name, None)?;
+        let last_remote = Self::latest_remote_backup(&self.hoard_name, None)?;
 
         if !self.is_backup {
             tracing::debug!("not backing up, is safe to continue");
@@ -143,6 +138,15 @@ impl Checker for HoardOperation {
 }
 
 impl HoardOperation {
+    fn new(name: &str, hoard: &ConfigHoard, direction: Direction) -> Result<Self, Error> {
+        Ok(Self {
+            timestamp: OffsetDateTime::now_utc(),
+            is_backup: matches!(direction, Direction::Backup),
+            hoard_name: name.into(),
+            hoard: Hoard::try_from(hoard)?,
+        })
+    }
+
     fn file_is_log(path: &Path) -> bool {
         let _span = tracing::trace_span!("file_is_log", ?path).entered();
         let result = path.is_file()
@@ -177,9 +181,12 @@ impl HoardOperation {
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
+    ///
+    /// `path` must be relative to one of the hoard's piles.
     fn latest_hoard_operation_from_system_dir(
         dir: &Path,
         hoard: &str,
+        path: Option<&Path>,
         backups_only: bool,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::trace_span!("get_latest_hoard_operation", ?dir, %hoard).entered();
@@ -206,6 +213,19 @@ impl HoardOperation {
                 Err(err) => Some(Err(err)),
                 Ok(operation) => (!backups_only || operation.is_backup).then(|| Ok(operation)),
             })
+            .filter_map(|operation| match path {
+                None => Some(operation),
+                Some(path) => match operation {
+                    Err(err) => Some(Err(err)),
+                    Ok(operation) => match &operation.hoard {
+                        Hoard::Anonymous(pile) => pile.0.contains_key(path).then(|| Ok(operation)),
+                        Hoard::Named(piles) => piles
+                            .values()
+                            .any(|pile| pile.0.contains_key(path))
+                            .then(|| Ok(operation)),
+                    },
+                },
+            })
             .reduce(|left, right| {
                 let left = left?;
                 let right = right?;
@@ -225,32 +245,36 @@ impl HoardOperation {
 
     /// Returns the latest operation recorded on this machine (by UUID).
     ///
+    /// `file`, if provided, must be a path relative to the root of one of the Hoard's Piles.
+    ///
     /// # Errors
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub fn latest_local(hoard: &str) -> Result<Option<Self>, Error> {
+    pub fn latest_local(hoard: &str, file: Option<&Path>) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_local", %hoard).entered();
         tracing::debug!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
         let self_folder = super::get_history_dir_for_id(uuid);
-        Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, false)
+        Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, file, false)
     }
 
     /// Returns the latest backup operation recorded on any other machine (by UUID).
+    ///
+    /// `file`, if provided, must be a path relative to the root of one of the Hoard's Piles.
     ///
     /// # Errors
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub fn latest_remote_backup(hoard: &str) -> Result<Option<Self>, Error> {
+    pub fn latest_remote_backup(hoard: &str, file: Option<&Path>) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
         tracing::debug!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid()?;
         let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
         other_folders
             .into_iter()
-            .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, true))
+            .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true))
             .reduce(|left, right| match (left?, right?) {
                 (Some(left), None) => Ok(Some(left)),
                 (None, Some(right)) => Ok(Some(right)),
@@ -265,6 +289,40 @@ impl HoardOperation {
             })
             .transpose()
             .map(Option::flatten)
+    }
+
+    /// Returns whether the given `file` has unapplied remote changes.
+    ///
+    /// `file` must be a path relative to the root of one of the Hoard's Piles.
+    ///
+    /// # Errors
+    ///
+    /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
+    pub fn file_has_remote_changes(hoard: &str, file: &Path) -> Result<bool, Error> {
+        let remote = Self::latest_remote_backup(hoard, Some(file))?;
+        let local = Self::latest_local(hoard, Some(file))?;
+
+        let result = match (remote, local) {
+            (None, _) => false,
+            (Some(_), None) => true,
+            (Some(remote), Some(local)) => remote.timestamp > local.timestamp,
+        };
+
+        Ok(result)
+    }
+
+    /// Returns whether the given `file` has any records from `hoard`.
+    ///
+    /// `file` must be a path relative to the root of one of the Hoard's Piles.
+    ///
+    /// # Errors
+    ///
+    /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
+    pub fn file_has_records(hoard: &str, file: &Path) -> Result<bool, Error> {
+        let remote = Self::latest_remote_backup(hoard, Some(file))?;
+        let local = Self::latest_local(hoard, Some(file))?;
+
+        Ok(remote.is_some() || local.is_some())
     }
 }
 
@@ -308,6 +366,12 @@ pub enum Checksum {
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pile(HashMap<PathBuf, String>);
+
+impl Pile {
+    pub(crate) fn get(&'_ self, key: &Path) -> Option<&'_ str> {
+        self.0.get(key).map(String::as_str)
+    }
+}
 
 fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
     let mut map = HashMap::new();

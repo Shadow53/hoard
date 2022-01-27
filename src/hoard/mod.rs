@@ -2,9 +2,12 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
-pub use super::builder::hoard::Config;
+pub(crate) mod iter;
+pub(crate) mod pile_config;
+
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::{Error as FilterError, Filter, Filters};
+pub use pile_config::Config as PileConfig;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -55,11 +58,40 @@ pub enum Error {
     Filter(#[from] FilterError),
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// Indicates which direction files are being copied in. Used to determine which files are required
+/// to exist.
+pub enum Direction {
+    /// Backing up from system to hoards.
+    Backup,
+    /// Restoring from hoards to system.
+    Restore,
+}
+
+#[repr(transparent)]
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub(crate) struct HoardPath(PathBuf);
+#[repr(transparent)]
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub(crate) struct SystemPath(PathBuf);
+
+impl AsRef<Path> for HoardPath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for SystemPath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
 /// A single path to hoard, with configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pile {
     /// Optional configuration for this path.
-    pub config: Option<Config>,
+    pub config: Option<PileConfig>,
     /// The path to hoard.
     ///
     /// The path is optional because it will almost always be set by processing a configuration

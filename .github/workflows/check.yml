@@ -56,7 +56,7 @@ jobs:
     name: Check Commit
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || github.event_name == 'release' }}
+    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.pytests == 'true' || needs.changes.outputs.cargo == 'true' || github.event_name == 'release' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -70,36 +70,12 @@ jobs:
         with:
           toolchain: stable
           override: true
+          components: llvm-tools-preview
 
       - name: Cargo Check
         uses: actions-rs/cargo@v1
         with:
           command: check
-
-      - name: Cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
-
-  check-nightly:
-    name: Check Commit
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          default: true
-          components: llvm-tools-preview
 
       - name: Install Grcov
         uses: actions-rs/install@v0.1
@@ -108,20 +84,20 @@ jobs:
           version: latest
           use-tool-cache: true
 
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+
       - name: Cargo Build
         uses: actions-rs/cargo@v1
         with:
           command: build
         env:
+          RUSTC_BOOTSTRAP: '1'
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Zinstrument-coverage'
           RUSTDOCFLAGS: '-Zinstrument-coverage'
-          LLVM_PROFILE_FILE: 'profraw/hoart-tests-%p-%m.profraw'
-
-      - name: Install Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
 
       - name: Cargo Test (Grcov)
         uses: actions-rs/cargo@v1
@@ -129,6 +105,7 @@ jobs:
           command: test
           args: --all-features --no-fail-fast
         env:
+          RUSTC_BOOTSTRAP: '1'
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Zinstrument-coverage'
           RUSTDOCFLAGS: '-Zinstrument-coverage'
@@ -173,12 +150,13 @@ jobs:
 
   integration-tests:
     name: "Integration Tests"
-    needs: [check-stable, changes]
+    needs: [changes]
     if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true' || github.event_name == 'release') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+        # Linux is handled by the coverage check
+        os: ["windows-latest", "macos-latest"]
     steps:
       - uses: actions/checkout@v2
 
@@ -213,17 +191,8 @@ jobs:
       - name: Install Python dependencies
         run: pip install pyyaml toml
 
-      - name: Test Last Paths
-        run: python ci-tests/tests last_paths
-
-      - name: Test Remote Operations
-        run: python ci-tests/tests operation
-
-      - name: Test Ignore Filter
-        run: python ci-tests/tests ignore
-
-      - name: Test Ignore Filter
-        run: python ci-tests/tests cleanup
+      - name: Run all tests
+        run: python ci-tests/tests all
 
   release:
     if: github.event_name == 'release'

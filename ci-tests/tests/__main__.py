@@ -5,8 +5,10 @@ import sys
 from pathlib import Path
 from testers.cleanup import LogCleanupTester
 from testers.correct_errors import CorrectErrorsTester
+from testers.hoard_diff import DiffCommandTester
 from testers.hoard_edit import EditCommandTester
 from testers.hoard_list import ListHoardsTester
+from testers.hoard_status import StatusCommandTester
 from testers.hoard_tester import HoardFile, Environment
 from testers.ignore_filter import IgnoreFilterTester
 from testers.last_paths import LastPathsTester
@@ -41,12 +43,14 @@ def print_checksums():
         for file in list(HoardFile):
             if file is not HoardFile.AnonDir and file is not HoardFile.NamedDir1 and file is not HoardFile.NamedDir2:
                 path = Path.home().joinpath(f"{env.value}_{file.value}")
-                with open(path, "rb") as file:
-                    print(f"{path}: {hashlib.md5(file.read()).hexdigest()}")
+                if path.exists():
+                    with open(path, "rb") as file:
+                        print(f"{path}: {hashlib.md5(file.read()).hexdigest()}")
 
 
 TEST_MAPPING = {
     "cleanup": ("cleanup", LogCleanupTester),
+    "diff_command": ("diff command", DiffCommandTester),
     "edit_command": ("edit command", EditCommandTester),
     "errors": ("expected errors", CorrectErrorsTester),
     "ignore": ("ignore filter", IgnoreFilterTester),
@@ -54,6 +58,7 @@ TEST_MAPPING = {
     "list_hoards": ("list command", ListHoardsTester),
     "missing_config": ("missing config dir", MissingConfigDirTester),
     "operation": ("operation", OperationCheckerTester),
+    "status_command": ("status command", StatusCommandTester),
     "yaml": ("YAML compat", YAMLSupportTester),
 }
 
@@ -64,6 +69,7 @@ if __name__ == "__main__":
     successful = []
     try:
         test_arg = sys.argv[1]
+        desc = None
         if test_arg == "all":
             print("Running all tests")
             for desc, cls in TEST_MAPPING.values():

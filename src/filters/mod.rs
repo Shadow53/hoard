@@ -1,6 +1,6 @@
 //! Provides filters for determining whether a path should be backed up or not.
 
-use crate::config::builder::hoard::Config;
+use crate::hoard::PileConfig;
 use std::path::Path;
 use thiserror::Error;
 
@@ -15,7 +15,7 @@ pub trait Filter: Sized {
     /// # Errors
     ///
     /// Any errors that may occur while creating the new filter.
-    fn new(pile_config: &Config) -> Result<Self, Self::Error>;
+    fn new(pile_config: &PileConfig) -> Result<Self, Self::Error>;
     /// Whether or not the file should be kept (backed up).
     fn keep(&self, prefix: &Path, path: &Path) -> bool;
 }
@@ -37,7 +37,7 @@ pub struct Filters {
 impl Filter for Filters {
     type Error = Error;
 
-    fn new(pile_config: &Config) -> Result<Self, Self::Error> {
+    fn new(pile_config: &PileConfig) -> Result<Self, Self::Error> {
         let ignore = ignore::IgnoreFilter::new(pile_config)?;
         Ok(Self { ignore })
     }
@@ -54,7 +54,7 @@ mod tests {
 
     #[test]
     fn test_filters_derives() {
-        let config = Config {
+        let config = PileConfig {
             encryption: None,
             ignore: vec![glob::Pattern::new("valid/**").unwrap()],
         };

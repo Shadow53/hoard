@@ -113,9 +113,7 @@ mod tests {
             #[test]
             #[serial_test::serial]
             fn $name() {
-                if $require_var && !($input).contains(&format!("${{{}}}", $var)) {
-                    panic!("input string {} doesn't contain variable {}", $input, $var);
-                }
+                assert!((!$require_var || ($input).contains(&format!("${{{}}}", $var))), "input string {} doesn't contain variable {}", $input, $var);
 
                 let old_val = std::env::var_os($var);
                 std::env::set_var($var, $value);
