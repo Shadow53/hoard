@@ -221,7 +221,10 @@ class HoardTester(ABC):
         # Run the specified hoard command
         # Should automatically operate on all hoards when targets is empty
         for key, val in self.env.items():
-            os.environ[key] = val
+            if val is None:
+                del os.environ[key]
+            else:
+                os.environ[key] = val
 
         args = ["target/debug/hoard"]
         if self.force:

@@ -32,6 +32,14 @@ class CorrectErrorsTester(HoardTester):
         assert self.uuid != invalid_id
         assert b'failed to parse uuid in file' in result.stdout
 
+    def _run_no_invalid_filter_directive(self):
+        self.reset()
+        self.env = {"HOARD_LOG": None}
+        result = self.run_hoard("validate", capture_output=True)
+        expected = b"ignoring ``: invalid filter directive"
+        assert result.stderr is None or expected not in result.stderr
+        assert result.stdout is None or expected not in result.stdout
+
     def _run_invalid_config_extension(self):
         self.reset()
         expected_text = b"configuration file must have file extension \""
@@ -67,4 +75,4 @@ class CorrectErrorsTester(HoardTester):
         self._run_warn_on_invalid_uuid()
         self._run_invalid_config_extension()
         self._run_missing_config()
-
+        self._run_no_invalid_filter_directive()
