@@ -34,7 +34,7 @@ toml = "0.5.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
-which = "4.1"
+which = "4.2"
 
 [dev-dependencies]
 maplit = "1.0"
