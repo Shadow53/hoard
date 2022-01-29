@@ -1,11 +1,8 @@
 //! See [`Config`].
 
 pub use self::builder::Builder;
-use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
-use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
-use crate::checkers::Checker;
 use crate::command::{self, Command};
-use crate::hoard::{self, Direction, Hoard};
+use crate::hoard::{self, Hoard};
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,36 +24,12 @@ pub enum Error {
     /// Error while running a [`Command`].
     #[error("command failed: {0}")]
     Command(#[from] command::Error),
-    /// Error occurred while backing up a hoard.
-    #[error("failed to back up {name}: {error}")]
-    Backup {
-        /// The name of the hoard that failed to back up.
-        name: String,
-        /// The error that occurred.
-        #[source]
-        error: hoard::Error,
-    },
     /// Error occurred while building the configuration.
     #[error("error while building the configuration: {0}")]
     Builder(#[from] builder::Error),
     /// The requested hoard does not exist.
     #[error("no such hoard is configured: {0}")]
     NoSuchHoard(String),
-    /// Error occurred while restoring a hoard.
-    #[error("failed to back up {name}: {error}")]
-    Restore {
-        /// The name of the hoard that failed to restore.
-        name: String,
-        /// The error that occurred.
-        #[source]
-        error: hoard::Error,
-    },
-    /// An error occurred while comparing paths for this run to the previous one.
-    #[error("error while comparing previous run to current run: {0}")]
-    LastPaths(#[from] LastPathsError),
-    /// An error occurred while checking against remote operations.
-    #[error("error while checking against recent remote operations: {0}")]
-    Operation(#[from] HoardOperationError),
 }
 
 /// A (processed) configuration.
@@ -145,11 +118,6 @@ impl Config {
         }
     }
 
-    #[must_use]
-    fn get_prefix(&self, name: &str) -> PathBuf {
-        self.hoards_root.join(name)
-    }
-
     fn get_hoard<'a>(&'a self, name: &'_ str) -> Result<&'a Hoard, Error> {
         self.hoards
             .get(name)
@@ -183,97 +151,18 @@ impl Config {
             Command::Cleanup => {
                 command::run_cleanup()?;
             },
-            Command::Backup { hoards } | Command::Restore { hoards } => {
+            Command::Backup { hoards } => {
+                let hoards_root = self.get_hoards_root_path();
                 let hoards = self.get_hoards(hoards)?;
-                let direction = match self.command {
-                    Command::Backup { .. } => Direction::Backup,
-                    Command::Restore { .. } => Direction::Restore,
-                    // Only Command::Backup and Command::Restore should be possible
-                    _ => return Ok(()),
-                };
-
-                let mut checkers = Checkers::new(&hoards, direction)?;
-                if !self.force {
-                    checkers.check()?;
-                }
-
-                for (name, hoard) in hoards {
-                    let prefix = self.get_prefix(name);
-
-                    match direction {
-                        Direction::Backup => {
-                            tracing::info!(hoard = %name, "backing up");
-                            let _span = tracing::info_span!("backup", hoard = %name).entered();
-                            hoard.backup(&prefix).map_err(|error| Error::Backup {
-                                name: name.to_string(),
-                                error,
-                            })?;
-                        }
-                        Direction::Restore => {
-                            tracing::info!(hoard = %name, "restoring");
-                            let _span = tracing::info_span!("restore", hoard = %name).entered();
-                            hoard.restore(&prefix).map_err(|error| Error::Restore {
-                                name: name.to_string(),
-                                error,
-                            })?;
-                        }
-                    }
-                }
-
-                checkers.commit_to_disk()?;
+                command::run_backup(&hoards_root, hoards, self.force)?;
+            },
+            Command::Restore { hoards } => {
+                let hoards_root = self.get_hoards_root_path();
+                let hoards = self.get_hoards(hoards)?;
+                command::run_restore(&hoards_root, hoards, self.force)?;
             }
         }
 
-        Ok(())
-    }
-}
-
-struct Checkers {
-    last_paths: HashMap<String, LastPaths>,
-    operations: HashMap<String, HoardOperation>,
-}
-
-impl Checkers {
-    fn new(hoard_map: &HashMap<&str, &Hoard>, direction: Direction) -> Result<Self, Error> {
-        let mut last_paths = HashMap::new();
-        let mut operations = HashMap::new();
-
-        for (name, hoard) in hoard_map {
-            let lp = LastPaths::new(name, hoard, direction)?;
-            let op = HoardOperation::new(name, hoard, direction)?;
-            last_paths.insert((*name).to_string(), lp);
-            operations.insert((*name).to_string(), op);
-        }
-
-        Ok(Self {
-            last_paths,
-            operations,
-        })
-    }
-
-    fn check(&mut self) -> Result<(), Error> {
-        let _span = tracing::info_span!("running_checks").entered();
-        for last_path in &mut self.last_paths.values_mut() {
-            last_path.check()?;
-        }
-        for operation in self.operations.values_mut() {
-            operation.check()?;
-        }
-        Ok(())
-    }
-
-    fn commit_to_disk(self) -> Result<(), Error> {
-        let Self {
-            last_paths,
-            operations,
-            ..
-        } = self;
-        for (_, last_path) in last_paths {
-            last_path.commit_to_disk()?;
-        }
-        for (_, operation) in operations {
-            operation.commit_to_disk()?;
-        }
         Ok(())
     }
 }
