@@ -4,7 +4,7 @@ pub use self::builder::Builder;
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
-use crate::command::{self, Command, EditError};
+use crate::command::{self, Command};
 use crate::hoard::{self, Direction, Hoard};
 use directories::ProjectDirs;
 use std::collections::HashMap;
@@ -39,9 +39,6 @@ pub enum Error {
     /// Error occurred while building the configuration.
     #[error("error while building the configuration: {0}")]
     Builder(#[from] builder::Error),
-    /// Error occurred while editing the config file
-    #[error("error while editing the config file: {0}")]
-    Edit(#[from] EditError),
     /// The requested hoard does not exist.
     #[error("no such hoard is configured: {0}")]
     NoSuchHoard(String),
@@ -60,15 +57,6 @@ pub enum Error {
     /// An error occurred while checking against remote operations.
     #[error("error while checking against recent remote operations: {0}")]
     Operation(#[from] HoardOperationError),
-    /// An error occurred while cleaning up log files.
-    #[error("error after cleaning up {success_count} log files: {error}")]
-    Cleanup {
-        /// The number of files successfully cleaned.
-        success_count: u32,
-        /// The error that occurred.
-        #[source]
-        error: crate::checkers::history::operation::Error,
-    },
 }
 
 /// A (processed) configuration.
@@ -174,7 +162,6 @@ impl Config {
     ///
     /// Any [`enum@Error`] that might happen while running the command.
     pub fn run(&self) -> Result<(), Error> {
-        #![allow(clippy::too_many_lines)]
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
@@ -185,28 +172,16 @@ impl Config {
                 command::run_diff(self.get_hoard(hoard)?, hoard, &self.get_hoards_root_path(), *verbose)?;
             }
             Command::Edit => {
-                if let Err(error) = crate::command::edit(&self.config_file) {
-                    tracing::error!(%error, "error while editing config file");
-                    return Err(Error::Edit(error));
-                }
+                command::run_edit(&self.config_file)?;
             }
             Command::Validate => {
                 tracing::info!("configuration is valid");
             }
             Command::List => {
-                let mut hoards: Vec<&str> = self.hoards.keys().map(String::as_str).collect();
-                hoards.sort_unstable();
-                let list = hoards.join("\n");
-                tracing::info!("{}", list);
+                command::run_list(self.hoards.keys().map(String::as_str));
             }
-            Command::Cleanup => match crate::checkers::history::operation::cleanup_operations() {
-                Ok(count) => tracing::info!("cleaned up {} log files", count),
-                Err((count, error)) => {
-                    return Err(Error::Cleanup {
-                        success_count: count,
-                        error,
-                    });
-                }
+            Command::Cleanup => {
+                command::run_cleanup()?;
             },
             Command::Backup { hoards } | Command::Restore { hoards } => {
                 let hoards = self.get_hoards(hoards)?;
