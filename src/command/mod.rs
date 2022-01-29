@@ -1,11 +1,15 @@
 //! See [`Command`].
 
+mod diff;
 mod edit;
+mod status;
 
 use structopt::StructOpt;
 use thiserror::Error;
 
 pub(crate) use edit::{edit, Error as EditError};
+pub(crate) use diff::run_diff;
+pub(crate) use status::run_status;
 
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]
@@ -13,6 +17,12 @@ pub enum Error {
     /// Error occurred while printing the help message.
     #[error("error while printing help message: {0}")]
     PrintHelp(#[from] structopt::clap::Error),
+    /// Error occurred while running the diff command.
+    #[error("error while running hoard diff")]
+    Diff(#[source] crate::hoard::iter::Error),
+    /// Error occurred while running the status command.
+    #[error("error while running hoard status")]
+    Status(#[source] crate::hoard::iter::Error),
 }
 
 /// The possible subcommands for `hoard`.

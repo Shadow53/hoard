@@ -4,16 +4,12 @@ pub use self::builder::Builder;
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::checkers::Checker;
-use crate::command::{Command, EditError};
-use crate::hoard::iter::{DiffSource, HoardDiff, HoardFilesIter};
+use crate::command::{self, Command, EditError};
 use crate::hoard::{self, Direction, Hoard};
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 pub mod builder;
 
@@ -28,6 +24,9 @@ pub fn get_dirs() -> ProjectDirs {
 /// Errors that can occur while working with a [`Config`].
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Error while running a [`Command`].
+    #[error("command failed: {0}")]
+    Command(#[from] command::Error),
     /// Error occurred while backing up a hoard.
     #[error("failed to back up {name}: {error}")]
     Backup {
@@ -70,12 +69,6 @@ pub enum Error {
         #[source]
         error: crate::checkers::history::operation::Error,
     },
-    /// An error occurred while diffing files.
-    #[error("error while diffing files: {0}")]
-    Diff(#[from] crate::hoard::iter::Error),
-    /// An error occurred while creating the [`HoardFilesIter`].
-    #[error("error creating file iterator: {0}")]
-    Iterator(#[from] crate::filters::Error),
 }
 
 /// A (processed) configuration.
@@ -175,21 +168,6 @@ impl Config {
             .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
     }
 
-    #[allow(dead_code)]
-    fn iter_hoard_files(&self, name: &str, direction: Direction) -> Result<HoardFilesIter, Error> {
-        let hoard = self.get_hoard(name)?;
-        let hoards_root = self.get_hoards_root_path();
-
-        HoardFilesIter::new(&hoards_root, direction, name, hoard).map_err(Error::from)
-    }
-
-    fn hoard_file_diffs(&self, name: &str) -> Result<Vec<HoardDiff>, Error> {
-        let hoard = self.get_hoard(name)?;
-        let hoards_root = self.get_hoards_root_path();
-
-        HoardFilesIter::file_diffs(&hoards_root, name, hoard).map_err(Error::from)
-    }
-
     /// Run the stored [`Command`] using this [`Config`].
     ///
     /// # Errors
@@ -200,102 +178,11 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
-                for hoard in self.hoards.keys() {
-                    let source = self
-                        .hoard_file_diffs(hoard)?
-                        .into_iter()
-                        .map(|hoard_diff| {
-                            #[allow(clippy::match_same_arms)]
-                            match hoard_diff {
-                                HoardDiff::BinaryModified { diff_source, .. } => diff_source,
-                                HoardDiff::TextModified { diff_source, .. } => diff_source,
-                                HoardDiff::PermissionsModified { diff_source, .. } => diff_source,
-                                HoardDiff::Created { diff_source, .. } => diff_source,
-                                HoardDiff::Recreated { diff_source, .. } => diff_source,
-                                HoardDiff::Deleted { diff_source, .. } => diff_source,
-                            }
-                        })
-                        .reduce(|acc, source| {
-                            if acc == DiffSource::Unknown || source == DiffSource::Unknown {
-                                DiffSource::Unknown
-                            } else if acc == source {
-                                acc
-                            } else {
-                                DiffSource::Mixed
-                            }
-                        });
-
-                    match source {
-                        None => println!("{}: up to date", hoard),
-                        Some(source) => match source {
-                            DiffSource::Local => println!("{}: modified {} -- sync with `hoard backup {}`", hoard, source, hoard),
-                            DiffSource::Remote => println!("{}: modified {} -- sync with `hoard restore {}`", hoard, source, hoard),
-                            DiffSource::Mixed => println!("{}: mixed changes -- manual intervention recommended (see `hoard diff`)", hoard),
-                            DiffSource::Unknown => println!("{}: unexpected changes -- manual intervention recommended (see `hoard diff`)", hoard),
-                        }
-                    }
-                }
+                let iter = self.hoards.iter().map(|(name, hoard)| (name.as_str(), hoard));
+                command::run_status(&self.get_hoards_root_path(), iter)?;
             }
             Command::Diff { hoard, verbose } => {
-                for hoard_diff in self.hoard_file_diffs(hoard)? {
-                    match hoard_diff {
-                        HoardDiff::BinaryModified { path, diff_source } => {
-                            tracing::info!(
-                                "{}: binary file changed {}",
-                                path.display(),
-                                diff_source
-                            );
-                        }
-                        HoardDiff::TextModified {
-                            path,
-                            unified_diff,
-                            diff_source,
-                        } => {
-                            tracing::info!("{}: text file changed {}", path.display(), diff_source);
-                            if *verbose {
-                                tracing::info!("{}", unified_diff);
-                            }
-                        }
-                        HoardDiff::PermissionsModified {
-                            path,
-                            hoard_perms,
-                            system_perms,
-                            ..
-                        } => {
-                            #[cfg(unix)]
-                            tracing::info!(
-                                "{}: permissions changed: hoard ({:o}), system ({:o})",
-                                path.display(),
-                                hoard_perms.mode(),
-                                system_perms.mode(),
-                            );
-                            #[cfg(not(unix))]
-                            tracing::info!(
-                                "{}: permissions changed: hoard ({}), system ({})",
-                                path.display(),
-                                if hoard_perms.readonly() {
-                                    "readonly"
-                                } else {
-                                    "writable"
-                                },
-                                if system_perms.readonly() {
-                                    "readonly"
-                                } else {
-                                    "writable"
-                                },
-                            );
-                        }
-                        HoardDiff::Created { path, diff_source } => {
-                            tracing::info!("{}: created {}", path.display(), diff_source);
-                        }
-                        HoardDiff::Recreated { path, diff_source } => {
-                            tracing::info!("{}: recreated {}", path.display(), diff_source);
-                        }
-                        HoardDiff::Deleted { path, diff_source } => {
-                            tracing::info!("{}: deleted {}", path.display(), diff_source);
-                        }
-                    }
-                }
+                command::run_diff(self.get_hoard(hoard)?, hoard, &self.get_hoards_root_path(), *verbose)?;
             }
             Command::Edit => {
                 if let Err(error) = crate::command::edit(&self.config_file) {
