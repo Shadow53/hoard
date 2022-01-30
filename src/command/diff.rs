@@ -1,12 +1,12 @@
 use std::path::Path;
 use crate::hoard::Hoard;
-use crate::hoard::iter::{HoardDiff, HoardFilesIter};
+use crate::hoard::iter::{file_diffs, HoardDiff};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 pub(crate) fn run_diff(hoard: &Hoard, hoard_name: &str, hoards_root: &Path, verbose: bool) -> Result<(), super::Error> {
-    let diff_iterator = HoardFilesIter::file_diffs(hoards_root, hoard_name, hoard).map_err(super::Error::Diff)?;
+    let diff_iterator = file_diffs(hoards_root, hoard_name, hoard).map_err(super::Error::Diff)?;
     for hoard_diff in diff_iterator {
         match hoard_diff {
             HoardDiff::BinaryModified { path, diff_source } => {

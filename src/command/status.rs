@@ -1,10 +1,10 @@
 use std::path::Path;
 use crate::hoard::Hoard;
-use crate::hoard::iter::{DiffSource, HoardDiff, HoardFilesIter};
+use crate::hoard::iter::{DiffSource, HoardDiff, file_diffs};
 
 pub(crate) fn run_status<'a>(hoards_root: &Path, hoards: impl IntoIterator<Item=(&'a str, &'a Hoard)>) -> Result<(), super::Error> {
     for (hoard_name, hoard) in hoards {
-        let source = HoardFilesIter::file_diffs(hoards_root, hoard_name, hoard)
+        let source = file_diffs(hoards_root, hoard_name, hoard)
             .map_err(super::Error::Status)?
             .into_iter()
             .map(|hoard_diff| {
