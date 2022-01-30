@@ -11,6 +11,7 @@ pub use pile_config::Config as PileConfig;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
+use std::ops::Deref;
 use thiserror::Error;
 
 /// Errors that can happen while backing up or restoring a hoard.
@@ -81,8 +82,24 @@ impl AsRef<Path> for HoardPath {
     }
 }
 
+impl Deref for HoardPath {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl AsRef<Path> for SystemPath {
     fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Deref for SystemPath {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }

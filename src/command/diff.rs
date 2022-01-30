@@ -14,21 +14,21 @@ pub(crate) fn run_diff(
     let diff_iterator = file_diffs(hoards_root, hoard_name, hoard).map_err(super::Error::Diff)?;
     for hoard_diff in diff_iterator {
         match hoard_diff {
-            HoardDiff::BinaryModified { path, diff_source } => {
-                tracing::info!("{}: binary file changed {}", path.display(), diff_source);
+            HoardDiff::BinaryModified { file, diff_source } => {
+                tracing::info!("{}: binary file changed {}", file.system_path.display(), diff_source);
             }
             HoardDiff::TextModified {
-                path,
+                file,
                 unified_diff,
                 diff_source,
             } => {
-                tracing::info!("{}: text file changed {}", path.display(), diff_source);
+                tracing::info!("{}: text file changed {}", file.system_path.display(), diff_source);
                 if verbose {
                     tracing::info!("{}", unified_diff);
                 }
             }
             HoardDiff::PermissionsModified {
-                path,
+                file,
                 hoard_perms,
                 system_perms,
                 ..
@@ -36,14 +36,14 @@ pub(crate) fn run_diff(
                 #[cfg(unix)]
                 tracing::info!(
                     "{}: permissions changed: hoard ({:o}), system ({:o})",
-                    path.display(),
+                    file.system_path.display(),
                     hoard_perms.mode(),
                     system_perms.mode(),
                 );
                 #[cfg(not(unix))]
                 tracing::info!(
                     "{}: permissions changed: hoard ({}), system ({})",
-                    path.display(),
+                    file.system_path.display(),
                     if hoard_perms.readonly() {
                         "readonly"
                     } else {
@@ -56,14 +56,14 @@ pub(crate) fn run_diff(
                     },
                 );
             }
-            HoardDiff::Created { path, diff_source } => {
-                tracing::info!("{}: created {}", path.display(), diff_source);
+            HoardDiff::Created { file, diff_source } => {
+                tracing::info!("{}: created {}", file.system_path.display(), diff_source);
             }
-            HoardDiff::Recreated { path, diff_source } => {
-                tracing::info!("{}: recreated {}", path.display(), diff_source);
+            HoardDiff::Recreated { file, diff_source } => {
+                tracing::info!("{}: recreated {}", file.system_path.display(), diff_source);
             }
-            HoardDiff::Deleted { path, diff_source } => {
-                tracing::info!("{}: deleted {}", path.display(), diff_source);
+            HoardDiff::Deleted { file, diff_source } => {
+                tracing::info!("{}: deleted {}", file.system_path.display(), diff_source);
             }
         }
     }

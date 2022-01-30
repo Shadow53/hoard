@@ -5,23 +5,21 @@ use std::path::Path;
 use std::{fs, io};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct RootPathItem {
+pub(crate) struct HoardFile {
     pub(crate) pile_name: Option<String>,
     pub(crate) hoard_path: HoardPath,
-    hoard_prefix: HoardPath,
     pub(crate) system_path: SystemPath,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct RootPathItem {
+    hoard_file: HoardFile,
+    hoard_prefix: HoardPath,
     system_prefix: SystemPath,
     filters: Option<Filters>,
 }
 
-impl RootPathItem {
-    fn keep(&self) -> bool {
-        (self.is_file() || self.is_dir())
-            && self.filters.as_ref().map_or(true, |filters| {
-                filters.keep(self.system_prefix.as_ref(), self.system_path.as_ref())
-            })
-    }
-
+impl HoardFile {
     fn is_file(&self) -> bool {
         let sys = self.system_path.as_ref();
         let hoard = self.hoard_path.as_ref();
@@ -40,6 +38,23 @@ impl RootPathItem {
         (sys.is_dir() || !sys_exists)
             && (hoard.is_dir() || !hoard_exists)
             && (sys_exists || hoard_exists)
+    }
+}
+
+impl RootPathItem {
+    fn keep(&self) -> bool {
+        (self.is_file() || self.is_dir())
+            && self.filters.as_ref().map_or(true, |filters| {
+                filters.keep(self.system_prefix.as_ref(), self.hoard_file.system_path.as_ref())
+            })
+    }
+
+    fn is_file(&self) -> bool {
+        self.hoard_file.is_file()
+    }
+
+    fn is_dir(&self) -> bool {
+        self.hoard_file.is_dir()
     }
 }
 
@@ -66,11 +81,13 @@ impl AllFilesIter {
                         let hoard_path = HoardPath(hoards_root.join(hoard_name));
                         let system_path = SystemPath(path);
                         vec![RootPathItem {
-                            pile_name: None,
                             hoard_prefix: hoard_path.clone(),
-                            hoard_path,
                             system_prefix: system_path.clone(),
-                            system_path,
+                            hoard_file: HoardFile {
+                                pile_name: None,
+                                hoard_path,
+                                system_path,
+                            },
                             filters,
                         }]
                     }
@@ -88,11 +105,13 @@ impl AllFilesIter {
                         let hoard_path = HoardPath(hoards_root.join(hoard_name).join(name));
                         let system_path = SystemPath(path.clone());
                         Ok(RootPathItem {
-                            pile_name: Some(name.clone()),
                             hoard_prefix: hoard_path.clone(),
-                            hoard_path,
                             system_prefix: system_path.clone(),
-                            system_path,
+                            hoard_file: HoardFile {
+                                pile_name: Some(name.clone()),
+                                hoard_path,
+                                system_path,
+                            },
                             filters,
                         })
                     })
@@ -128,7 +147,7 @@ impl AllFilesIter {
 }
 
 impl Iterator for AllFilesIter {
-    type Item = io::Result<RootPathItem>;
+    type Item = io::Result<HoardFile>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // Attempt to create direntry iterator.
@@ -140,16 +159,16 @@ impl Iterator for AllFilesIter {
                     Some(item) => {
                         if item.keep() {
                             if item.is_file() {
-                                return Some(Ok(item));
+                                return Some(Ok(item.hoard_file));
                             } else if item.is_dir() {
-                                match fs::read_dir(item.system_path.as_ref()) {
+                                match fs::read_dir(item.hoard_file.system_path.as_ref()) {
                                     Ok(iter) => self.system_entries = Some(iter.peekable()),
                                     Err(err) => match err.kind() {
                                         io::ErrorKind::NotFound => self.system_entries = None,
                                         _ => return Some(Err(err)),
                                     },
                                 }
-                                match fs::read_dir(item.hoard_path.as_ref()) {
+                                match fs::read_dir(item.hoard_file.hoard_path.as_ref()) {
                                     Ok(iter) => self.hoard_entries = Some(iter.peekable()),
                                     Err(err) => match err.kind() {
                                         io::ErrorKind::NotFound => self.hoard_entries = None,
@@ -182,14 +201,17 @@ impl Iterator for AllFilesIter {
                         .to_path_buf();
 
                     let new_item = RootPathItem {
-                        hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
-                        system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
+                        hoard_file: HoardFile {
+                            hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
+                            system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
+                            pile_name: current_root.hoard_file.pile_name.clone(),
+                        },
                         ..current_root.clone()
                     };
 
                     if new_item.keep() {
                         if new_item.is_file() {
-                            return Some(Ok(new_item));
+                            return Some(Ok(new_item.hoard_file));
                         } else if new_item.is_dir() {
                             self.root_paths.push(new_item);
                         }
@@ -211,14 +233,17 @@ impl Iterator for AllFilesIter {
                         .to_path_buf();
 
                     let new_item = RootPathItem {
-                        hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
-                        system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
+                        hoard_file: HoardFile {
+                            hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
+                            system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
+                            pile_name: current_root.hoard_file.pile_name.clone(),
+                        },
                         ..current_root.clone()
                     };
 
                     if new_item.keep() {
                         if new_item.is_file() {
-                            return Some(Ok(new_item));
+                            return Some(Ok(new_item.hoard_file));
                         } else if new_item.is_dir() {
                             self.root_paths.push(new_item);
                         }
