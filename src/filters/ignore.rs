@@ -25,7 +25,7 @@ pub enum Error {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct IgnoreFilter {
     globs: Vec<Pattern>,
 }

@@ -1,19 +1,12 @@
 //! See [`Config`].
 
 pub use self::builder::Builder;
-use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
-use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
-use crate::checkers::Checker;
-use crate::command::{Command, EditError};
-use crate::hoard::iter::{DiffSource, HoardDiff, HoardFilesIter};
-use crate::hoard::{self, Direction, Hoard};
+use crate::command::{self, Command};
+use crate::hoard::{self, Hoard};
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 pub mod builder;
 
@@ -28,54 +21,15 @@ pub fn get_dirs() -> ProjectDirs {
 /// Errors that can occur while working with a [`Config`].
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Error occurred while backing up a hoard.
-    #[error("failed to back up {name}: {error}")]
-    Backup {
-        /// The name of the hoard that failed to back up.
-        name: String,
-        /// The error that occurred.
-        #[source]
-        error: hoard::Error,
-    },
+    /// Error while running a [`Command`].
+    #[error("command failed: {0}")]
+    Command(#[from] command::Error),
     /// Error occurred while building the configuration.
     #[error("error while building the configuration: {0}")]
     Builder(#[from] builder::Error),
-    /// Error occurred while editing the config file
-    #[error("error while editing the config file: {0}")]
-    Edit(#[from] EditError),
     /// The requested hoard does not exist.
     #[error("no such hoard is configured: {0}")]
     NoSuchHoard(String),
-    /// Error occurred while restoring a hoard.
-    #[error("failed to back up {name}: {error}")]
-    Restore {
-        /// The name of the hoard that failed to restore.
-        name: String,
-        /// The error that occurred.
-        #[source]
-        error: hoard::Error,
-    },
-    /// An error occurred while comparing paths for this run to the previous one.
-    #[error("error while comparing previous run to current run: {0}")]
-    LastPaths(#[from] LastPathsError),
-    /// An error occurred while checking against remote operations.
-    #[error("error while checking against recent remote operations: {0}")]
-    Operation(#[from] HoardOperationError),
-    /// An error occurred while cleaning up log files.
-    #[error("error after cleaning up {success_count} log files: {error}")]
-    Cleanup {
-        /// The number of files successfully cleaned.
-        success_count: u32,
-        /// The error that occurred.
-        #[source]
-        error: crate::checkers::history::operation::Error,
-    },
-    /// An error occurred while diffing files.
-    #[error("error while diffing files: {0}")]
-    Diff(#[from] crate::hoard::iter::Error),
-    /// An error occurred while creating the [`HoardFilesIter`].
-    #[error("error creating file iterator: {0}")]
-    Iterator(#[from] crate::filters::Error),
 }
 
 /// A (processed) configuration.
@@ -164,30 +118,10 @@ impl Config {
         }
     }
 
-    #[must_use]
-    fn get_prefix(&self, name: &str) -> PathBuf {
-        self.hoards_root.join(name)
-    }
-
     fn get_hoard<'a>(&'a self, name: &'_ str) -> Result<&'a Hoard, Error> {
         self.hoards
             .get(name)
             .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
-    }
-
-    #[allow(dead_code)]
-    fn iter_hoard_files(&self, name: &str, direction: Direction) -> Result<HoardFilesIter, Error> {
-        let hoard = self.get_hoard(name)?;
-        let hoards_root = self.get_hoards_root_path();
-
-        HoardFilesIter::new(&hoards_root, direction, name, hoard).map_err(Error::from)
-    }
-
-    fn hoard_file_diffs(&self, name: &str) -> Result<Vec<HoardDiff>, Error> {
-        let hoard = self.get_hoard(name)?;
-        let hoards_root = self.get_hoards_root_path();
-
-        HoardFilesIter::file_diffs(&hoards_root, name, hoard).map_err(Error::from)
     }
 
     /// Run the stored [`Command`] using this [`Config`].
@@ -196,222 +130,47 @@ impl Config {
     ///
     /// Any [`enum@Error`] that might happen while running the command.
     pub fn run(&self) -> Result<(), Error> {
-        #![allow(clippy::too_many_lines)]
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
-                for hoard in self.hoards.keys() {
-                    let source = self
-                        .hoard_file_diffs(hoard)?
-                        .into_iter()
-                        .map(|hoard_diff| {
-                            #[allow(clippy::match_same_arms)]
-                            match hoard_diff {
-                                HoardDiff::BinaryModified { diff_source, .. } => diff_source,
-                                HoardDiff::TextModified { diff_source, .. } => diff_source,
-                                HoardDiff::PermissionsModified { diff_source, .. } => diff_source,
-                                HoardDiff::Created { diff_source, .. } => diff_source,
-                                HoardDiff::Recreated { diff_source, .. } => diff_source,
-                                HoardDiff::Deleted { diff_source, .. } => diff_source,
-                            }
-                        })
-                        .reduce(|acc, source| {
-                            if acc == DiffSource::Unknown || source == DiffSource::Unknown {
-                                DiffSource::Unknown
-                            } else if acc == source {
-                                acc
-                            } else {
-                                DiffSource::Mixed
-                            }
-                        });
-
-                    match source {
-                        None => println!("{}: up to date", hoard),
-                        Some(source) => match source {
-                            DiffSource::Local => println!("{}: modified {} -- sync with `hoard backup {}`", hoard, source, hoard),
-                            DiffSource::Remote => println!("{}: modified {} -- sync with `hoard restore {}`", hoard, source, hoard),
-                            DiffSource::Mixed => println!("{}: mixed changes -- manual intervention recommended (see `hoard diff`)", hoard),
-                            DiffSource::Unknown => println!("{}: unexpected changes -- manual intervention recommended (see `hoard diff`)", hoard),
-                        }
-                    }
-                }
+                let iter = self
+                    .hoards
+                    .iter()
+                    .map(|(name, hoard)| (name.as_str(), hoard));
+                command::run_status(&self.get_hoards_root_path(), iter)?;
             }
             Command::Diff { hoard, verbose } => {
-                for hoard_diff in self.hoard_file_diffs(hoard)? {
-                    match hoard_diff {
-                        HoardDiff::BinaryModified { path, diff_source } => {
-                            tracing::info!(
-                                "{}: binary file changed {}",
-                                path.display(),
-                                diff_source
-                            );
-                        }
-                        HoardDiff::TextModified {
-                            path,
-                            unified_diff,
-                            diff_source,
-                        } => {
-                            tracing::info!("{}: text file changed {}", path.display(), diff_source);
-                            if *verbose {
-                                tracing::info!("{}", unified_diff);
-                            }
-                        }
-                        HoardDiff::PermissionsModified {
-                            path,
-                            hoard_perms,
-                            system_perms,
-                            ..
-                        } => {
-                            #[cfg(unix)]
-                            tracing::info!(
-                                "{}: permissions changed: hoard ({:o}), system ({:o})",
-                                path.display(),
-                                hoard_perms.mode(),
-                                system_perms.mode(),
-                            );
-                            #[cfg(not(unix))]
-                            tracing::info!(
-                                "{}: permissions changed: hoard ({}), system ({})",
-                                path.display(),
-                                if hoard_perms.readonly() {
-                                    "readonly"
-                                } else {
-                                    "writable"
-                                },
-                                if system_perms.readonly() {
-                                    "readonly"
-                                } else {
-                                    "writable"
-                                },
-                            );
-                        }
-                        HoardDiff::Created { path, diff_source } => {
-                            tracing::info!("{}: created {}", path.display(), diff_source);
-                        }
-                        HoardDiff::Recreated { path, diff_source } => {
-                            tracing::info!("{}: recreated {}", path.display(), diff_source);
-                        }
-                        HoardDiff::Deleted { path, diff_source } => {
-                            tracing::info!("{}: deleted {}", path.display(), diff_source);
-                        }
-                    }
-                }
+                command::run_diff(
+                    self.get_hoard(hoard)?,
+                    hoard,
+                    &self.get_hoards_root_path(),
+                    *verbose,
+                )?;
             }
             Command::Edit => {
-                if let Err(error) = crate::command::edit(&self.config_file) {
-                    tracing::error!(%error, "error while editing config file");
-                    return Err(Error::Edit(error));
-                }
+                command::run_edit(&self.config_file)?;
             }
             Command::Validate => {
                 tracing::info!("configuration is valid");
             }
             Command::List => {
-                let mut hoards: Vec<&str> = self.hoards.keys().map(String::as_str).collect();
-                hoards.sort_unstable();
-                let list = hoards.join("\n");
-                tracing::info!("{}", list);
+                command::run_list(self.hoards.keys().map(String::as_str));
             }
-            Command::Cleanup => match crate::checkers::history::operation::cleanup_operations() {
-                Ok(count) => tracing::info!("cleaned up {} log files", count),
-                Err((count, error)) => {
-                    return Err(Error::Cleanup {
-                        success_count: count,
-                        error,
-                    });
-                }
-            },
-            Command::Backup { hoards } | Command::Restore { hoards } => {
+            Command::Cleanup => {
+                command::run_cleanup()?;
+            }
+            Command::Backup { hoards } => {
+                let hoards_root = self.get_hoards_root_path();
                 let hoards = self.get_hoards(hoards)?;
-                let direction = match self.command {
-                    Command::Backup { .. } => Direction::Backup,
-                    Command::Restore { .. } => Direction::Restore,
-                    // Only Command::Backup and Command::Restore should be possible
-                    _ => return Ok(()),
-                };
-
-                let mut checkers = Checkers::new(&hoards, direction)?;
-                if !self.force {
-                    checkers.check()?;
-                }
-
-                for (name, hoard) in hoards {
-                    let prefix = self.get_prefix(name);
-
-                    match direction {
-                        Direction::Backup => {
-                            tracing::info!(hoard = %name, "backing up");
-                            let _span = tracing::info_span!("backup", hoard = %name).entered();
-                            hoard.backup(&prefix).map_err(|error| Error::Backup {
-                                name: name.to_string(),
-                                error,
-                            })?;
-                        }
-                        Direction::Restore => {
-                            tracing::info!(hoard = %name, "restoring");
-                            let _span = tracing::info_span!("restore", hoard = %name).entered();
-                            hoard.restore(&prefix).map_err(|error| Error::Restore {
-                                name: name.to_string(),
-                                error,
-                            })?;
-                        }
-                    }
-                }
-
-                checkers.commit_to_disk()?;
+                command::run_backup(&hoards_root, hoards, self.force)?;
+            }
+            Command::Restore { hoards } => {
+                let hoards_root = self.get_hoards_root_path();
+                let hoards = self.get_hoards(hoards)?;
+                command::run_restore(&hoards_root, hoards, self.force)?;
             }
         }
 
-        Ok(())
-    }
-}
-
-struct Checkers {
-    last_paths: HashMap<String, LastPaths>,
-    operations: HashMap<String, HoardOperation>,
-}
-
-impl Checkers {
-    fn new(hoard_map: &HashMap<&str, &Hoard>, direction: Direction) -> Result<Self, Error> {
-        let mut last_paths = HashMap::new();
-        let mut operations = HashMap::new();
-
-        for (name, hoard) in hoard_map {
-            let lp = LastPaths::new(name, hoard, direction)?;
-            let op = HoardOperation::new(name, hoard, direction)?;
-            last_paths.insert((*name).to_string(), lp);
-            operations.insert((*name).to_string(), op);
-        }
-
-        Ok(Self {
-            last_paths,
-            operations,
-        })
-    }
-
-    fn check(&mut self) -> Result<(), Error> {
-        let _span = tracing::info_span!("running_checks").entered();
-        for last_path in &mut self.last_paths.values_mut() {
-            last_path.check()?;
-        }
-        for operation in self.operations.values_mut() {
-            operation.check()?;
-        }
-        Ok(())
-    }
-
-    fn commit_to_disk(self) -> Result<(), Error> {
-        let Self {
-            last_paths,
-            operations,
-            ..
-        } = self;
-        for (_, last_path) in last_paths {
-            last_path.commit_to_disk()?;
-        }
-        for (_, operation) in operations {
-            operation.commit_to_disk()?;
-        }
         Ok(())
     }
 }
