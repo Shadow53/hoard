@@ -2,14 +2,15 @@ use crate::checkers::history::operation::{
     Error as OperationError, Hoard as OpHoard, HoardOperation,
 };
 use crate::diff::{diff_files, Diff};
-use crate::hoard::iter::all_files::{AllFilesIter, HoardFile};
+use crate::hoard::iter::all_files::AllFilesIter;
 use crate::hoard::Hoard;
 use md5::Digest;
-use std::collections::HashSet;
 use std::path::Path;
 use std::{fmt, fs, io};
+use tracing::trace_span;
+use crate::hoard::iter::HoardFile;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum DiffSource {
     Local,
     Remote,
@@ -28,7 +29,8 @@ impl fmt::Display for DiffSource {
     }
 }
 
-pub(crate) enum HoardDiff {
+#[derive(Debug, Clone)]
+pub(crate) enum HoardFileDiff {
     BinaryModified {
         file: HoardFile,
         diff_source: DiffSource,
@@ -58,102 +60,124 @@ pub(crate) enum HoardDiff {
     },
 }
 
-#[allow(clippy::too_many_lines)]
-pub(crate) fn file_diffs(
-    hoards_root: &Path,
-    hoard_name: &str,
-    hoard: &Hoard,
-) -> Result<Vec<HoardDiff>, super::Error> {
-    let _span = tracing::trace_span!("file_diffs_iterator").entered();
-    let files: HashSet<HoardFile> = AllFilesIter::new(hoards_root, hoard_name, hoard)?
-        .collect::<Result<_, io::Error>>()
-        .map_err(super::Error::IO)?;
+pub(crate) struct HoardDiffIter{
+    iterator: AllFilesIter,
+    hoard_name: String,
+}
 
-    files
-        .into_iter()
-        .filter_map(|file| {
-            diff_files(&file.hoard_path, &file.system_path)
-                .transpose()
-                .map(|diff| (file, diff))
-        })
-        .map(move |(file, diff)| {
-            let prefix = match hoard {
-                Hoard::Anonymous(pile) => pile
-                    .path
-                    .as_ref()
-                    .expect("hoard path should be guaranteed here"),
-                Hoard::Named(named) => named
-                    .piles
-                    .values()
-                    .filter_map(|pile| pile.path.as_ref())
-                    .find(|path| file.system_path.starts_with(path))
-                    .expect("path should always start with a pile path"),
+#[allow(clippy::struct_excessive_bools)]
+struct ProcessedFile {
+    has_same_permissions: bool,
+    has_remote_changes: bool,
+    has_hoard_records: bool,
+    has_local_records: bool,
+    has_local_content_changes: bool,
+}
+
+impl HoardDiffIter {
+    pub(crate) fn new(
+        hoards_root: &Path,
+        hoard_name: String,
+        hoard: &Hoard,
+    ) -> Result<Self, super::Error> {
+        let _span = tracing::trace_span!("file_diffs_iterator").entered();
+        tracing::trace!("creating new diff iterator");
+        let iterator = AllFilesIter::new(hoards_root, &hoard_name, hoard)?;
+        tracing::trace!("created diff iterator: {:?}", iterator);
+
+        Ok(Self { iterator, hoard_name })
+    }
+
+    fn process_file(hoard_name: &str, file: &HoardFile) -> Result<ProcessedFile, super::Error> {
+        let _span = tracing::trace_span!("process_file", ?file).entered();
+        let has_same_permissions = {
+            let hoard_perms = fs::File::open(file.hoard_path())
+                .ok()
+                .as_ref()
+                .map(fs::File::metadata).and_then(Result::ok)
+                .as_ref()
+                .map(fs::Metadata::permissions);
+            let system_perms = fs::File::open(file.system_path())
+                .ok()
+                .as_ref()
+                .map(fs::File::metadata).and_then(Result::ok)
+                .as_ref()
+                .map(fs::Metadata::permissions);
+            hoard_perms == system_perms
+        };
+        let has_remote_changes = HoardOperation::file_has_remote_changes(hoard_name, file.relative_path())?;
+        let has_hoard_records = HoardOperation::file_has_records(hoard_name, file.relative_path())?;
+        let local_record = HoardOperation::latest_local(hoard_name, Some(file.relative_path()))?;
+        let has_local_records = local_record.is_some();
+
+        let has_local_content_changes = if let Some(HoardOperation { ref hoard, .. }) = local_record {
+            tracing::trace!("operation hoard: {:?}, pile: {:?}, rel_path: {:?}", hoard, file.pile_name(), file.relative_path());
+            let checksum = match hoard {
+                OpHoard::Anonymous(op_pile) => {
+                    op_pile.get(file.relative_path()).map(ToOwned::to_owned)
+                },
+                OpHoard::Named(op_piles) => {
+                    let pile_name = file.pile_name().expect("pile name should exist");
+                    op_piles.get(pile_name).and_then(|op_pile| op_pile.get(file.relative_path())).map(ToOwned::to_owned)
+                },
             };
 
-            let rel_path = file.system_path
-
-                .strip_prefix(prefix)
-                .expect("prefix should always match path");
-
-            let has_same_permissions = {
-                let hoard_perms = fs::File::open(&file.hoard_path)
-                    .ok()
-                    .as_ref()
-                    .map(fs::File::metadata).and_then(Result::ok)
-                    .as_ref()
-                    .map(fs::Metadata::permissions);
-                let system_perms = fs::File::open(&file.system_path)
-                    .ok()
-                    .as_ref()
-                    .map(fs::File::metadata).and_then(Result::ok)
-                    .as_ref()
-                    .map(fs::Metadata::permissions);
-                hoard_perms == system_perms
-            };
-            let has_remote_changes = HoardOperation::file_has_remote_changes(hoard_name, rel_path)?;
-            let has_hoard_records = HoardOperation::file_has_records(hoard_name, rel_path)?;
-            let local_record = HoardOperation::latest_local(hoard_name, Some(rel_path))?;
-            let has_local_records = local_record.is_some();
-
-            let has_local_content_changes = if let Some(HoardOperation { ref hoard, .. }) = local_record {
-                tracing::trace!("operation hoard: {:?}, pile: {:?}, rel_path: {:?}", hoard, file.pile_name, rel_path);
-                let checksum = match hoard {
-                    OpHoard::Anonymous(op_pile) => {
-                        op_pile.get(rel_path).map(ToOwned::to_owned)
+            if let Some(checksum) = checksum {
+                tracing::trace!("{} ({}) previously had checksum {} on this system", file.system_path().display(), file.relative_path().display(), checksum);
+                match fs::read(file.system_path()) {
+                    Err(err) => if let io::ErrorKind::NotFound = err.kind() {
+                        false
+                    } else {
+                        return Err(super::Error::Operation(OperationError::IO(err)));
                     },
-                    OpHoard::Named(op_piles) => {
-                        let pile_name = file.pile_name.as_ref().expect("pile name should exist");
-                        op_piles.get(pile_name).and_then(|op_pile| op_pile.get(rel_path)).map(ToOwned::to_owned)
-                    },
-                };
-
-                if let Some(checksum) = checksum {
-                    tracing::trace!("{} ({}) previously had checksum {} on this system", file.system_path.display(), rel_path.display(), checksum);
-                    match fs::read(&file.system_path) {
-                        Err(err) => if let io::ErrorKind::NotFound = err.kind() {
-                            false
-                        } else {
-                            return Err(OperationError::IO(err));
-                        },
-                        Ok(content) => {
-                            let new_sum = format!("{:x}", md5::Md5::digest(&content));
-                            tracing::trace!("{} currently has checksum {}", file.system_path.display(), new_sum);
-                            new_sum != checksum
-                        }
+                    Ok(content) => {
+                        let new_sum = format!("{:x}", md5::Md5::digest(&content));
+                        tracing::trace!("{} currently has checksum {}", file.system_path().display(), new_sum);
+                        new_sum != checksum
                     }
-                } else {
-                    tracing::trace!("no checksum found for {}", file.system_path.display());
-                    false
                 }
             } else {
-                tracing::trace!(path=?file.system_path, "no local operation found for {}", hoard_name);
-                file.system_path.exists()
+                tracing::trace!("no checksum found for {}", file.system_path().display());
+                false
+            }
+        } else {
+            tracing::trace!(path=?file.system_path(), "no local operation found for {}", hoard_name);
+            file.system_path().exists()
+        };
+
+        Ok(ProcessedFile { has_same_permissions, has_remote_changes, has_hoard_records, has_local_records, has_local_content_changes })
+    }
+}
+
+impl Iterator for HoardDiffIter {
+    type Item = Result<HoardFileDiff, super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for result in self.iterator.by_ref() {
+            let file = match result {
+                Ok(file) => file,
+                Err(err) => return Some(Err(super::Error::IO(err))),
             };
 
-            {
-                let local_record = local_record;
-                tracing::trace!(%has_local_records, %has_hoard_records, %has_remote_changes, %has_same_permissions, %has_local_content_changes, ?local_record);
-            }
+            let _span = trace_span!("diff_iterator_next", ?file);
+
+            let diff = match diff_files(file.hoard_path(), file.system_path()) {
+                Ok(None) => {
+                    tracing::trace!("no diff found for file");
+                    continue
+                },
+                Ok(Some(diff)) => diff,
+                Err(err) => return Some(Err(super::Error::IO(err))),
+            };
+
+            let file_data = match Self::process_file(&self.hoard_name, &file) {
+                Ok(data) => data,
+                Err(err) => return Some(Err(err)),
+            };
+
+            let ProcessedFile {
+                has_same_permissions, has_remote_changes, has_hoard_records, has_local_records, has_local_content_changes
+            } = file_data;
 
             let diff_source = if has_remote_changes {
                 if has_local_content_changes || !has_same_permissions {
@@ -169,24 +193,24 @@ pub(crate) fn file_diffs(
 
             let created_mixed = has_remote_changes && !has_local_records && has_local_content_changes;
 
-            let hoard_diff = match diff? {
+            let hoard_diff = match diff {
                 Diff::Binary => if created_mixed {
-                    HoardDiff::Created {
+                    HoardFileDiff::Created {
                         file, diff_source: DiffSource::Mixed,
                     }
                 } else {
-                    HoardDiff::BinaryModified {
+                    HoardFileDiff::BinaryModified {
                         file, diff_source
                     }
                 },
                 Diff::Text(unified_diff) => if created_mixed {
-                    HoardDiff::Created { file, diff_source: DiffSource::Mixed }
+                    HoardFileDiff::Created { file, diff_source: DiffSource::Mixed }
                 } else {
-                    HoardDiff::TextModified {
+                    HoardFileDiff::TextModified {
                         file, diff_source, unified_diff
                     }
                 },
-                Diff::Permissions(hoard_perms, system_perms) => HoardDiff::PermissionsModified {
+                Diff::Permissions(hoard_perms, system_perms) => HoardFileDiff::PermissionsModified {
                     // Cannot track sources of permissions changes, so just mark Mixed
                     file, diff_source: DiffSource::Mixed, hoard_perms, system_perms
                 },
@@ -196,14 +220,14 @@ pub(crate) fn file_diffs(
                         // Used to exist in hoard directory
                         if has_remote_changes {
                             // Most recent operation is remote, probably deleted
-                            HoardDiff::Deleted { file, diff_source: DiffSource::Remote }
+                            HoardFileDiff::Deleted { file, diff_source: DiffSource::Remote }
                         } else {
                             // Most recent operation is local, probably recreated file
-                            HoardDiff::Recreated { file, diff_source: DiffSource::Local }
+                            HoardFileDiff::Recreated { file, diff_source: DiffSource::Local }
                         }
                     } else {
                         // Never existed in hoard, newly created
-                        HoardDiff::Created { file, diff_source: DiffSource::Local }
+                        HoardFileDiff::Created { file, diff_source: DiffSource::Local }
                     }
                 },
                 Diff::RightNotExists => {
@@ -213,22 +237,25 @@ pub(crate) fn file_diffs(
                         if has_local_records {
                             if has_remote_changes {
                                 // Recreated remotely
-                                HoardDiff::Recreated { file, diff_source: DiffSource::Remote }
+                                HoardFileDiff::Recreated { file, diff_source: DiffSource::Remote }
                             } else {
                                 // Deleted locally
-                                HoardDiff::Deleted { file, diff_source: DiffSource::Local }
+                                HoardFileDiff::Deleted { file, diff_source: DiffSource::Local }
                             }
                         } else {
                             // Created remotely
-                            HoardDiff::Created { file, diff_source: DiffSource::Remote }
+                            HoardFileDiff::Created { file, diff_source: DiffSource::Remote }
                         }
                     } else {
                         // Unknown
-                        HoardDiff::Created { file, diff_source: DiffSource::Unknown }
+                        HoardFileDiff::Created { file, diff_source: DiffSource::Unknown }
                     }
                 },
             };
 
-            Ok(hoard_diff)
-        }).collect::<Result<_, _>>().map_err(super::Error::from)
+            return Some(Ok(hoard_diff))
+        }
+
+        None
+    }
 }

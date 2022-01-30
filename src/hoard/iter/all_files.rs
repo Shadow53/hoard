@@ -1,51 +1,21 @@
 use crate::filters::{Filter, Filters};
 use crate::hoard::{Hoard, HoardPath, SystemPath};
 use std::iter::Peekable;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct HoardFile {
-    pub(crate) pile_name: Option<String>,
-    pub(crate) hoard_path: HoardPath,
-    pub(crate) system_path: SystemPath,
-}
+use crate::hoard::iter::HoardFile;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
     hoard_file: HoardFile,
-    hoard_prefix: HoardPath,
-    system_prefix: SystemPath,
     filters: Option<Filters>,
-}
-
-impl HoardFile {
-    fn is_file(&self) -> bool {
-        let sys = self.system_path.as_ref();
-        let hoard = self.hoard_path.as_ref();
-        let sys_exists = sys.exists();
-        let hoard_exists = hoard.exists();
-        (sys.is_file() || !sys_exists)
-            && (hoard.is_file() || !hoard_exists)
-            && (sys_exists || hoard_exists)
-    }
-
-    fn is_dir(&self) -> bool {
-        let sys = self.system_path.as_ref();
-        let hoard = self.hoard_path.as_ref();
-        let sys_exists = sys.exists();
-        let hoard_exists = hoard.exists();
-        (sys.is_dir() || !sys_exists)
-            && (hoard.is_dir() || !hoard_exists)
-            && (sys_exists || hoard_exists)
-    }
 }
 
 impl RootPathItem {
     fn keep(&self) -> bool {
         (self.is_file() || self.is_dir())
             && self.filters.as_ref().map_or(true, |filters| {
-                filters.keep(self.system_prefix.as_ref(), self.hoard_file.system_path.as_ref())
+                filters.keep(self.hoard_file.system_prefix(), self.hoard_file.system_path())
             })
     }
 
@@ -58,6 +28,7 @@ impl RootPathItem {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct AllFilesIter {
     root_paths: Vec<RootPathItem>,
     system_entries: Option<Peekable<fs::ReadDir>>,
@@ -78,16 +49,10 @@ impl AllFilesIter {
                 match path {
                     None => Vec::new(),
                     Some(path) => {
-                        let hoard_path = HoardPath(hoards_root.join(hoard_name));
-                        let system_path = SystemPath(path);
+                        let hoard_prefix = HoardPath(hoards_root.join(hoard_name));
+                        let system_prefix = SystemPath(path);
                         vec![RootPathItem {
-                            hoard_prefix: hoard_path.clone(),
-                            system_prefix: system_path.clone(),
-                            hoard_file: HoardFile {
-                                pile_name: None,
-                                hoard_path,
-                                system_path,
-                            },
+                            hoard_file: HoardFile::new(None, hoard_prefix, system_prefix, PathBuf::new()),
                             filters,
                         }]
                     }
@@ -102,16 +67,10 @@ impl AllFilesIter {
                         Err(err) => return Some(Err(err)),
                     };
                     pile.path.as_ref().map(|path| {
-                        let hoard_path = HoardPath(hoards_root.join(hoard_name).join(name));
-                        let system_path = SystemPath(path.clone());
+                        let hoard_prefix = HoardPath(hoards_root.join(hoard_name).join(name));
+                        let system_prefix = SystemPath(path.clone());
                         Ok(RootPathItem {
-                            hoard_prefix: hoard_path.clone(),
-                            system_prefix: system_path.clone(),
-                            hoard_file: HoardFile {
-                                pile_name: Some(name.clone()),
-                                hoard_path,
-                                system_path,
-                            },
+                            hoard_file: HoardFile::new(Some(name.clone()), hoard_prefix, system_prefix, PathBuf::new()),
                             filters,
                         })
                     })
@@ -161,14 +120,14 @@ impl Iterator for AllFilesIter {
                             if item.is_file() {
                                 return Some(Ok(item.hoard_file));
                             } else if item.is_dir() {
-                                match fs::read_dir(item.hoard_file.system_path.as_ref()) {
+                                match fs::read_dir(item.hoard_file.system_path()) {
                                     Ok(iter) => self.system_entries = Some(iter.peekable()),
                                     Err(err) => match err.kind() {
                                         io::ErrorKind::NotFound => self.system_entries = None,
                                         _ => return Some(Err(err)),
                                     },
                                 }
-                                match fs::read_dir(item.hoard_file.hoard_path.as_ref()) {
+                                match fs::read_dir(item.hoard_file.hoard_path()) {
                                     Ok(iter) => self.hoard_entries = Some(iter.peekable()),
                                     Err(err) => match err.kind() {
                                         io::ErrorKind::NotFound => self.hoard_entries = None,
@@ -194,19 +153,20 @@ impl Iterator for AllFilesIter {
                         Err(err) => return Some(Err(err)),
                     };
 
-                    let rel_path = entry
+                    let relative_path = entry
                         .path()
-                        .strip_prefix(current_root.system_prefix.as_ref())
+                        .strip_prefix(&current_root.hoard_file.system_prefix())
                         .expect("system prefix should always match path")
                         .to_path_buf();
 
                     let new_item = RootPathItem {
-                        hoard_file: HoardFile {
-                            hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
-                            system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
-                            pile_name: current_root.hoard_file.pile_name.clone(),
-                        },
-                        ..current_root.clone()
+                        hoard_file: HoardFile::new(
+                            current_root.hoard_file.pile_name().map(str::to_string),
+                            HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
+                            SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
+                            relative_path
+                        ),
+                        filters: current_root.filters.clone(),
                     };
 
                     if new_item.keep() {
@@ -226,19 +186,20 @@ impl Iterator for AllFilesIter {
                         Err(err) => return Some(Err(err)),
                     };
 
-                    let rel_path = entry
+                    let relative_path = entry
                         .path()
-                        .strip_prefix(current_root.hoard_prefix.as_ref())
+                        .strip_prefix(&current_root.hoard_file.hoard_prefix())
                         .expect("hoard prefix should always match path")
                         .to_path_buf();
 
                     let new_item = RootPathItem {
-                        hoard_file: HoardFile {
-                            hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
-                            system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
-                            pile_name: current_root.hoard_file.pile_name.clone(),
-                        },
-                        ..current_root.clone()
+                        hoard_file: HoardFile::new(
+                            current_root.hoard_file.pile_name().map(str::to_string),
+                            HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
+                            SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
+                            relative_path
+                        ),
+                        filters: current_root.filters.clone(),
                     };
 
                     if new_item.keep() {
