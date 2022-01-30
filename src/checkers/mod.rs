@@ -5,10 +5,10 @@
 
 pub mod history;
 
-use std::collections::HashMap;
-use crate::checkers::history::last_paths::{LastPaths, Error as LastPathsError};
-use crate::checkers::history::operation::{HoardOperation, Error as HoardOperationError};
+use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
+use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
 use crate::hoard::{Direction, Hoard};
+use std::collections::HashMap;
 use thiserror::Error;
 
 /// Trait for validating [`Hoard`]s.
@@ -57,7 +57,10 @@ pub(crate) struct Checkers {
 
 impl Checkers {
     #[allow(single_use_lifetimes)]
-    pub(crate) fn new<'a, S: AsRef<str>>(hoards: impl IntoIterator<Item=(S, &'a Hoard)>, direction: Direction) -> Result<Self, Error> {
+    pub(crate) fn new<'a, S: AsRef<str>>(
+        hoards: impl IntoIterator<Item = (S, &'a Hoard)>,
+        direction: Direction,
+    ) -> Result<Self, Error> {
         let mut last_paths = HashMap::new();
         let mut operations = HashMap::new();
 

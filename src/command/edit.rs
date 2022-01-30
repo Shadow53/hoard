@@ -21,7 +21,8 @@ pub(crate) fn run_edit(path: &Path) -> Result<(), super::Error> {
         open_cmd::open(path.to_owned()).map_err(Error::Start)?
     };
 
-    let status = cmd.status()
+    let status = cmd
+        .status()
         .map_err(open_cmd::Error::from)
         .map_err(Error::Start)
         .map_err(super::Error::Edit)?;

@@ -12,8 +12,8 @@ use thiserror::Error;
 
 pub(crate) use backup_restore::{run_backup, run_restore};
 pub(crate) use cleanup::run_cleanup;
-pub(crate) use edit::run_edit;
 pub(crate) use diff::run_diff;
+pub(crate) use edit::run_edit;
 pub(crate) use list::run_list;
 pub(crate) use status::run_status;
 

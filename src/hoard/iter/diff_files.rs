@@ -1,11 +1,13 @@
-use std::collections::HashSet;
-use std::{fmt, fs, io};
-use std::path::{Path, PathBuf};
-use md5::Digest;
-use crate::checkers::history::operation::{HoardOperation, Hoard as OpHoard, Error as OperationError};
-use crate::diff::{Diff, diff_files};
-use crate::hoard::Hoard;
+use crate::checkers::history::operation::{
+    Error as OperationError, Hoard as OpHoard, HoardOperation,
+};
+use crate::diff::{diff_files, Diff};
 use crate::hoard::iter::all_files::{AllFilesIter, RootPathItem};
+use crate::hoard::Hoard;
+use md5::Digest;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::{fmt, fs, io};
 
 #[derive(Copy, Clone, PartialEq)]
 pub(crate) enum DiffSource {
@@ -63,9 +65,9 @@ pub(crate) fn file_diffs(
     hoard: &Hoard,
 ) -> Result<Vec<HoardDiff>, super::Error> {
     let _span = tracing::trace_span!("file_diffs_iterator").entered();
-    let paths: HashSet<RootPathItem> =
-        AllFilesIter::new(hoards_root, hoard_name, hoard)?
-            .collect::<Result<_, io::Error>>().map_err(super::Error::IO)?;
+    let paths: HashSet<RootPathItem> = AllFilesIter::new(hoards_root, hoard_name, hoard)?
+        .collect::<Result<_, io::Error>>()
+        .map_err(super::Error::IO)?;
 
     paths
         .into_iter()

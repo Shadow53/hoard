@@ -6,7 +6,7 @@ mod all_files;
 mod diff_files;
 
 //pub(crate) use all_files::AllFilesIter;
-pub(crate) use diff_files::{DiffSource, HoardDiff, file_diffs};
+pub(crate) use diff_files::{file_diffs, DiffSource, HoardDiff};
 
 #[derive(Debug, Error)]
 pub enum Error {

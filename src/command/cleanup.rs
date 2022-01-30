@@ -5,12 +5,10 @@ pub(crate) fn run_cleanup() -> Result<(), super::Error> {
         Ok(count) => {
             tracing::info!("cleaned up {} log files", count);
             Ok(())
-        },
-        Err((count, error)) => {
-            Err(super::Error::Cleanup {
-                success_count: count,
-                error,
-            })
         }
+        Err((count, error)) => Err(super::Error::Cleanup {
+            success_count: count,
+            error,
+        }),
     }
 }

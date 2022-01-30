@@ -1,8 +1,11 @@
-use std::path::Path;
+use crate::hoard::iter::{file_diffs, DiffSource, HoardDiff};
 use crate::hoard::Hoard;
-use crate::hoard::iter::{DiffSource, HoardDiff, file_diffs};
+use std::path::Path;
 
-pub(crate) fn run_status<'a>(hoards_root: &Path, hoards: impl IntoIterator<Item=(&'a str, &'a Hoard)>) -> Result<(), super::Error> {
+pub(crate) fn run_status<'a>(
+    hoards_root: &Path,
+    hoards: impl IntoIterator<Item = (&'a str, &'a Hoard)>,
+) -> Result<(), super::Error> {
     for (hoard_name, hoard) in hoards {
         let source = file_diffs(hoards_root, hoard_name, hoard)
             .map_err(super::Error::Status)?
@@ -31,11 +34,23 @@ pub(crate) fn run_status<'a>(hoards_root: &Path, hoards: impl IntoIterator<Item=
         match source {
             None => println!("{}: up to date", hoard_name),
             Some(source) => match source {
-                DiffSource::Local => println!("{}: modified {} -- sync with `hoard backup {}`", hoard_name, source, hoard_name),
-                DiffSource::Remote => println!("{}: modified {} -- sync with `hoard restore {}`", hoard_name, source, hoard_name),
-                DiffSource::Mixed => println!("{}: mixed changes -- manual intervention recommended (see `hoard diff`)", hoard_name),
-                DiffSource::Unknown => println!("{}: unexpected changes -- manual intervention recommended (see `hoard diff`)", hoard_name),
-            }
+                DiffSource::Local => println!(
+                    "{}: modified {} -- sync with `hoard backup {}`",
+                    hoard_name, source, hoard_name
+                ),
+                DiffSource::Remote => println!(
+                    "{}: modified {} -- sync with `hoard restore {}`",
+                    hoard_name, source, hoard_name
+                ),
+                DiffSource::Mixed => println!(
+                    "{}: mixed changes -- manual intervention recommended (see `hoard diff`)",
+                    hoard_name
+                ),
+                DiffSource::Unknown => println!(
+                    "{}: unexpected changes -- manual intervention recommended (see `hoard diff`)",
+                    hoard_name
+                ),
+            },
         }
     }
 

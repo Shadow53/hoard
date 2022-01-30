@@ -133,11 +133,19 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
-                let iter = self.hoards.iter().map(|(name, hoard)| (name.as_str(), hoard));
+                let iter = self
+                    .hoards
+                    .iter()
+                    .map(|(name, hoard)| (name.as_str(), hoard));
                 command::run_status(&self.get_hoards_root_path(), iter)?;
             }
             Command::Diff { hoard, verbose } => {
-                command::run_diff(self.get_hoard(hoard)?, hoard, &self.get_hoards_root_path(), *verbose)?;
+                command::run_diff(
+                    self.get_hoard(hoard)?,
+                    hoard,
+                    &self.get_hoards_root_path(),
+                    *verbose,
+                )?;
             }
             Command::Edit => {
                 command::run_edit(&self.config_file)?;
@@ -150,12 +158,12 @@ impl Config {
             }
             Command::Cleanup => {
                 command::run_cleanup()?;
-            },
+            }
             Command::Backup { hoards } => {
                 let hoards_root = self.get_hoards_root_path();
                 let hoards = self.get_hoards(hoards)?;
                 command::run_backup(&hoards_root, hoards, self.force)?;
-            },
+            }
             Command::Restore { hoards } => {
                 let hoards_root = self.get_hoards_root_path();
                 let hoards = self.get_hoards(hoards)?;
