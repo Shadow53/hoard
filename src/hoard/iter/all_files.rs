@@ -2,7 +2,7 @@ use std::{fs, io};
 use std::iter::Peekable;
 use std::path::Path;
 use crate::filters::{Filter, Filters};
-use crate::hoard::{Direction, Hoard, HoardPath, SystemPath};
+use crate::hoard::{Hoard, HoardPath, SystemPath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
@@ -39,16 +39,14 @@ impl RootPathItem {
 
 pub(crate) struct AllFilesIter {
     root_paths: Vec<RootPathItem>,
-    direction: Direction,
-    src_entries: Option<Peekable<fs::ReadDir>>,
-    dest_entries: Option<Peekable<fs::ReadDir>>,
+    system_entries: Option<Peekable<fs::ReadDir>>,
+    hoard_entries: Option<Peekable<fs::ReadDir>>,
     current_root: Option<RootPathItem>,
 }
 
 impl AllFilesIter {
     pub(crate) fn new(
         hoards_root: &Path,
-        direction: Direction,
         hoard_name: &str,
         hoard: &Hoard,
     ) -> Result<Self, super::Error> {
@@ -84,9 +82,8 @@ impl AllFilesIter {
 
         Ok(Self {
             root_paths,
-            direction,
-            src_entries: None,
-            dest_entries: None,
+            system_entries: None,
+            hoard_entries: None,
             current_root: None
         })
     }
@@ -94,14 +91,14 @@ impl AllFilesIter {
 
 impl AllFilesIter {
     fn has_dir_entries(&mut self) -> bool {
-        if let Some(src_entries) = self.src_entries.as_mut() {
-            if src_entries.peek().is_some() {
+        if let Some(system_entries) = self.system_entries.as_mut() {
+            if system_entries.peek().is_some() {
                 return true;
             }
         }
 
-        if let Some(dest_entries) = self.dest_entries.as_mut() {
-            if dest_entries.peek().is_some() {
+        if let Some(hoard_entries) = self.hoard_entries.as_mut() {
+            if hoard_entries.peek().is_some() {
                 return true;
             }
         }
@@ -121,26 +118,21 @@ impl Iterator for AllFilesIter {
                 match self.root_paths.pop() {
                     None => return None,
                     Some(item) => {
-                        let (src, dest) = match self.direction {
-                            Direction::Backup => (item.system_path.as_ref(), item.hoard_path.as_ref()),
-                            Direction::Restore => (item.hoard_path.as_ref(), item.system_path.as_ref()),
-                        };
-
                         if item.keep() {
                             if item.is_file() {
                                 return Some(Ok(item));
                             } else if item.is_dir() {
-                                match fs::read_dir(src) {
-                                    Ok(iter) => self.src_entries = Some(iter.peekable()),
+                                match fs::read_dir(item.system_path.as_ref()) {
+                                    Ok(iter) => self.system_entries = Some(iter.peekable()),
                                     Err(err) => match err.kind() {
-                                        io::ErrorKind::NotFound => self.src_entries = None,
+                                        io::ErrorKind::NotFound => self.system_entries = None,
                                         _ => return Some(Err(err)),
                                     },
                                 }
-                                match fs::read_dir(dest) {
-                                    Ok(iter) => self.dest_entries = Some(iter.peekable()),
+                                match fs::read_dir(item.hoard_path.as_ref()) {
+                                    Ok(iter) => self.hoard_entries = Some(iter.peekable()),
                                     Err(err) => match err.kind() {
-                                        io::ErrorKind::NotFound => self.dest_entries = None,
+                                        io::ErrorKind::NotFound => self.hoard_entries = None,
                                         _ => return Some(Err(err)),
                                     },
                                 }
@@ -153,25 +145,18 @@ impl Iterator for AllFilesIter {
 
             let current_root = self.current_root.as_ref().expect("current_root should not be None");
 
-            if let Some(src_entries) = self.src_entries.as_mut() {
-                for entry in src_entries {
+            if let Some(system_entries) = self.system_entries.as_mut() {
+                for entry in system_entries {
                     let entry = match entry {
                         Ok(entry) => entry,
                         Err(err) => return Some(Err(err)),
                     };
 
-                    let rel_path = match self.direction {
-                        Direction::Backup => entry.path().strip_prefix(
+                    let rel_path = entry.path().strip_prefix(
                             current_root
                                 .system_prefix
                                 .as_ref()
-                        ).expect("system prefix should always match path").to_path_buf(),
-                        Direction::Restore => entry.path().strip_prefix(
-                            current_root
-                                .hoard_prefix
-                                .as_ref()
-                        ).expect("hoard prefix should always match path").to_path_buf(),
-                    };
+                        ).expect("system prefix should always match path").to_path_buf();
 
                     let new_item = RootPathItem {
                         hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
@@ -189,25 +174,18 @@ impl Iterator for AllFilesIter {
                 }
             }
 
-            if let Some(dest_entries) = self.dest_entries.as_mut() {
-                for entry in dest_entries {
+            if let Some(hoard_entries) = self.hoard_entries.as_mut() {
+                for entry in hoard_entries {
                     let entry = match entry {
                         Ok(entry) => entry,
                         Err(err) => return Some(Err(err)),
                     };
 
-                    let rel_path = match self.direction {
-                        Direction::Backup => entry.path().strip_prefix(
+                    let rel_path = entry.path().strip_prefix(
                             current_root
                                 .hoard_prefix
                                 .as_ref()
-                        ).expect("hoard prefix should always match path").to_path_buf(),
-                        Direction::Restore => entry.path().strip_prefix(
-                            current_root
-                                .system_prefix
-                                .as_ref()
-                        ).expect("system prefix should always match path").to_path_buf(),
-                    };
+                        ).expect("hoard prefix should always match path").to_path_buf();
 
                     let new_item = RootPathItem {
                         hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),

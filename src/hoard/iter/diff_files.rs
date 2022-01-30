@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use md5::Digest;
 use crate::checkers::history::operation::{HoardOperation, Hoard as OpHoard, Error as OperationError};
 use crate::diff::{Diff, diff_files};
-use crate::hoard::{Direction, Hoard};
+use crate::hoard::Hoard;
 use crate::hoard::iter::all_files::{AllFilesIter, RootPathItem};
 
 #[derive(Copy, Clone, PartialEq)]
@@ -64,13 +64,7 @@ pub(crate) fn file_diffs(
 ) -> Result<Vec<HoardDiff>, super::Error> {
     let _span = tracing::trace_span!("file_diffs_iterator").entered();
     let paths: HashSet<RootPathItem> =
-        AllFilesIter::new(hoards_root, Direction::Backup, hoard_name, hoard)?
-            .chain(AllFilesIter::new(
-                hoards_root,
-                Direction::Restore,
-                hoard_name,
-                hoard,
-            )?)
+        AllFilesIter::new(hoards_root, hoard_name, hoard)?
             .collect::<Result<_, io::Error>>().map_err(super::Error::IO)?;
 
     paths
