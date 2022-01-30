@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from testers.cleanup import LogCleanupTester
 from testers.correct_errors import CorrectErrorsTester
+from testers.hoard_backup_restore import HoardBackupRestoreTester
 from testers.hoard_diff import DiffCommandTester
 from testers.hoard_edit import EditCommandTester
 from testers.hoard_list import ListHoardsTester
@@ -49,6 +50,7 @@ def print_checksums():
 
 
 TEST_MAPPING = {
+    "backup_restore": ("backup and restore", HoardBackupRestoreTester),
     "cleanup": ("cleanup", LogCleanupTester),
     "diff_command": ("diff command", DiffCommandTester),
     "edit_command": ("edit command", EditCommandTester),

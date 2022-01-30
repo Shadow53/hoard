@@ -8,7 +8,6 @@ import secrets
 import shutil
 import subprocess
 import sys
-import time
 
 
 HOARDS_DIRNAME = "hoards"
