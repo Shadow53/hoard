@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use md5::Digest;
 use crate::checkers::history::operation::{HoardOperation, Hoard as OpHoard, Error as OperationError};
 use crate::diff::{Diff, diff_files};
-use crate::hoard::{Direction, Hoard, HoardPath, SystemPath};
-use crate::hoard::iter::all_files::AllFilesIter;
+use crate::hoard::{Direction, Hoard};
+use crate::hoard::iter::all_files::{AllFilesIter, RootPathItem};
 
 #[derive(Copy, Clone, PartialEq)]
 pub(crate) enum DiffSource {
@@ -63,7 +63,7 @@ pub(crate) fn file_diffs(
     hoard: &Hoard,
 ) -> Result<Vec<HoardDiff>, super::Error> {
     let _span = tracing::trace_span!("file_diffs_iterator").entered();
-    let paths: HashSet<(Option<String>, HoardPath, SystemPath)> =
+    let paths: HashSet<RootPathItem> =
         AllFilesIter::new(hoards_root, Direction::Backup, hoard_name, hoard)?
             .chain(AllFilesIter::new(
                 hoards_root,
@@ -75,8 +75,10 @@ pub(crate) fn file_diffs(
 
     paths
         .into_iter()
-        .filter_map(|(pile_name, h, s)| {
-            diff_files(h.as_ref(), s.as_ref()).transpose().map(|diff| (pile_name, h, s, diff))
+        .filter_map(|item| {
+            diff_files(item.hoard_path.as_ref(), item.system_path.as_ref())
+                .transpose()
+                .map(|diff| (item.pile_name, item.hoard_path, item.system_path, diff))
         })
         .map(move |(pile_name, hoard_path, system_path, diff)| {
             let prefix = match hoard {

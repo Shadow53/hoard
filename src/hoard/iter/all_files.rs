@@ -1,17 +1,48 @@
 use std::{fs, io};
 use std::iter::Peekable;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use crate::filters::{Filter, Filters};
 use crate::hoard::{Direction, Hoard, HoardPath, SystemPath};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct RootPathItem {
+    pub(crate) pile_name: Option<String>,
+    pub(crate) hoard_path: HoardPath,
+    hoard_prefix: HoardPath,
+    pub(crate) system_path: SystemPath,
+    system_prefix: SystemPath,
+    filters: Option<Filters>,
+}
+
+impl RootPathItem {
+    fn keep(&self) -> bool {
+        (self.is_file() || self.is_dir()) && self.filters.as_ref()
+            .map_or(true, |filters| filters.keep(self.system_prefix.as_ref(), self.system_path.as_ref()))
+    }
+
+    fn is_file(&self) -> bool {
+        let sys = self.system_path.as_ref();
+        let hoard = self.hoard_path.as_ref();
+        let sys_exists = sys.exists();
+        let hoard_exists = hoard.exists();
+        (sys.is_file() || !sys_exists) && (hoard.is_file() || !hoard_exists) && (sys_exists || hoard_exists)
+    }
+
+    fn is_dir(&self) -> bool {
+        let sys = self.system_path.as_ref();
+        let hoard = self.hoard_path.as_ref();
+        let sys_exists = sys.exists();
+        let hoard_exists = hoard.exists();
+        (sys.is_dir() || !sys_exists) && (hoard.is_dir() || !hoard_exists) && (sys_exists || hoard_exists)
+    }
+}
+
 pub(crate) struct AllFilesIter {
-    root_paths: Vec<(Option<String>, HoardPath, SystemPath, Option<Filters>)>,
+    root_paths: Vec<RootPathItem>,
     direction: Direction,
-    pile_name: Option<String>,
-    dir_entries: Option<Peekable<fs::ReadDir>>,
-    src_root: Option<PathBuf>,
-    dest_root: Option<PathBuf>,
-    filter: Option<Filters>,
+    src_entries: Option<Peekable<fs::ReadDir>>,
+    dest_entries: Option<Peekable<fs::ReadDir>>,
+    current_root: Option<RootPathItem>,
 }
 
 impl AllFilesIter {
@@ -30,7 +61,7 @@ impl AllFilesIter {
                     Some(path) => {
                         let hoard_path = HoardPath(hoards_root.join(hoard_name));
                         let system_path = SystemPath(path);
-                        vec![(None, hoard_path, system_path, filters)]
+                        vec![RootPathItem { pile_name: None, hoard_prefix: hoard_path.clone(), hoard_path, system_prefix: system_path.clone(), system_path, filters }]
                     }
                 }
             }
@@ -45,7 +76,7 @@ impl AllFilesIter {
                     pile.path.as_ref().map(|path| {
                         let hoard_path = HoardPath(hoards_root.join(hoard_name).join(name));
                         let system_path = SystemPath(path.clone());
-                        Ok((Some(name.clone()), hoard_path, system_path, filters))
+                        Ok(RootPathItem{ pile_name: Some(name.clone()), hoard_prefix: hoard_path.clone(), hoard_path, system_prefix: system_path.clone(), system_path, filters})
                     })
                 })
                 .collect::<Result<_, _>>()?,
@@ -54,100 +85,142 @@ impl AllFilesIter {
         Ok(Self {
             root_paths,
             direction,
-            pile_name: None,
-            dir_entries: None,
-            src_root: None,
-            dest_root: None,
-            filter: None,
+            src_entries: None,
+            dest_entries: None,
+            current_root: None
         })
     }
 }
 
+impl AllFilesIter {
+    fn has_dir_entries(&mut self) -> bool {
+        if let Some(src_entries) = self.src_entries.as_mut() {
+            if src_entries.peek().is_some() {
+                return true;
+            }
+        }
+
+        if let Some(dest_entries) = self.dest_entries.as_mut() {
+            if dest_entries.peek().is_some() {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
 impl Iterator for AllFilesIter {
-    type Item = io::Result<(Option<String>, HoardPath, SystemPath)>;
+    type Item = io::Result<RootPathItem>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // Attempt to create direntry iterator.
             // If a path to a file is encountered, return that.
             // Otherwise, continue until existing directory is found.
-            while self.dir_entries.is_none() || self.dir_entries.as_mut().unwrap().peek().is_none()
-            {
+            while !self.has_dir_entries() {
                 match self.root_paths.pop() {
                     None => return None,
-                    Some((pile_name, hoard_path, system_path, filters)) => {
+                    Some(item) => {
                         let (src, dest) = match self.direction {
-                            Direction::Backup => (&system_path.0, &hoard_path.0),
-                            Direction::Restore => (&hoard_path.0, &system_path.0),
+                            Direction::Backup => (item.system_path.as_ref(), item.hoard_path.as_ref()),
+                            Direction::Restore => (item.hoard_path.as_ref(), item.system_path.as_ref()),
                         };
 
-                        if src.is_file()
-                            && filters
-                            .as_ref()
-                            .map_or(true, |filter| filter.keep(&PathBuf::new(), src))
-                        {
-                            return Some(Ok((pile_name, hoard_path, system_path)));
-                        } else if src.is_dir() {
-                            self.src_root = Some(src.clone());
-                            self.dest_root = Some(dest.clone());
-                            self.pile_name = pile_name;
-                            self.filter = filters;
-                            match fs::read_dir(src) {
-                                Ok(iter) => self.dir_entries = Some(iter.peekable()),
-                                Err(err) => return Some(Err(err)),
+                        if item.keep() {
+                            if item.is_file() {
+                                return Some(Ok(item));
+                            } else if item.is_dir() {
+                                match fs::read_dir(src) {
+                                    Ok(iter) => self.src_entries = Some(iter.peekable()),
+                                    Err(err) => match err.kind() {
+                                        io::ErrorKind::NotFound => self.src_entries = None,
+                                        _ => return Some(Err(err)),
+                                    },
+                                }
+                                match fs::read_dir(dest) {
+                                    Ok(iter) => self.dest_entries = Some(iter.peekable()),
+                                    Err(err) => match err.kind() {
+                                        io::ErrorKind::NotFound => self.dest_entries = None,
+                                        _ => return Some(Err(err)),
+                                    },
+                                }
+                                self.current_root = Some(item);
                             }
                         }
                     }
                 }
             }
 
-            while let Some(entry) = self.dir_entries.as_mut().unwrap().next() {
-                let entry = match entry {
-                    Ok(entry) => entry,
-                    Err(err) => return Some(Err(err)),
-                };
+            let current_root = self.current_root.as_ref().expect("current_root should not be None");
 
-                let src = entry.path();
-                let dest = self
-                    .dest_root
-                    .as_ref()
-                    .expect("dest_root should not be None")
-                    .join(entry.file_name());
-                let is_file = src.is_file();
-                let is_dir = src.is_dir();
+            if let Some(src_entries) = self.src_entries.as_mut() {
+                for entry in src_entries {
+                    let entry = match entry {
+                        Ok(entry) => entry,
+                        Err(err) => return Some(Err(err)),
+                    };
 
-                let keep = match self.direction {
-                    Direction::Backup => {
-                        let prefix = self.src_root.as_ref().expect("src_root should not be None");
-                        self.filter
-                            .as_ref()
-                            .map_or(true, |filter| filter.keep(prefix, &src))
+                    let rel_path = match self.direction {
+                        Direction::Backup => entry.path().strip_prefix(
+                            current_root
+                                .system_prefix
+                                .as_ref()
+                        ).expect("system prefix should always match path").to_path_buf(),
+                        Direction::Restore => entry.path().strip_prefix(
+                            current_root
+                                .hoard_prefix
+                                .as_ref()
+                        ).expect("hoard prefix should always match path").to_path_buf(),
+                    };
+
+                    let new_item = RootPathItem {
+                        hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
+                        system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
+                        .. current_root.clone()
+                    };
+
+                    if new_item.keep() {
+                        if new_item.is_file() {
+                            return Some(Ok(new_item));
+                        } else if new_item.is_dir() {
+                            self.root_paths.push(new_item);
+                        }
                     }
-                    Direction::Restore => {
-                        let prefix = self
-                            .dest_root
-                            .as_ref()
-                            .expect("dest_root should not be None");
-                        self.filter
-                            .as_ref()
-                            .map_or(true, |filter| filter.keep(prefix, &dest))
-                    }
-                };
+                }
+            }
 
-                let (hoard_path, system_path) = match self.direction {
-                    Direction::Backup => (HoardPath(dest), SystemPath(src)),
-                    Direction::Restore => (HoardPath(src), SystemPath(dest)),
-                };
+            if let Some(dest_entries) = self.dest_entries.as_mut() {
+                for entry in dest_entries {
+                    let entry = match entry {
+                        Ok(entry) => entry,
+                        Err(err) => return Some(Err(err)),
+                    };
 
-                if keep {
-                    if is_file {
-                        return Some(Ok((self.pile_name.clone(), hoard_path, system_path)));
-                    } else if is_dir {
-                        self.root_paths.push((
-                            self.pile_name.clone(),
-                            hoard_path,
-                            system_path,
-                            self.filter.clone(),
-                        ));
+                    let rel_path = match self.direction {
+                        Direction::Backup => entry.path().strip_prefix(
+                            current_root
+                                .hoard_prefix
+                                .as_ref()
+                        ).expect("hoard prefix should always match path").to_path_buf(),
+                        Direction::Restore => entry.path().strip_prefix(
+                            current_root
+                                .system_prefix
+                                .as_ref()
+                        ).expect("system prefix should always match path").to_path_buf(),
+                    };
+
+                    let new_item = RootPathItem {
+                        hoard_path: HoardPath(current_root.hoard_prefix.as_ref().join(&rel_path)),
+                        system_path: SystemPath(current_root.system_prefix.as_ref().join(rel_path)),
+                        ..current_root.clone()
+                    };
+
+                    if new_item.keep() {
+                        if new_item.is_file() {
+                            return Some(Ok(new_item));
+                        } else if new_item.is_dir() {
+                            self.root_paths.push(new_item);
+                        }
                     }
                 }
             }

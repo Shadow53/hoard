@@ -29,7 +29,7 @@ pub enum Error {
 }
 
 /// A wrapper for all implmented filters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Filters {
     ignore: ignore::IgnoreFilter,
 }
