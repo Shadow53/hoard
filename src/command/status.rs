@@ -9,16 +9,24 @@ pub(crate) fn run_status<'a>(
     for (hoard_name, hoard) in hoards {
         let source = HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard)
             .map_err(super::Error::Status)?
-            .map(|hoard_diff| {
+            .filter_map(|hoard_diff| {
+                let hoard_diff = match hoard_diff {
+                    Ok(hoard_diff) => hoard_diff,
+                    Err(err) => return Some(Err(err)),
+                };
+
                 #[allow(clippy::match_same_arms)]
-                Ok(match hoard_diff? {
-                    HoardFileDiff::BinaryModified { diff_source, .. } => diff_source,
-                    HoardFileDiff::TextModified { diff_source, .. } => diff_source,
-                    HoardFileDiff::PermissionsModified { diff_source, .. } => diff_source,
-                    HoardFileDiff::Created { diff_source, .. } => diff_source,
-                    HoardFileDiff::Recreated { diff_source, .. } => diff_source,
-                    HoardFileDiff::Deleted { diff_source, .. } => diff_source,
-                })
+                let source = match hoard_diff {
+                    HoardFileDiff::BinaryModified { diff_source, .. } => Some(diff_source),
+                    HoardFileDiff::TextModified { diff_source, .. } => Some(diff_source),
+                    HoardFileDiff::PermissionsModified { diff_source, .. } => Some(diff_source),
+                    HoardFileDiff::Created { diff_source, .. } => Some(diff_source),
+                    HoardFileDiff::Recreated { diff_source, .. } => Some(diff_source),
+                    HoardFileDiff::Deleted { diff_source, .. } => Some(diff_source),
+                    HoardFileDiff::Unchanged(_) => return None,
+                };
+
+                source.map(Ok)
             })
             .reduce(|acc, source| {
                 let acc = acc?;

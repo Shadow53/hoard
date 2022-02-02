@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use std::ops::Deref;
+use serde::{Serialize, Deserialize};
 use thiserror::Error;
 
 /// Errors that can happen while backing up or restoring a hoard.
@@ -59,7 +60,7 @@ pub enum Error {
     Filter(#[from] FilterError),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Indicates which direction files are being copied in. Used to determine which files are required
 /// to exist.
 pub enum Direction {
@@ -101,6 +102,18 @@ impl Deref for SystemPath {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl From<PathBuf> for HoardPath {
+    fn from(p: PathBuf) -> Self {
+        Self(p)
+    }
+}
+
+impl From<PathBuf> for SystemPath {
+    fn from(p: PathBuf) -> Self {
+        Self(p)
     }
 }
 

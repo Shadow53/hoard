@@ -68,6 +68,7 @@ pub(crate) fn run_diff(
             HoardFileDiff::Deleted { file, diff_source } => {
                 tracing::info!("{}: deleted {}", file.system_path().display(), diff_source);
             }
+            HoardFileDiff::Unchanged(_) => {}
         }
     }
 

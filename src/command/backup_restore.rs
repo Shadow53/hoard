@@ -27,7 +27,7 @@ fn backup_or_restore<'a, S: AsRef<str>>(
     hoards: impl IntoIterator<Item = (S, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
-    let mut checkers = Checkers::new(hoards.clone(), direction)?;
+    let mut checkers = Checkers::new(hoards_root, hoards.clone(), direction)?;
     if !force {
         checkers.check()?;
     }

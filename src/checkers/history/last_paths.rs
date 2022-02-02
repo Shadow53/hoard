@@ -8,7 +8,7 @@ use super::super::Checker;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -50,7 +50,7 @@ fn read_last_paths_file() -> Result<fs::File, io::Error> {
 
 impl Checker for LastPaths {
     type Error = Error;
-    fn new(name: &str, hoard: &Hoard, _direction: Direction) -> Result<Self, Self::Error> {
+    fn new(_hoards_root: &Path, name: &str, hoard: &Hoard, _direction: Direction) -> Result<Self, Self::Error> {
         Ok(LastPaths({
             let mut map = HashMap::new();
             map.insert(name.into(), HoardPaths::from(hoard.clone()));
