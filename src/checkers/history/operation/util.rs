@@ -1,10 +1,13 @@
-use std::fs;
+use std::{fs, io};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use time::format_description::FormatItem;
 use uuid::Uuid;
-use crate::checkers::history;
+use crate::checkers::Checker;
+use crate::checkers::history::get_history_root_dir;
 use crate::checkers::history::operation::OperationImpl;
 use super::{Operation, Error};
 
@@ -48,7 +51,7 @@ pub(crate) fn file_is_log(path: &Path) -> bool {
 pub(crate) fn cleanup_operations() -> Result<u32, (u32, Error)> {
     // Get hoard history root
     // Iterate over every uuid in the directory
-    let root = history::get_history_root_dir();
+    let root = get_history_root_dir();
     fs::read_dir(root)
         .map_err(|err| (0, err.into()))?
         .filter(|entry| {
@@ -148,4 +151,41 @@ pub(crate) fn cleanup_operations() -> Result<u32, (u32, Error)> {
             Ok((count + 1, res2.map_err(|err| (count, err.into()))?))
         })
         .map(|(count, _)| count)
+}
+
+fn all_operations() -> io::Result<impl Iterator<Item=io::Result<Operation>>> {
+    let history_dir = get_history_root_dir();
+    let iter = fs::read_dir(history_dir)?
+        .filter_map_ok(|uuid_entry| {
+            let is_uuid = uuid_entry.file_name().to_str().map(Uuid::parse_str).transpose().ok().flatten().is_some();
+            let uuid_path = uuid_entry.path();
+            (is_uuid && uuid_path.is_dir()).then(|| uuid_path)
+        })
+        .map_ok(fs::read_dir)
+        .flatten_ok() // Iterator of ReadDir (hoard dirs)
+        .flatten_ok() // Iterator of io::Result<DirEntry> (hoard dirs)
+        .flatten_ok() // Iterator of DirEntry (hoard dirs)
+        .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
+        .map_ok(fs::read_dir)
+        .flatten_ok() // Iterator of ReadDir (log files)
+        .flatten_ok() // Iterator of io::Result<DirEntry> (log files)
+        .flatten_ok() // Iterator of DirEntry (log files)
+        .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
+        .filter_ok(|path| file_is_log(path)) // Only those paths that are log files
+        .map_ok(|path| Operation::from_file(&path)) // Operations
+        .flatten_ok();
+    Ok(iter)
+}
+
+pub(crate) fn upgrade_operations() -> Result<(), Error> {
+    let mut file_checksum_map = HashMap::new();
+    let mut file_set = HashSet::new();
+
+    for operation in all_operations()? {
+        let operation = operation?;
+        let operation = operation.into_latest_version(&mut file_checksum_map, &mut file_set);
+        operation.commit_to_disk()?;
+    }
+
+    Ok(())
 }

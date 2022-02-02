@@ -45,18 +45,6 @@ impl OperationV1 {
             hoard: Hoard::try_from(hoard)?,
         })
     }
-
-    /// Returns, in order: the pile name, the relative path, and the file's checksum.
-    pub(crate) fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item=(&'s str, &'s Path, &'s str)> + 's> {
-        match &self.hoard {
-            Hoard::Anonymous(pile) => Box::new(pile.0.iter().map(|(path, md5)| ("", path.as_path(), md5.as_str()))),
-            Hoard::Named(piles) => Box::new({
-                piles.iter().flat_map(|(pile_name, pile)| {
-                    pile.0.iter().map(move |(rel_path, md5)| (pile_name.as_str(), rel_path.as_path(), md5.as_str()))
-                })
-            })
-        }
-    }
 }
 
 impl super::OperationImpl for OperationV1 {
@@ -93,6 +81,22 @@ impl super::OperationImpl for OperationV1 {
                 piles.get(name).and_then(|pile| pile.0.get(rel_path).map(|md5| Checksum::MD5(md5.to_string())))
             },
             _ => None,
+        }
+    }
+
+    /// Returns, in order: the pile name, the relative path, and the file's checksum.
+    fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 's> {
+        match &self.hoard {
+            Hoard::Anonymous(pile) => Box::new(pile.0.iter().map(move |(path, md5)| {
+                (self.hoard_name.as_str(), None, path.as_path(), Some(Checksum::MD5(md5.clone())))
+            })),
+            Hoard::Named(piles) => Box::new({
+                piles.iter().flat_map(move |(pile_name, pile)| {
+                    pile.0.iter().map(move |(rel_path, md5)| {
+                        (self.hoard_name.as_str(), Some(pile_name.as_str()), rel_path.as_path(), Some(Checksum::MD5(md5.clone())))
+                    })
+                })
+            })
         }
     }
 }

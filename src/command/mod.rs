@@ -6,6 +6,7 @@ mod diff;
 mod edit;
 mod list;
 mod status;
+mod upgrade;
 
 use structopt::StructOpt;
 use thiserror::Error;
@@ -16,6 +17,7 @@ pub(crate) use diff::run_diff;
 pub(crate) use edit::run_edit;
 pub(crate) use list::run_list;
 pub(crate) use status::run_status;
+pub(crate) use upgrade::run_upgrade;
 
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]
@@ -62,6 +64,9 @@ pub enum Error {
     /// Error occurred while running the status command.
     #[error("error while running hoard status: {0}")]
     Status(#[source] crate::hoard::iter::Error),
+    /// Error occurred while upgrading formats.
+    #[error("error while running hoard upgrade: {0}")]
+    Upgrade(#[from] upgrade::Error),
 }
 
 /// The possible subcommands for `hoard`.
@@ -98,6 +103,8 @@ pub enum Command {
     /// Provides a summary of which hoards have changes and if the diffs can be resolved
     /// with a single command.
     Status,
+    /// Upgrade internal file formats to the newest format.
+    Upgrade,
 }
 
 impl Default for Command {

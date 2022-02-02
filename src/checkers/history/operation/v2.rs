@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::io;
 use time::OffsetDateTime;
+use crate::checkers::history::operation::OperationImpl;
 use crate::hoard::iter::{OperationIter, OperationType};
 use crate::hoard_file::Checksum;
 
@@ -62,23 +63,24 @@ impl OperationV2 {
     /// - `files`: contains all paths whose checksums are `None` in `file_checksums`. This is used
     ///   as an optimization technique while determining which files were created or deleted.
     pub(crate) fn from_v1(
-        file_checksums: &mut HashMap<(String, PathBuf), Option<Checksum>>,
-        file_set: &mut HashSet<(String, PathBuf)>,
+        file_checksums: &mut HashMap<(Option<String>, PathBuf), Option<Checksum>>,
+        file_set: &mut HashSet<(Option<String>, PathBuf)>,
         old_v1: super::v1::OperationV1,
     ) -> Self {
         let mut these_files = HashSet::new();
         let mut files = HashMap::new();
 
-        for (pile_name, path, md5) in old_v1.all_files_with_checksums() {
+        for (_, pile_name, path, checksum_option) in old_v1.all_files_with_checksums() {
+            let pile_name = pile_name.map(str::to_string);
             let pile = {
-                if files.contains_key(pile_name) {
-                    files.insert(pile_name.to_string(), Pile::default());
+                if files.contains_key(&pile_name) {
+                    files.insert(pile_name.clone(), Pile::default());
                 }
-                files.get_mut(pile_name).unwrap()
+                files.get_mut(&pile_name).unwrap()
             };
 
-            let pile_file = (pile_name.to_string(), path.to_path_buf());
-            let checksum = Checksum::MD5(md5.to_string());
+            let pile_file = (pile_name, path.to_path_buf());
+            let checksum = checksum_option.expect("v1 Operation only stored files with checksums");
             if file_checksums.contains_key(&pile_file) {
                 // Modified, Recreated, or Unchanged
                 match file_checksums.get(&pile_file).unwrap() {
@@ -103,10 +105,10 @@ impl OperationV2 {
             these_files.insert(pile_file);
         }
 
-        let deleted: HashMap<String, HashSet<PathBuf>> = file_set.difference(&these_files)
+        let deleted: HashMap<Option<String>, HashSet<PathBuf>> = file_set.difference(&these_files)
             .fold(HashMap::new(), |mut acc, (pile_name, rel_path)| {
                 if !acc.contains_key(pile_name) {
-                    acc.insert(pile_name.to_string(), HashSet::new());
+                    acc.insert(pile_name.clone(), HashSet::new());
                 }
                 acc.get_mut(pile_name).unwrap().insert(rel_path.clone());
                 acc
@@ -119,10 +121,12 @@ impl OperationV2 {
             files.get_mut(&pile_name).unwrap().deleted = deleted;
         }
 
-        let files = if files.len() == 1 && files.contains_key("") {
-            Hoard::Anonymous(files.remove("").unwrap())
+        let files = if files.len() == 1 && files.contains_key(&None) {
+            Hoard::Anonymous(files.remove(&None).unwrap())
         } else {
-            Hoard::Named(files)
+            Hoard::Named(files.into_iter().filter_map(|(name, pile)| {
+                name.map(|name| (name, pile))
+            }).collect())
         };
 
         Self {
@@ -135,7 +139,7 @@ impl OperationV2 {
     }
 }
 
-impl super::OperationImpl for OperationV2 {
+impl OperationImpl for OperationV2 {
     fn is_backup(&self) -> bool {
         self.direction == Direction::Backup
     }
@@ -154,6 +158,17 @@ impl super::OperationImpl for OperationV2 {
 
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum> {
         self.files.get_pile(pile_name).and_then(|pile| pile.checksum_for(rel_path))
+    }
+
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a> {
+        match &self.files {
+            Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(move |(path, checksum)| {
+                (self.hoard.as_str(), None, path, checksum)
+            })),
+            Hoard::Named(piles) => Box::new(piles.iter().map(move |(pile_name, pile)| {
+                pile.all_files_with_checksums().map(move |(path, checksum)| (self.hoard.as_str(), Some(pile_name.as_str()), path, checksum))
+            }).flatten())
+        }
     }
 }
 
@@ -257,6 +272,15 @@ impl Pile {
             .or_else(|| self.modified.get(rel_path))
             .or_else(|| self.unmodified.get(rel_path))
             .map(Clone::clone)
+    }
+
+    fn all_files_with_checksums(&self) -> impl Iterator<Item=(&Path, Option<Checksum>)> {
+        let created = self.created.iter().map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
+        let modified = self.modified.iter().map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
+        let unmodified = self.unmodified.iter().map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
+        let deleted = self.deleted.iter().map(|path| (path.as_path(), None));
+
+        created.chain(modified).chain(unmodified).chain(deleted)
     }
 }
 

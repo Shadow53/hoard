@@ -169,6 +169,9 @@ impl Config {
                 let hoards = self.get_hoards(hoards)?;
                 command::run_restore(&hoards_root, hoards, self.force)?;
             }
+            Command::Upgrade => {
+                command::run_upgrade()?;
+            }
         }
 
         Ok(())

@@ -1,7 +1,8 @@
 //! Types for recording metadata about a single backup or restore [`Operation`].
 
 use std::{fs, io};
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -11,9 +12,11 @@ use crate::hoard::{Direction, Hoard};
 
 mod v1;
 mod v2;
-mod util;
+pub(crate) mod util;
 
 pub(crate) use util::cleanup_operations;
+use crate::checkers::history::operation::v1::OperationV1;
+use crate::checkers::history::operation::v2::OperationV2;
 use crate::hoard_file::Checksum;
 
 /// Errors that may occur while working with an [`Operation`].
@@ -45,8 +48,8 @@ pub enum Error {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 enum OperationVersion {
-    V1(v1::OperationV1),
-    V2(v2::OperationV2),
+    V1(OperationV1),
+    V2(OperationV2),
 }
 
 pub(crate) trait OperationImpl {
@@ -55,6 +58,7 @@ pub(crate) trait OperationImpl {
     fn timestamp(&self) -> OffsetDateTime;
     fn hoard_name(&self) -> &str;
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum>;
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a>;
 }
 
 impl OperationImpl for OperationVersion {
@@ -92,6 +96,13 @@ impl OperationImpl for OperationVersion {
             OperationVersion::V2(two) => two.checksum_for(pile_name, rel_path),
         }
     }
+
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a> {
+        match &self {
+            OperationVersion::V1(one) => one.all_files_with_checksums(),
+            OperationVersion::V2(two) => two.all_files_with_checksums(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -118,6 +129,10 @@ impl OperationImpl for Operation {
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum> {
         self.0.checksum_for(pile_name, rel_path)
     }
+
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a> {
+        self.0.all_files_with_checksums()
+    }
 }
 
 impl Operation {
@@ -127,7 +142,7 @@ impl Operation {
             .map(Self)
     }
 
-    fn as_latest_version(&self) -> Result<&v2::OperationV2, Error> {
+    fn as_latest_version(&self) -> Result<&OperationV2, Error> {
         if let Self(OperationVersion::V2(op)) = self {
             Ok(op)
         } else {
@@ -171,6 +186,30 @@ impl Operation {
                 }
             }
         }
+    }
+
+    pub(crate) fn into_latest_version(
+        self,
+        file_checksums: &mut HashMap<(Option<String>, PathBuf), Option<Checksum>>,
+        file_set: &mut HashSet<(Option<String>, PathBuf)>,
+    ) -> Self {
+        // Conversion always modifies file_checksums and file_set with the contents of the Operation.
+        let latest = match self.0 {
+            OperationVersion::V1(one) => OperationV2::from_v1(file_checksums, file_set, one),
+            OperationVersion::V2(two) => {
+                let mut new_file_set = HashSet::new();
+                for (_, pile_name_op, path, checksum_op) in two.all_files_with_checksums() {
+                    let pile_name = pile_name_op.map(str::to_string);
+                    let pile_file = (pile_name.clone(), path.to_path_buf());
+                    new_file_set.insert(pile_file.clone());
+                    file_checksums.insert(pile_file, checksum_op);
+                }
+                *file_set = new_file_set;
+                two
+            }
+        };
+
+        Self(OperationVersion::V2(latest))
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
