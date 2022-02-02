@@ -15,7 +15,7 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::fs;
 use time::OffsetDateTime;
-use crate::checkers::history::operation::Checksum;
+use crate::checkers::history::operation::{Checksum, OperationFileInfo};
 use super::Error;
 
 /// A single operation log.
@@ -85,15 +85,25 @@ impl super::OperationImpl for OperationV1 {
     }
 
     /// Returns, in order: the pile name, the relative path, and the file's checksum.
-    fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 's> {
+    fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item=OperationFileInfo> + 's> {
         match &self.hoard {
             Hoard::Anonymous(pile) => Box::new(pile.0.iter().map(move |(path, md5)| {
-                (self.hoard_name.as_str(), None, path.as_path(), Some(Checksum::MD5(md5.clone())))
+                OperationFileInfo {
+                    hoard: self.hoard_name.to_string(),
+                    pile_name: None,
+                    relative_path: path.clone(),
+                    checksum: Some(Checksum::MD5(md5.clone()))
+                }
             })),
             Hoard::Named(piles) => Box::new({
                 piles.iter().flat_map(move |(pile_name, pile)| {
                     pile.0.iter().map(move |(rel_path, md5)| {
-                        (self.hoard_name.as_str(), Some(pile_name.as_str()), rel_path.as_path(), Some(Checksum::MD5(md5.clone())))
+                        OperationFileInfo {
+                            hoard: self.hoard_name.to_string(),
+                            pile_name: None,
+                            relative_path: rel_path.clone(),
+                            checksum: Some(Checksum::MD5(md5.clone()))
+                        }
                     })
                 })
             })

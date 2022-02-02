@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::io;
 use time::OffsetDateTime;
-use crate::checkers::history::operation::OperationImpl;
+use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
 use crate::hoard::iter::{OperationIter, OperationType};
 use crate::hoard_file::Checksum;
 
@@ -70,8 +70,8 @@ impl OperationV2 {
         let mut these_files = HashSet::new();
         let mut files = HashMap::new();
 
-        for (_, pile_name, path, checksum_option) in old_v1.all_files_with_checksums() {
-            let pile_name = pile_name.map(str::to_string);
+        for file_info in old_v1.all_files_with_checksums() {
+            let OperationFileInfo { pile_name, relative_path, checksum, .. } = file_info;
             let pile = {
                 if files.contains_key(&pile_name) {
                     files.insert(pile_name.clone(), Pile::default());
@@ -79,27 +79,27 @@ impl OperationV2 {
                 files.get_mut(&pile_name).unwrap()
             };
 
-            let pile_file = (pile_name, path.to_path_buf());
-            let checksum = checksum_option.expect("v1 Operation only stored files with checksums");
+            let pile_file = (pile_name, relative_path.clone());
+            let checksum = checksum.expect("v1 Operation only stored files with checksums");
             if file_checksums.contains_key(&pile_file) {
                 // Modified, Recreated, or Unchanged
                 match file_checksums.get(&pile_file).unwrap() {
                     None => {
                         // Recreated
-                        pile.created.insert(path.to_path_buf(), checksum.clone());
+                        pile.created.insert(relative_path, checksum.clone());
                     },
                     Some(old_checksum) => {
                         // Modified or Unchanged
                         if old_checksum == &checksum {
-                            pile.unmodified.insert(path.to_path_buf(), checksum.clone());
+                            pile.unmodified.insert(relative_path, checksum.clone());
                         } else {
-                            pile.modified.insert(path.to_path_buf(), checksum.clone());
+                            pile.modified.insert(relative_path, checksum.clone());
                         }
                     }
                 }
             } else {
                 // Created
-                pile.created.insert(path.to_path_buf(), checksum.clone());
+                pile.created.insert(relative_path, checksum.clone());
             }
             file_checksums.insert(pile_file.clone(), Some(checksum));
             these_files.insert(pile_file);
@@ -160,14 +160,26 @@ impl OperationImpl for OperationV2 {
         self.files.get_pile(pile_name).and_then(|pile| pile.checksum_for(rel_path))
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
         match &self.files {
             Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(move |(path, checksum)| {
-                (self.hoard.as_str(), None, path, checksum)
+                OperationFileInfo {
+                    hoard: self.hoard.to_string(),
+                    pile_name: None,
+                    relative_path: path.to_path_buf(),
+                    checksum,
+                }
             })),
-            Hoard::Named(piles) => Box::new(piles.iter().map(move |(pile_name, pile)| {
-                pile.all_files_with_checksums().map(move |(path, checksum)| (self.hoard.as_str(), Some(pile_name.as_str()), path, checksum))
-            }).flatten())
+            Hoard::Named(piles) => Box::new(piles.iter().flat_map(move |(pile_name, pile)| {
+                pile.all_files_with_checksums().map(move |(path, checksum)| {
+                    OperationFileInfo {
+                        hoard: self.hoard.to_string(),
+                        pile_name: Some(pile_name.to_string()),
+                        relative_path: path.to_path_buf(),
+                        checksum,
+                    }
+                })
+            }))
         }
     }
 }

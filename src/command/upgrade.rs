@@ -3,7 +3,7 @@ use crate::checkers::history::operation::Error as OperationError;
 use crate::checkers::history::operation::util::upgrade_operations;
 
 #[derive(Debug, Error)]
-pub(crate) enum Error {
+pub enum Error {
     #[error("failed to upgrade operation logs: {0}")]
     Operations(OperationError),
 }

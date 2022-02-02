@@ -45,6 +45,16 @@ pub enum Error {
     Iterator(#[from] crate::hoard::iter::Error),
 }
 
+/// Information logged about a single Hoard file inside of an Operation.
+///
+/// This is *not* the Operation log file.
+pub(crate) struct OperationFileInfo {
+    hoard: String,
+    pile_name: Option<String>,
+    relative_path: PathBuf,
+    checksum: Option<Checksum>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 enum OperationVersion {
@@ -58,7 +68,7 @@ pub(crate) trait OperationImpl {
     fn timestamp(&self) -> OffsetDateTime;
     fn hoard_name(&self) -> &str;
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum>;
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a>;
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a>;
 }
 
 impl OperationImpl for OperationVersion {
@@ -97,7 +107,7 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
         match &self {
             OperationVersion::V1(one) => one.all_files_with_checksums(),
             OperationVersion::V2(two) => two.all_files_with_checksums(),
@@ -130,7 +140,7 @@ impl OperationImpl for Operation {
         self.0.checksum_for(pile_name, rel_path)
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=(&str, Option<&str>, &Path, Option<Checksum>)> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
         self.0.all_files_with_checksums()
     }
 }
@@ -198,11 +208,11 @@ impl Operation {
             OperationVersion::V1(one) => OperationV2::from_v1(file_checksums, file_set, one),
             OperationVersion::V2(two) => {
                 let mut new_file_set = HashSet::new();
-                for (_, pile_name_op, path, checksum_op) in two.all_files_with_checksums() {
-                    let pile_name = pile_name_op.map(str::to_string);
-                    let pile_file = (pile_name.clone(), path.to_path_buf());
+                for file_info in two.all_files_with_checksums() {
+                    let OperationFileInfo { pile_name, relative_path, checksum, .. } = file_info;
+                    let pile_file = (pile_name, relative_path);
                     new_file_set.insert(pile_file.clone());
-                    file_checksums.insert(pile_file, checksum_op);
+                    file_checksums.insert(pile_file, checksum);
                 }
                 *file_set = new_file_set;
                 two
