@@ -1,5 +1,6 @@
+//! Types for recording metadata about a single backup or restore [`Operation`].
+
 use std::{fs, io};
-use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
@@ -15,6 +16,7 @@ mod util;
 pub(crate) use util::cleanup_operations;
 use crate::hoard_file::Checksum;
 
+/// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
 pub enum Error {
     /// Failed to format a datetime.
@@ -96,23 +98,25 @@ impl OperationImpl for OperationVersion {
 #[serde(transparent)]
 pub(crate) struct Operation(OperationVersion);
 
-impl AsRef<OperationVersion> for Operation {
-    fn as_ref(&self) -> &OperationVersion {
-        &self.0
+impl OperationImpl for Operation {
+    fn is_backup(&self) -> bool {
+        self.0.is_backup()
     }
-}
 
-impl Deref for Operation {
-    type Target = OperationVersion;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
+        self.0.contains_file(pile_name, rel_path)
     }
-}
 
-impl DerefMut for Operation {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    fn timestamp(&self) -> OffsetDateTime {
+        self.0.timestamp()
+    }
+
+    fn hoard_name(&self) -> &str {
+        self.0.hoard_name()
+    }
+
+    fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum> {
+        self.0.checksum_for(pile_name, rel_path)
     }
 }
 
@@ -221,7 +225,7 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub fn latest_local(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
+    pub(crate) fn latest_local(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_local", %hoard).entered();
         tracing::debug!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
@@ -237,7 +241,7 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub fn latest_remote_backup(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
+    pub(crate) fn latest_remote_backup(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
         tracing::debug!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid()?;
@@ -257,7 +261,7 @@ impl Operation {
     /// # Errors
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
-    pub fn file_has_remote_changes(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
+    pub(crate) fn file_has_remote_changes(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
         let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)))?;
         let local = Self::latest_local(hoard, Some((pile_name, file)))?;
 
@@ -277,14 +281,14 @@ impl Operation {
     /// # Errors
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
-    pub fn file_has_records(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
+    pub(crate) fn file_has_records(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
         let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)))?;
         let local = Self::latest_local(hoard, Some((pile_name, file)))?;
 
         Ok(remote.is_some() || local.is_some())
     }
 
-    pub fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
+    pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
         if self.as_latest_version()? == other.as_latest_version()? {
             Ok(())
         } else if self.is_backup() {
@@ -306,8 +310,8 @@ impl Checker for Operation {
         let _span =
             tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name()).entered();
         tracing::debug!("checking if the hoard operation is safe to perform");
-        let last_local = Self::latest_local(&self.hoard_name(), None)?;
-        let last_remote = Self::latest_remote_backup(&self.hoard_name(), None)?;
+        let last_local = Self::latest_local(self.hoard_name(), None)?;
+        let last_remote = Self::latest_remote_backup(self.hoard_name(), None)?;
 
         if !self.is_backup() {
             tracing::debug!("not backing up, is safe to continue");

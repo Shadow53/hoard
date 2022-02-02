@@ -77,7 +77,7 @@ impl super::OperationImpl for OperationV1 {
     }
 
     fn timestamp(&self) -> OffsetDateTime {
-        self.timestamp.clone()
+        self.timestamp
     }
 
     fn hoard_name(&self) -> &str {

@@ -139,7 +139,7 @@ impl Iterator for HoardDiffIter {
     type Item = Result<HoardFileDiff, super::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        for result in self.iterator.by_ref() {
+        if let Some(result) = self.iterator.by_ref().next() {
             let file = super::propagate_error!(result.map_err(super::Error::IO));
 
             let _span = trace_span!("diff_iterator_next", ?file);

@@ -108,7 +108,7 @@ impl OperationV2 {
                 if !acc.contains_key(pile_name) {
                     acc.insert(pile_name.to_string(), HashSet::new());
                 }
-                acc.get_mut(pile_name).unwrap().insert(rel_path.to_path_buf());
+                acc.get_mut(pile_name).unwrap().insert(rel_path.clone());
                 acc
             });
 
@@ -130,7 +130,7 @@ impl OperationV2 {
             direction: if old_v1.is_backup { Direction::Backup } else { Direction::Restore },
             hoard: old_v1.hoard_name,
             files,
-            hoards_root: Default::default()
+            hoards_root: PathBuf::new()
         }
     }
 }
@@ -145,7 +145,7 @@ impl super::OperationImpl for OperationV2 {
     }
 
     fn timestamp(&self) -> OffsetDateTime {
-        self.timestamp.clone()
+        self.timestamp
     }
 
     fn hoard_name(&self) -> &str {

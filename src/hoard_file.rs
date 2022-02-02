@@ -140,13 +140,13 @@ impl HoardFile {
     }
 
     pub(crate) fn md5(content: &[u8]) -> Checksum {
-        let digest = md5::Md5::digest(&content);
+        let digest = md5::Md5::digest(content);
         let hash = format!("{:x}", digest);
         Checksum::MD5(hash)
     }
 
     pub(crate) fn sha256(content: &[u8]) -> Checksum {
-        let digest = sha2::Sha256::digest(&content);
+        let digest = sha2::Sha256::digest(content);
         let hash = format!("{:x}", digest);
         Checksum::SHA256(hash)
     }
