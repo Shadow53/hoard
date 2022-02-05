@@ -14,6 +14,7 @@ from testers.ignore_filter import IgnoreFilterTester
 from testers.last_paths import LastPathsTester
 from testers.no_config_dir import MissingConfigDirTester
 from testers.operations import OperationCheckerTester
+from testers.operation_checksums import OperationChecksumTester
 from testers.yaml_support import YAMLSupportTester
 
 
@@ -49,6 +50,7 @@ def print_checksums():
 
 
 TEST_MAPPING = {
+    "checksums": ("operation checksums", OperationChecksumTester),
     "cleanup": ("cleanup", LogCleanupTester),
     "diff_command": ("diff command", DiffCommandTester),
     "edit_command": ("edit command", EditCommandTester),

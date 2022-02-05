@@ -61,6 +61,7 @@ pub enum Error {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 /// Indicates which direction files are being copied in. Used to determine which files are required
 /// to exist.
 pub enum Direction {

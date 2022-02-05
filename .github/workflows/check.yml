@@ -204,7 +204,7 @@ jobs:
         run: choco install tree
 
       - name: Install Python dependencies
-        run: pip install pyyaml toml
+        run: pip install pydantic pyyaml toml
 
       - name: Run all tests
         run: python ci-tests/tests all
