@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 use crate::hoard::iter::{HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
 use std::path::Path;

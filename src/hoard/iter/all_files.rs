@@ -8,15 +8,13 @@ use crate::hoard::iter::HoardFile;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
     hoard_file: HoardFile,
-    filters: Option<Filters>,
+    filters: Filters,
 }
 
 impl RootPathItem {
     fn keep(&self) -> bool {
         (self.is_file() || self.is_dir())
-            && self.filters.as_ref().map_or(true, |filters| {
-                filters.keep(self.hoard_file.system_prefix(), self.hoard_file.system_path())
-            })
+            && self.filters.keep(self.hoard_file.system_prefix(), self.hoard_file.system_path())
     }
 
     fn is_file(&self) -> bool {
@@ -45,7 +43,7 @@ impl AllFilesIter {
         let root_paths = match hoard {
             Hoard::Anonymous(pile) => {
                 let path = pile.path.clone();
-                let filters = pile.config.as_ref().map(Filters::new).transpose()?;
+                let filters = Filters::new(&pile.config)?;
                 match path {
                     None => Vec::new(),
                     Some(path) => {
@@ -62,7 +60,7 @@ impl AllFilesIter {
                 .piles
                 .iter()
                 .filter_map(|(name, pile)| {
-                    let filters = match pile.config.as_ref().map(Filters::new).transpose() {
+                    let filters = match Filters::new(&pile.config) {
                         Ok(filters) => filters,
                         Err(err) => return Some(Err(err)),
                     };

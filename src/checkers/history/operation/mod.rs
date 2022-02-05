@@ -63,7 +63,7 @@ enum OperationVersion {
 }
 
 pub(crate) trait OperationImpl {
-    fn is_backup(&self) -> bool;
+    fn direction(&self) -> Direction;
     fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool;
     fn timestamp(&self) -> OffsetDateTime;
     fn hoard_name(&self) -> &str;
@@ -72,10 +72,10 @@ pub(crate) trait OperationImpl {
 }
 
 impl OperationImpl for OperationVersion {
-    fn is_backup(&self) -> bool {
+    fn direction(&self) -> Direction {
         match &self {
-            OperationVersion::V1(one) => one.is_backup(),
-            OperationVersion::V2(two) => two.is_backup(),
+            OperationVersion::V1(one) => one.direction(),
+            OperationVersion::V2(two) => two.direction(),
         }
     }
 
@@ -120,8 +120,8 @@ impl OperationImpl for OperationVersion {
 pub(crate) struct Operation(OperationVersion);
 
 impl OperationImpl for Operation {
-    fn is_backup(&self) -> bool {
-        self.0.is_backup()
+    fn direction(&self) -> Direction {
+        self.0.direction()
     }
 
     fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
@@ -253,7 +253,7 @@ impl Operation {
             })
             .filter_map(|operation| match operation {
                 Err(err) => Some(Err(err)),
-                Ok(operation) => (!backups_only || operation.is_backup()).then(|| Ok(operation)),
+                Ok(operation) => (!backups_only || operation.direction() == Direction::Backup).then(|| Ok(operation)),
             })
             .filter_map(|operation| match path {
                 None => Some(operation),
@@ -340,10 +340,11 @@ impl Operation {
     pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
         if self.as_latest_version()? == other.as_latest_version()? {
             Ok(())
-        } else if self.is_backup() {
-            Err(Error::RestoreRequired)
         } else {
-            Err(Error::BackupRequired)
+            match self.0.direction() {
+                Direction::Backup => Err(Error::RestoreRequired),
+                Direction::Restore => Err(Error::BackupRequired),
+            }
         }
     }
 }
@@ -362,7 +363,7 @@ impl Checker for Operation {
         let last_local = Self::latest_local(self.hoard_name(), None)?;
         let last_remote = Self::latest_remote_backup(self.hoard_name(), None)?;
 
-        if !self.is_backup() {
+        if self.direction() != Direction::Backup {
             tracing::debug!("not backing up, is safe to continue");
             return Ok(());
         }

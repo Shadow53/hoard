@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::checkers::Checker;
 use crate::checkers::history::get_history_root_dir;
 use crate::checkers::history::operation::OperationImpl;
+use crate::hoard::Direction;
 use super::{Operation, Error};
 
 pub(crate) static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
@@ -109,7 +110,7 @@ pub(crate) fn cleanup_operations() -> Result<u32, (u32, Error)> {
                     // Make sure the most recent backup is (also) retained.
                     if let Some(recent) = recent {
                         let recent = Operation::from_file(&recent)?;
-                        if !recent.is_backup() {
+                        if recent.direction() == Direction::Restore {
                             tracing::trace!("most recent log is not a backup, making sure to retain a backup log too");
                             // Find the index of the latest backup
                             let index = files
@@ -118,7 +119,7 @@ pub(crate) fn cleanup_operations() -> Result<u32, (u32, Error)> {
                                 .rev()
                                 .find_map(|(i, path)| {
                                     Operation::from_file(path)
-                                        .map(|op| op.is_backup().then(|| i))
+                                        .map(|op| (op.direction() == Direction::Backup).then(|| i))
                                         .transpose()
                                 })
                                 .transpose()?;

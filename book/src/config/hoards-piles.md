@@ -75,8 +75,18 @@ Pile configuration can be defined at three different levels:
 For a given Pile, any/all three of the levels of configuration are "layered" together, as appropriate for each
 configuration item:
 
+- Hashing algorithms use the most-specific layer, or the default if not specified.
 - Ignore patterns are merged and deduplicated.
 - Encryption settings will use the most-specific settings.
+
+### Hashing Algorithms
+
+Set `ignore` to one of the below strings to manually set which hashing algorithm is used when recording 
+[Hoard operations](../cli/checks.md#remote-operations).
+
+- `"sha256"` (default): SHA-256 is an older but unbroken algorithm.
+- `"md5"`: MD5 is a quick algorithm but also cryptographically broken. Supported for compatibility with 
+  an older operation log format and should be avoided.
 
 ### Ignore Patterns
 

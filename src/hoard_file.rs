@@ -5,12 +5,31 @@ use md5::Digest as _;
 use sha2::Digest as _;
 use serde::{Serialize, Deserialize};
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all="lowercase")]
+pub enum ChecksumType {
+    MD5,
+    SHA256,
+}
+
+impl Default for ChecksumType {
+    fn default() -> Self { Self::SHA256 }
+}
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(rename_all="lowercase")]
 pub(crate) enum Checksum {
     MD5(String),
     SHA256(String),
+}
+
+impl Checksum {
+    pub(crate) fn typ(&self) -> ChecksumType {
+        match self {
+            Self::MD5(_) => ChecksumType::MD5,
+            Self::SHA256(_) => ChecksumType::SHA256,
+        }
+    }
 }
 
 impl fmt::Display for Checksum {
@@ -115,8 +134,11 @@ impl HoardFile {
         Self::content(self.hoard_path())
     }
 
-    pub(crate) fn hoard_checksum(&self) -> io::Result<Option<Checksum>> {
-        self.hoard_sha256()
+    pub(crate) fn hoard_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
+        match typ {
+            ChecksumType::MD5 => self.hoard_md5(),
+            ChecksumType::SHA256 => self.hoard_sha256(),
+        }
     }
 
     pub(crate) fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
@@ -127,8 +149,11 @@ impl HoardFile {
         self.hoard_content().map(|content| content.as_deref().map(Self::sha256))
     }
 
-    pub(crate) fn system_checksum(&self) -> io::Result<Option<Checksum>> {
-        self.system_sha256()
+    pub(crate) fn system_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
+        match typ {
+            ChecksumType::MD5 => self.system_md5(),
+            ChecksumType::SHA256 => self.system_sha256(),
+        }
     }
 
     pub(crate) fn system_md5(&self) -> io::Result<Option<Checksum>> {

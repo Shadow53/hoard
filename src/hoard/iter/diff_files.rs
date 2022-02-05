@@ -209,7 +209,7 @@ impl HoardDiffIter {
 
             if let Some(checksum) = checksum {
                 tracing::trace!("{} ({}) previously had checksum {} on this system", file.system_path().display(), file.relative_path().display(), checksum);
-                file.system_checksum()?.map_or(false, |new_hash| {
+                file.system_checksum(checksum.typ())?.map_or(false, |new_hash| {
                     tracing::trace!("{} currently has checksum {}", file.system_path().display(), new_hash);
                     new_hash != checksum
                 })

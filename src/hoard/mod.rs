@@ -121,7 +121,7 @@ impl From<PathBuf> for SystemPath {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pile {
     /// Optional configuration for this path.
-    pub config: Option<PileConfig>,
+    pub config: PileConfig,
     /// The path to hoard.
     ///
     /// The path is optional because it will almost always be set by processing a configuration
@@ -248,9 +248,9 @@ impl Pile {
             )
             .entered();
 
-            let filter = self.config.as_ref().map(Filters::new).transpose()?;
+            let filter = Filters::new(&self.config)?;
 
-            Self::copy(filter.as_ref(), path, path, prefix)?;
+            Self::copy(Some(&filter), path, path, prefix)?;
         } else {
             tracing::warn!("pile has no associated path -- perhaps no environment matched?");
         }

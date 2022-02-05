@@ -36,20 +36,13 @@ pub(crate) struct OperationV1 {
     pub(crate) hoard: Hoard,
 }
 
-impl OperationV1 {
-    fn new(name: &str, hoard: &ConfigHoard, direction: Direction) -> Result<Self, Error> {
-        Ok(Self {
-            timestamp: OffsetDateTime::now_utc(),
-            is_backup: matches!(direction, Direction::Backup),
-            hoard_name: name.into(),
-            hoard: Hoard::try_from(hoard)?,
-        })
-    }
-}
-
 impl super::OperationImpl for OperationV1 {
-    fn is_backup(&self) -> bool {
-        self.is_backup
+    fn direction(&self) -> Direction {
+        if self.is_backup {
+            Direction::Backup
+        } else {
+            Direction::Restore
+        }
     }
 
     fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
@@ -100,7 +93,7 @@ impl super::OperationImpl for OperationV1 {
                     pile.0.iter().map(move |(rel_path, md5)| {
                         OperationFileInfo {
                             hoard: self.hoard_name.to_string(),
-                            pile_name: None,
+                            pile_name: Some(pile_name.clone()),
                             relative_path: rel_path.clone(),
                             checksum: Some(Checksum::MD5(md5.clone()))
                         }
@@ -141,12 +134,6 @@ impl TryFrom<&ConfigHoard> for Hoard {
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Pile(HashMap<PathBuf, String>);
-
-impl Pile {
-    pub(crate) fn get(&'_ self, key: &Path) -> Option<&'_ str> {
-        self.0.get(key).map(String::as_str)
-    }
-}
 
 fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
     let mut map = HashMap::new();
