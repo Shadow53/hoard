@@ -4,10 +4,13 @@ use crate::hoard::iter::all_files::AllFilesIter;
 use crate::hoard::Hoard;
 use std::path::Path;
 use std::{fmt, fs};
+use std::cmp::Ordering;
+use std::fs::Permissions;
+use std::os::unix::fs::PermissionsExt;
 use tracing::trace_span;
 use crate::hoard::iter::HoardFile;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum DiffSource {
     Local,
     Remote,
@@ -26,7 +29,7 @@ impl fmt::Display for DiffSource {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum HoardFileDiff {
     BinaryModified {
         file: HoardFile,
@@ -39,8 +42,8 @@ pub(crate) enum HoardFileDiff {
     },
     PermissionsModified {
         file: HoardFile,
-        hoard_perms: std::fs::Permissions,
-        system_perms: std::fs::Permissions,
+        hoard_perms: Permissions,
+        system_perms: Permissions,
         diff_source: DiffSource,
     },
     Created {
@@ -56,6 +59,94 @@ pub(crate) enum HoardFileDiff {
         diff_source: DiffSource,
     },
     Unchanged(HoardFile),
+}
+
+#[cfg(unix)]
+fn compare_perms(left: &Permissions, right: &Permissions) -> Ordering {
+    left.mode().cmp(&right.mode())
+}
+
+#[cfg(not(unix))]
+fn compare_perms(left: &Permissions, right: &Permissions) -> Ordering {
+    let left_readonly = left.readonly();
+    let right_readonly = right.readonly();
+    match (left_readonly, right_readonly) {
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (_, _) => Ordering::Equal,
+    }
+}
+
+impl PartialOrd for HoardFileDiff {
+    // Ordering doesn't matter too much, just go with the order of declaration.
+    // Manual implementation because Permissions do not implement Hash or (Partial)Ord.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for HoardFileDiff {
+    fn cmp(&self, other: &Self) -> Ordering {
+        #[allow(clippy::match_same_arms)]
+        match (self, other) {
+            (Self::BinaryModified { file: my_file, diff_source: my_source}, Self::BinaryModified { file: other_file, diff_source: other_source }) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source))
+            },
+            (Self::BinaryModified { .. }, _) => Ordering::Less,
+            (Self::TextModified { .. }, Self::BinaryModified { .. }) => Ordering::Greater,
+            (Self::TextModified { file: my_file, diff_source: my_source , unified_diff: my_diff }, Self::TextModified { file: other_file, diff_source: other_source, unified_diff: other_diff }) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source)).then(my_diff.cmp(other_diff))
+            },
+            (Self::TextModified { .. }, _) => Ordering::Less,
+            (
+                Self::PermissionsModified { file: my_file, hoard_perms: my_hoard_perms, system_perms: my_sys_perms, diff_source: my_source },
+                Self::PermissionsModified { file: other_file, hoard_perms: other_hoard_perms, system_perms: other_sys_perms, diff_source: other_source }
+            ) => {
+                    my_file.cmp(other_file).then(
+                        compare_perms(my_hoard_perms, other_hoard_perms)
+                    ).then(
+                        compare_perms(my_sys_perms, other_sys_perms)
+                    ).then(
+                        my_source.cmp(other_source)
+                    )
+            },
+            (Self::PermissionsModified { .. }, Self::BinaryModified { .. } | Self::TextModified { .. }) => Ordering::Greater,
+            (Self::PermissionsModified { .. }, _) => Ordering::Less,
+            (Self::Created { file: my_file, diff_source: my_source }, Self::Created { file: other_file, diff_source: other_source }) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source))
+            }
+            (Self::Created { .. }, Self::Recreated { .. } | Self::Deleted { .. } | Self::Unchanged(_) ) => {
+                Ordering::Less
+            }
+            (Self::Created { .. }, _) => {
+                Ordering::Greater
+            }
+            (Self::Recreated { file: my_file, diff_source: my_source }, Self::Recreated { file: other_file, diff_source: other_source}) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source))
+            }
+            (Self::Recreated { .. }, Self::Deleted { .. } | Self::Unchanged(_) ) => {
+                Ordering::Less
+            }
+            (Self::Recreated { .. }, _) => {
+               Ordering::Greater
+            }
+            (Self::Deleted { file: my_file, diff_source: my_source }, Self::Deleted { file: other_file, diff_source: other_source}) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source))
+            }
+            (Self::Deleted { .. }, Self::Unchanged(_) ) => {
+                Ordering::Less
+            }
+            (Self::Deleted { .. }, _) => {
+                Ordering::Greater
+            }
+            (Self::Unchanged(my_file), Self::Unchanged(other_file)) => {
+                my_file.cmp(other_file)
+            }
+            (Self::Unchanged(_), _) => {
+                Ordering::Greater
+            }
+        }
+    }
 }
 
 pub(crate) struct HoardDiffIter{
@@ -120,11 +211,11 @@ impl HoardDiffIter {
                 tracing::trace!("{} ({}) previously had checksum {} on this system", file.system_path().display(), file.relative_path().display(), checksum);
                 file.system_checksum()?.map_or(false, |new_hash| {
                     tracing::trace!("{} currently has checksum {}", file.system_path().display(), new_hash);
-                    new_hash == checksum
+                    new_hash != checksum
                 })
             } else {
                 tracing::trace!("no checksum found for {}", file.system_path().display());
-                false
+                true
             }
         } else {
             tracing::trace!(path=?file.system_path(), "no local operation found for {}", hoard_name);

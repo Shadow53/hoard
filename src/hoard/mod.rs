@@ -71,10 +71,10 @@ pub enum Direction {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct HoardPath(PathBuf);
 #[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SystemPath(PathBuf);
 
 impl AsRef<Path> for HoardPath {

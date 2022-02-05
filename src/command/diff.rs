@@ -1,3 +1,4 @@
+use std::collections::{BTreeSet, HashSet};
 use crate::hoard::iter::{HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
 use std::path::Path;
@@ -13,10 +14,14 @@ pub(crate) fn run_diff(
 ) -> Result<(), super::Error> {
     let _span = tracing::trace_span!("run_diff").entered();
     tracing::trace!("running the diff command");
-    let diff_iterator = HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard).map_err(super::Error::Diff)?;
-    for hoard_diff in diff_iterator {
+    let diffs: BTreeSet<HoardFileDiff> = HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard)
+        .map_err(super::Error::Diff)?
+        .only_changed()
+        .collect::<Result<_, _>>()
+        .map_err(super::Error::Diff)?;
+    for hoard_diff in diffs {
         tracing::trace!("printing diff: {:?}", hoard_diff);
-        match hoard_diff.map_err(super::Error::Diff)? {
+        match hoard_diff {
             HoardFileDiff::BinaryModified { file, diff_source } => {
                 tracing::info!("{}: binary file changed {}", file.system_path().display(), diff_source);
             }

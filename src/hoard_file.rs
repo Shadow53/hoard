@@ -6,7 +6,7 @@ use sha2::Digest as _;
 use serde::{Serialize, Deserialize};
 
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(rename_all="lowercase")]
 pub(crate) enum Checksum {
     MD5(String),
@@ -23,7 +23,7 @@ impl fmt::Display for Checksum {
 }
 use crate::hoard::{HoardPath, SystemPath};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct HoardFile {
     pile_name: Option<String>,
     hoard_prefix: HoardPath,
