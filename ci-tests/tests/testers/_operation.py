@@ -41,4 +41,4 @@ class OperationV2(BaseModel):
     timestamp: List[int]
     direction: Direction
     hoard: str
-    files: PileV2
+    files: Union[PileV2, Dict[str, PileV2]]
