@@ -50,11 +50,13 @@ impl Filter for Filters {
 
 #[cfg(test)]
 mod tests {
+    use crate::hoard_file::ChecksumType;
     use super::*;
 
     #[test]
     fn test_filters_derives() {
         let config = PileConfig {
+            checksum_type: ChecksumType::default(),
             encryption: None,
             ignore: vec![glob::Pattern::new("valid/**").unwrap()],
         };

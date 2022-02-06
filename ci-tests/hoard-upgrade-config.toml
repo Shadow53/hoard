@@ -1,0 +1,28 @@
+exclusivity = [
+    ["unix", "windows"]
+]
+
+[envs]
+[envs.windows]
+    os = ["windows"]
+[[envs.windows.env]]
+    var = "USERPROFILE"
+[envs.unix]
+    os = ["linux", "macos"]
+[[envs.unix.env]]
+    var = "HOME"
+
+[hoards]
+[hoards.anon_file]
+    "unix" = "${HOME}/anon_file.txt"
+    "windows" = "${USERPROFILE}/anon_file.txt"
+[hoards.anon_dir]
+    "unix" = "${HOME}/anon_dir"
+    "windows" = "${USERPROFILE}/anon_dir"
+[hoards.named]
+[hoards.named.single_file]
+    "unix" = "${HOME}/single_file.txt"
+    "windows" = "${USERPROFILE}/single_file.txt"
+[hoards.named.dir]
+    "unix" = "${HOME}/dir"
+    "windows" = "${USERPROFILE}/dir"

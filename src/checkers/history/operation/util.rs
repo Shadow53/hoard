@@ -154,7 +154,7 @@ pub(crate) fn cleanup_operations() -> Result<u32, (u32, Error)> {
         .map(|(count, _)| count)
 }
 
-fn all_operations() -> io::Result<impl Iterator<Item=io::Result<Operation>>> {
+fn all_operations() -> io::Result<impl Iterator<Item=Result<Operation, Error>>> {
     let history_dir = get_history_root_dir();
     let iter = fs::read_dir(history_dir)?
         .filter_map_ok(|uuid_entry| {
@@ -174,7 +174,13 @@ fn all_operations() -> io::Result<impl Iterator<Item=io::Result<Operation>>> {
         .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
         .filter_ok(|path| file_is_log(path)) // Only those paths that are log files
         .map_ok(|path| Operation::from_file(&path)) // Operations
-        .flatten_ok();
+        .map(|result| {
+            match result {
+                Err(err) => Err(Error::IO(err)),
+                Ok(Err(err)) => Err(err),
+                Ok(Ok(result)) => Ok(result),
+            }
+        });
     Ok(iter)
 }
 
@@ -182,9 +188,14 @@ pub(crate) fn upgrade_operations() -> Result<(), Error> {
     let mut file_checksum_map = HashMap::new();
     let mut file_set = HashSet::new();
 
-    for operation in all_operations()? {
-        let operation = operation?;
+    let all_ops: Vec<_> = all_operations()?.collect::<Result<_, _>>()?;
+    tracing::trace!("found operations: {:?}", all_ops);
+
+    for operation in all_ops {
+        //let operation = operation?;
+        tracing::trace!(?operation, "converting operation");
         let operation = operation.into_latest_version(&mut file_checksum_map, &mut file_set);
+        tracing::trace!(?operation, "converted operation");
         operation.commit_to_disk()?;
     }
 

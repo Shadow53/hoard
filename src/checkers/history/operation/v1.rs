@@ -133,7 +133,7 @@ impl TryFrom<&ConfigHoard> for Hoard {
 
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Pile(HashMap<PathBuf, String>);
+pub(crate) struct Pile(pub(super) HashMap<PathBuf, String>);
 
 fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
     let mut map = HashMap::new();
