@@ -82,6 +82,19 @@ Displays the current status of every configured hoard:
   of using `hoard backup`. [`hoard diff`](#hoard-diff) may be useful in handling the unexpected
   change.
 
+## `hoard upgrade`
+
+```
+hoard [flags...] upgrade
+```
+
+Automatically upgrades hoard-related files to newer formats. Old formats may be removed in later
+versions to help keep the codebase clean.
+
+This currently affects:
+
+- [Operation log files](checks.md#remote-operations)
+
 ## `hoard validate`
 
 ```
