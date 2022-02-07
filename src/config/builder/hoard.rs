@@ -315,8 +315,12 @@ mod tests {
                     Token::Some,
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum { name: "ChecksumType" },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::Some,
                     Token::Struct {
@@ -399,8 +403,12 @@ mod tests {
                     Token::Some,
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum { name: "ChecksumType" },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::Some,
                     Token::Map { len: Some(2) },
@@ -431,8 +439,12 @@ mod tests {
                 &[
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum { name: "ChecksumType" },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::None,
                     Token::Str("ignore"),
@@ -462,8 +474,12 @@ mod tests {
                 &[
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum { name: "ChecksumType" },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::None,
                     Token::Str("ignore"),

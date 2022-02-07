@@ -539,7 +539,7 @@ mod tests {
                 OperationV2 { timestamp: third_timestamp, direction: Direction::Backup, hoard: hoard_name, hoards_root: PathBuf::new(), files: Hoard::Named(
                     maplit::hashmap! {
                         String::from("single_file") => Pile {
-                            created: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
+                            deleted: maplit::hashset! { PathBuf::new() },
                             .. Pile::default()
                         },
                         String::from("dir") => Pile {
