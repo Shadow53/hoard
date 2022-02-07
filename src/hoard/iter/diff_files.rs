@@ -48,10 +48,12 @@ pub(crate) enum HoardFileDiff {
     },
     Created {
         file: HoardFile,
+        unified_diff: Option<String>,
         diff_source: DiffSource,
     },
     Recreated {
         file: HoardFile,
+        unified_diff: Option<String>,
         diff_source: DiffSource,
     },
     Deleted {
@@ -112,8 +114,8 @@ impl Ord for HoardFileDiff {
             },
             (Self::PermissionsModified { .. }, Self::BinaryModified { .. } | Self::TextModified { .. }) => Ordering::Greater,
             (Self::PermissionsModified { .. }, _) => Ordering::Less,
-            (Self::Created { file: my_file, diff_source: my_source }, Self::Created { file: other_file, diff_source: other_source }) => {
-                my_file.cmp(other_file).then(my_source.cmp(other_source))
+            (Self::Created { file: my_file, diff_source: my_source, unified_diff: my_diff }, Self::Created { file: other_file, diff_source: other_source, unified_diff: other_diff }) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source)).then(my_diff.cmp(other_diff))
             }
             (Self::Created { .. }, Self::Recreated { .. } | Self::Deleted { .. } | Self::Unchanged(_) ) => {
                 Ordering::Less
@@ -121,8 +123,8 @@ impl Ord for HoardFileDiff {
             (Self::Created { .. }, _) => {
                 Ordering::Greater
             }
-            (Self::Recreated { file: my_file, diff_source: my_source }, Self::Recreated { file: other_file, diff_source: other_source}) => {
-                my_file.cmp(other_file).then(my_source.cmp(other_source))
+            (Self::Recreated { file: my_file, diff_source: my_source, unified_diff: my_diff }, Self::Recreated { file: other_file, diff_source: other_source, unified_diff: other_diff }) => {
+                my_file.cmp(other_file).then(my_source.cmp(other_source)).then(my_diff.cmp(other_diff))
             }
             (Self::Recreated { .. }, Self::Deleted { .. } | Self::Unchanged(_) ) => {
                 Ordering::Less
@@ -238,7 +240,10 @@ impl Iterator for HoardDiffIter {
             let diff = match diff_files(file.hoard_path(), file.system_path()) {
                 Ok(Some(diff)) => diff,
                 Ok(None) => return Some(Ok(HoardFileDiff::Unchanged(file))),
-                Err(err) => return Some(Err(super::Error::IO(err))),
+                Err(err) => {
+                    tracing::error!("failed to diff {} and {}: {}", file.system_path().display(), file.hoard_path().display(), err);
+                    return Some(Err(super::Error::IO(err)));
+                },
             };
 
             let file_data = super::propagate_error!(Self::process_file(&self.hoard_name, &file));
@@ -264,7 +269,7 @@ impl Iterator for HoardDiffIter {
             let hoard_diff = match diff {
                 Diff::Binary => if created_mixed {
                     HoardFileDiff::Created {
-                        file, diff_source: DiffSource::Mixed,
+                        file, diff_source: DiffSource::Mixed, unified_diff: None
                     }
                 } else {
                     HoardFileDiff::BinaryModified {
@@ -272,7 +277,7 @@ impl Iterator for HoardDiffIter {
                     }
                 },
                 Diff::Text(unified_diff) => if created_mixed {
-                    HoardFileDiff::Created { file, diff_source: DiffSource::Mixed }
+                    HoardFileDiff::Created { file, diff_source: DiffSource::Mixed, unified_diff: Some(unified_diff) }
                 } else {
                     HoardFileDiff::TextModified {
                         file, diff_source, unified_diff
@@ -291,11 +296,11 @@ impl Iterator for HoardDiffIter {
                             HoardFileDiff::Deleted { file, diff_source: DiffSource::Remote }
                         } else {
                             // Most recent operation is local, probably recreated file
-                            HoardFileDiff::Recreated { file, diff_source: DiffSource::Local }
+                            HoardFileDiff::Recreated { file, diff_source: DiffSource::Local, unified_diff: None }
                         }
                     } else {
                         // Never existed in hoard, newly created
-                        HoardFileDiff::Created { file, diff_source: DiffSource::Local }
+                        HoardFileDiff::Created { file, diff_source: DiffSource::Local, unified_diff: None }
                     }
                 },
                 Diff::RightNotExists => {
@@ -305,18 +310,18 @@ impl Iterator for HoardDiffIter {
                         if has_local_records {
                             if has_remote_changes {
                                 // Recreated remotely
-                                HoardFileDiff::Recreated { file, diff_source: DiffSource::Remote }
+                                HoardFileDiff::Recreated { file, diff_source: DiffSource::Remote, unified_diff: None }
                             } else {
                                 // Deleted locally
                                 HoardFileDiff::Deleted { file, diff_source: DiffSource::Local }
                             }
                         } else {
                             // Created remotely
-                            HoardFileDiff::Created { file, diff_source: DiffSource::Remote }
+                            HoardFileDiff::Created { file, diff_source: DiffSource::Remote, unified_diff: None }
                         }
                     } else {
                         // Unknown
-                        HoardFileDiff::Created { file, diff_source: DiffSource::Unknown }
+                        HoardFileDiff::Created { file, diff_source: DiffSource::Unknown, unified_diff: None }
                     }
                 },
             };

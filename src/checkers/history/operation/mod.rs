@@ -164,8 +164,14 @@ impl Operation {
         tracing::trace!(path=%path.display(), "loading operation log from path");
         fs::File::open(path)
             .map(serde_json::from_reader)
-            .map_err(Error::from)?
-            .map_err(Error::from)
+            .map_err(|err| {
+                tracing::error!("failed to open file at {}: {}", path.display(), err);
+                Error::from(err)
+            })?
+            .map_err(|err| {
+                tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
+                Error::from(err)
+            })
     }
 
     fn reduce_latest(left: Result<Self, Error>, right: Result<Self, Error>) -> Result<Self, Error> {
@@ -276,7 +282,7 @@ impl Operation {
     /// - Any parsing errors from `serde_json` when parsing the file
     pub(crate) fn latest_local(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_local", %hoard).entered();
-        tracing::debug!("finding latest Operation file for this machine");
+        tracing::trace!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
         let self_folder = super::get_history_dir_for_id(uuid);
         Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, file, false)
@@ -292,7 +298,7 @@ impl Operation {
     /// - Any parsing errors from `serde_json` when parsing the file
     pub(crate) fn latest_remote_backup(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
-        tracing::debug!("finding latest Operation file from remote machines");
+        tracing::trace!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid()?;
         let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
         other_folders

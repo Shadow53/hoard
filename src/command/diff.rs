@@ -15,7 +15,10 @@ pub(crate) fn run_diff(
     let _span = tracing::trace_span!("run_diff").entered();
     tracing::trace!("running the diff command");
     let diffs: BTreeSet<HoardFileDiff> = HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard)
-        .map_err(super::Error::Diff)?
+        .map_err(|err| {
+            tracing::error!("failed to create diff iterator: {}", err);
+            super::Error::Diff(err)
+        })?
         .only_changed()
         .collect::<Result<_, _>>()
         .map_err(super::Error::Diff)?;
@@ -64,16 +67,24 @@ pub(crate) fn run_diff(
                     },
                 );
             }
-            HoardFileDiff::Created { file, diff_source } => {
+            HoardFileDiff::Created { file, diff_source, unified_diff } => {
                 tracing::info!("{}: created {}", file.system_path().display(), diff_source);
+                if let (true, Some(unified_diff)) = (verbose, unified_diff) {
+                    tracing::info!("{}", unified_diff);
+                }
             }
-            HoardFileDiff::Recreated { file, diff_source } => {
+            HoardFileDiff::Recreated { file, diff_source, unified_diff } => {
                 tracing::info!("{}: recreated {}", file.system_path().display(), diff_source);
+                if let (true, Some(unified_diff)) = (verbose, unified_diff) {
+                    tracing::info!("{}", unified_diff);
+                }
             }
             HoardFileDiff::Deleted { file, diff_source } => {
                 tracing::info!("{}: deleted {}", file.system_path().display(), diff_source);
             }
-            HoardFileDiff::Unchanged(_) => {}
+            HoardFileDiff::Unchanged(file) => {
+                tracing::debug!("{}: unmodified", file.system_path().display());
+            }
         }
     }
 

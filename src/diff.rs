@@ -83,9 +83,9 @@ pub(crate) fn diff_files(left_path: &Path, right_path: &Path) -> io::Result<Opti
         (FileContent::Text(left_text), FileContent::Text(right_text)) => {
             let text_diff = TextDiff::from_lines(&left_text, &right_text);
 
-            let has_diff = !text_diff
+            let has_diff = text_diff
                 .iter_all_changes()
-                .all(|op| op.tag() == ChangeTag::Equal);
+                .any(|op| op.tag() != ChangeTag::Equal);
 
             if has_diff {
                 let udiff = text_diff

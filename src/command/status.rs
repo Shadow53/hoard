@@ -7,6 +7,7 @@ pub(crate) fn run_status<'a>(
     hoards: impl IntoIterator<Item = (&'a str, &'a Hoard)>,
 ) -> Result<(), super::Error> {
     for (hoard_name, hoard) in hoards {
+        let _span = tracing::error_span!("run_status", hoard=%hoard_name).entered();
         let source = HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard)
             .map_err(super::Error::Status)?
             .filter_map(|hoard_diff| {
@@ -54,11 +55,11 @@ pub(crate) fn run_status<'a>(
                         hoard_name, source, hoard_name
                     ),
                     DiffSource::Mixed => println!(
-                        "{}: mixed changes -- manual intervention recommended (see `hoard diff`)",
+                        "{0}: mixed changes -- manual intervention recommended (see `hoard diff {0}`)",
                         hoard_name
                     ),
                     DiffSource::Unknown => println!(
-                        "{}: unexpected changes -- manual intervention recommended (see `hoard diff`)",
+                        "{0}: unexpected changes -- manual intervention recommended (see `hoard diff {0}`)",
                         hoard_name
                     ),
                 }
