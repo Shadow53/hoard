@@ -33,7 +33,7 @@
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
 [tasks.integration-tests]
-    dependencies = ["build-stable", "create-profraw-dir"]
+    dependencies = ["clean-all", "build-stable", "create-profraw-dir"]
     script = """
     sudo docker image build . -t hoard-tests
     echo "Running tests"
