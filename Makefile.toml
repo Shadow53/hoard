@@ -35,8 +35,6 @@
 [tasks.integration-tests]
     dependencies = ["build-stable", "create-profraw-dir"]
     script = """
-    rm -rf ./profraw
-    mkdir -p ./profraw
     sudo docker image build . -t hoard-tests
     echo "Running tests"
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
