@@ -64,7 +64,7 @@ enum OperationVersion {
 
 pub(crate) trait OperationImpl {
     fn direction(&self) -> Direction;
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool;
+    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, only_modified: bool) -> bool;
     fn timestamp(&self) -> OffsetDateTime;
     fn hoard_name(&self) -> &str;
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum>;
@@ -79,10 +79,10 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
+    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, only_modified: bool) -> bool {
         match &self {
-            OperationVersion::V1(one) => one.contains_file(pile_name, rel_path),
-            OperationVersion::V2(two) => two.contains_file(pile_name, rel_path),
+            OperationVersion::V1(one) => one.contains_file(pile_name, rel_path, only_modified),
+            OperationVersion::V2(two) => two.contains_file(pile_name, rel_path, only_modified),
         }
     }
 
@@ -124,8 +124,8 @@ impl OperationImpl for Operation {
         self.0.direction()
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
-        self.0.contains_file(pile_name, rel_path)
+    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, only_modified: bool) -> bool {
+        self.0.contains_file(pile_name, rel_path, only_modified)
     }
 
     fn timestamp(&self) -> OffsetDateTime {
@@ -236,6 +236,7 @@ impl Operation {
         hoard: &str,
         path: Option<(Option<&str>, &Path)>,
         backups_only: bool,
+        only_modified: bool,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::trace_span!("get_latest_hoard_operation", ?dir, %hoard).entered();
         tracing::trace!("getting latest operation log for hoard in dir");
@@ -265,7 +266,7 @@ impl Operation {
                 None => Some(operation),
                 Some((pile_name, path)) => match operation {
                     Err(err) => Some(Err(err)),
-                    Ok(operation) => operation.contains_file(pile_name, path).then(|| Ok(operation)),
+                    Ok(operation) => operation.contains_file(pile_name, path, only_modified).then(|| Ok(operation)),
                 },
             })
             .reduce(Self::reduce_latest)
@@ -285,7 +286,7 @@ impl Operation {
         tracing::trace!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
         let self_folder = super::get_history_dir_for_id(uuid);
-        Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, file, false)
+        Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, file, false, false)
     }
 
     /// Returns the latest backup operation recorded on any other machine (by UUID).
@@ -296,14 +297,14 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub(crate) fn latest_remote_backup(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
+    pub(crate) fn latest_remote_backup(hoard: &str, file: Option<(Option<&str>, &Path)>, only_modified: bool) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
         tracing::trace!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid()?;
         let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
         other_folders
             .into_iter()
-            .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true))
+            .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true, only_modified))
             .reduce(Self::reduce_option_latest)
             .transpose()
             .map(Option::flatten)
@@ -317,7 +318,7 @@ impl Operation {
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
     pub(crate) fn file_has_remote_changes(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
-        let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)))?;
+        let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), true)?;
         let local = Self::latest_local(hoard, Some((pile_name, file)))?;
 
         let result = match (remote, local) {
@@ -337,7 +338,7 @@ impl Operation {
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
     pub(crate) fn file_has_records(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
-        let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)))?;
+        let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), false)?;
         let local = Self::latest_local(hoard, Some((pile_name, file)))?;
 
         Ok(remote.is_some() || local.is_some())
@@ -367,7 +368,7 @@ impl Checker for Operation {
             tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name()).entered();
         tracing::debug!("checking if the hoard operation is safe to perform");
         let last_local = Self::latest_local(self.hoard_name(), None)?;
-        let last_remote = Self::latest_remote_backup(self.hoard_name(), None)?;
+        let last_remote = Self::latest_remote_backup(self.hoard_name(), None, false)?;
 
         if self.direction() != Direction::Backup {
             tracing::debug!("not backing up, is safe to continue");

@@ -156,8 +156,8 @@ impl OperationImpl for OperationV2 {
         self.direction
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
-        self.files.get_pile(pile_name).map_or(false, |pile| pile.contains_file(rel_path))
+    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, only_modified: bool) -> bool {
+        self.files.get_pile(pile_name).map_or(false, |pile| pile.contains_file(rel_path, only_modified))
     }
 
     fn timestamp(&self) -> OffsetDateTime {
@@ -295,11 +295,11 @@ struct Pile {
 }
 
 impl Pile {
-    fn contains_file(&self, rel_path: &Path) -> bool {
+    fn contains_file(&self, rel_path: &Path, only_modified: bool) -> bool {
         self.created.contains_key(rel_path) ||
             self.modified.contains_key(rel_path) ||
             self.deleted.contains(rel_path) ||
-            self.unmodified.contains_key(rel_path)
+            (!only_modified && self.unmodified.contains_key(rel_path))
     }
 
     fn checksum_for(&self, rel_path: &Path) -> Option<Checksum> {

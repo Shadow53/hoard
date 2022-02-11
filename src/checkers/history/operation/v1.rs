@@ -45,7 +45,7 @@ impl super::OperationImpl for OperationV1 {
         }
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path) -> bool {
+    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, _only_modified: bool) -> bool {
         match (pile_name, &self.hoard) {
             (None, Hoard::Anonymous(pile)) => {
                 pile.0.contains_key(rel_path)
