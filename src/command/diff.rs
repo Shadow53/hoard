@@ -63,7 +63,7 @@ pub(crate) fn run_diff(
                 #[cfg(not(unix))]
                 tracing::info!(
                     "{}: permissions changed: hoard ({}), system ({})",
-                    file.system_path.display(),
+                    file.system_path().display(),
                     if hoard_perms.readonly() {
                         "readonly"
                     } else {
