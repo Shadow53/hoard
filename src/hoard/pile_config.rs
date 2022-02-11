@@ -1,6 +1,6 @@
+use crate::hoard_file::ChecksumType;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::hoard_file::ChecksumType;
 
 /// Configuration for symmetric (password) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

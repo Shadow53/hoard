@@ -7,12 +7,12 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
+use crate::checkers::history::operation::{Checksum, OperationFileInfo};
 use crate::hoard::Direction;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
-use crate::checkers::history::operation::{Checksum, OperationFileInfo};
 
 /// A single operation log.
 ///
@@ -42,14 +42,17 @@ impl super::OperationImpl for OperationV1 {
         }
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, _only_modified: bool) -> bool {
+    fn contains_file(
+        &self,
+        pile_name: Option<&str>,
+        rel_path: &Path,
+        _only_modified: bool,
+    ) -> bool {
         match (pile_name, &self.hoard) {
-            (None, Hoard::Anonymous(pile)) => {
-                pile.0.contains_key(rel_path)
-            },
-            (Some(name), Hoard::Named(piles)) => {
-                piles.get(name).map_or(false, |pile| pile.0.contains_key(rel_path))
-            },
+            (None, Hoard::Anonymous(pile)) => pile.0.contains_key(rel_path),
+            (Some(name), Hoard::Named(piles)) => piles
+                .get(name)
+                .map_or(false, |pile| pile.0.contains_key(rel_path)),
             _ => false,
         }
     }
@@ -64,39 +67,40 @@ impl super::OperationImpl for OperationV1 {
 
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum> {
         match (pile_name, &self.hoard) {
-            (None, Hoard::Anonymous(pile)) => {
-                pile.0.get(rel_path).map(|md5| Checksum::MD5(md5.to_string()))
-            },
-            (Some(name), Hoard::Named(piles)) => {
-                piles.get(name).and_then(|pile| pile.0.get(rel_path).map(|md5| Checksum::MD5(md5.to_string())))
-            },
+            (None, Hoard::Anonymous(pile)) => pile
+                .0
+                .get(rel_path)
+                .map(|md5| Checksum::MD5(md5.to_string())),
+            (Some(name), Hoard::Named(piles)) => piles.get(name).and_then(|pile| {
+                pile.0
+                    .get(rel_path)
+                    .map(|md5| Checksum::MD5(md5.to_string()))
+            }),
             _ => None,
         }
     }
 
     /// Returns, in order: the pile name, the relative path, and the file's checksum.
-    fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item=OperationFileInfo> + 's> {
+    fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item = OperationFileInfo> + 's> {
         match &self.hoard {
-            Hoard::Anonymous(pile) => Box::new(pile.0.iter().map(move |(path, md5)| {
-                OperationFileInfo {
+            Hoard::Anonymous(pile) => {
+                Box::new(pile.0.iter().map(move |(path, md5)| OperationFileInfo {
                     hoard: self.hoard_name.to_string(),
                     pile_name: None,
                     relative_path: path.clone(),
-                    checksum: Some(Checksum::MD5(md5.clone()))
-                }
-            })),
+                    checksum: Some(Checksum::MD5(md5.clone())),
+                }))
+            }
             Hoard::Named(piles) => Box::new({
                 piles.iter().flat_map(move |(pile_name, pile)| {
-                    pile.0.iter().map(move |(rel_path, md5)| {
-                        OperationFileInfo {
-                            hoard: self.hoard_name.to_string(),
-                            pile_name: Some(pile_name.clone()),
-                            relative_path: rel_path.clone(),
-                            checksum: Some(Checksum::MD5(md5.clone()))
-                        }
+                    pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
+                        hoard: self.hoard_name.to_string(),
+                        pile_name: Some(pile_name.clone()),
+                        relative_path: rel_path.clone(),
+                        checksum: Some(Checksum::MD5(md5.clone())),
                     })
                 })
-            })
+            }),
         }
     }
 }

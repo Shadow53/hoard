@@ -1,23 +1,25 @@
-use std::{fmt, fs, io};
+use md5::Digest as _;
+use serde::{Deserialize, Serialize};
+use sha2::Digest as _;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use md5::Digest as _;
-use sha2::Digest as _;
-use serde::{Serialize, Deserialize};
+use std::{fmt, fs, io};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
-#[serde(rename_all="lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum ChecksumType {
     MD5,
     SHA256,
 }
 
 impl Default for ChecksumType {
-    fn default() -> Self { Self::SHA256 }
+    fn default() -> Self {
+        Self::SHA256
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
-#[serde(rename_all="lowercase")]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum Checksum {
     MD5(String),
     SHA256(String),
@@ -53,7 +55,12 @@ pub(crate) struct HoardFile {
 }
 
 impl HoardFile {
-    pub(crate) fn new(pile_name: Option<String>, hoard_prefix: HoardPath, system_prefix: SystemPath, relative_path: PathBuf) -> Self {
+    pub(crate) fn new(
+        pile_name: Option<String>,
+        hoard_prefix: HoardPath,
+        system_prefix: SystemPath,
+        relative_path: PathBuf,
+    ) -> Self {
         let (hoard_path, system_path) = if relative_path.to_str() == Some("") {
             (hoard_prefix.clone(), system_prefix.clone())
         } else {
@@ -68,7 +75,7 @@ impl HoardFile {
             system_prefix,
             hoard_path,
             system_path,
-            relative_path
+            relative_path,
         }
     }
 
@@ -122,7 +129,7 @@ impl HoardFile {
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Ok(None),
                 _ => Err(err),
-            }
+            },
         }
     }
 
@@ -142,11 +149,13 @@ impl HoardFile {
     }
 
     pub(crate) fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
-        self.hoard_content().map(|content| content.as_deref().map(Self::md5))
+        self.hoard_content()
+            .map(|content| content.as_deref().map(Self::md5))
     }
 
     pub(crate) fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
-        self.hoard_content().map(|content| content.as_deref().map(Self::sha256))
+        self.hoard_content()
+            .map(|content| content.as_deref().map(Self::sha256))
     }
 
     pub(crate) fn system_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
@@ -157,11 +166,13 @@ impl HoardFile {
     }
 
     pub(crate) fn system_md5(&self) -> io::Result<Option<Checksum>> {
-        self.system_content().map(|content| content.as_deref().map(Self::md5))
+        self.system_content()
+            .map(|content| content.as_deref().map(Self::md5))
     }
 
     pub(crate) fn system_sha256(&self) -> io::Result<Option<Checksum>> {
-        self.system_content().map(|content| content.as_deref().map(Self::sha256))
+        self.system_content()
+            .map(|content| content.as_deref().map(Self::sha256))
     }
 
     pub(crate) fn md5(content: &[u8]) -> Checksum {

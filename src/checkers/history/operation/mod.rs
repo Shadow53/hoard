@@ -1,23 +1,23 @@
 //! Types for recording metadata about a single backup or restore [`Operation`].
 
-use std::{fs, io};
+use crate::checkers::history::operation::util::TIME_FORMAT;
+use crate::checkers::Checker;
+use crate::hoard::{Direction, Hoard};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use serde::{Serialize, Deserialize};
+use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
-use crate::checkers::Checker;
-use crate::checkers::history::operation::util::TIME_FORMAT;
-use crate::hoard::{Direction, Hoard};
 
+pub(crate) mod util;
 mod v1;
 mod v2;
-pub(crate) mod util;
 
-pub(crate) use util::cleanup_operations;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
 use crate::hoard_file::Checksum;
+pub(crate) use util::cleanup_operations;
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -68,7 +68,7 @@ pub(crate) trait OperationImpl {
     fn timestamp(&self) -> OffsetDateTime;
     fn hoard_name(&self) -> &str;
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum>;
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a>;
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a>;
 }
 
 impl OperationImpl for OperationVersion {
@@ -107,7 +107,7 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         match &self {
             OperationVersion::V1(one) => one.all_files_with_checksums(),
             OperationVersion::V2(two) => two.all_files_with_checksums(),
@@ -140,13 +140,18 @@ impl OperationImpl for Operation {
         self.0.checksum_for(pile_name, rel_path)
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         self.0.all_files_with_checksums()
     }
 }
 
 impl Operation {
-    fn new(hoards_root: &Path, name: &str, hoard: &Hoard, direction: Direction) -> Result<Self, Error> {
+    fn new(
+        hoards_root: &Path,
+        name: &str,
+        hoard: &Hoard,
+        direction: Direction,
+    ) -> Result<Self, Error> {
         v2::OperationV2::new(hoards_root, name, hoard, direction)
             .map(OperationVersion::V2)
             .map(Self)
@@ -197,7 +202,10 @@ impl Operation {
         }
     }
 
-    fn reduce_option_latest(left: Result<Option<Self>, Error>, right: Result<Option<Self>, Error>) -> Result<Option<Self>, Error> {
+    fn reduce_option_latest(
+        left: Result<Option<Self>, Error>,
+        right: Result<Option<Self>, Error>,
+    ) -> Result<Option<Self>, Error> {
         match (left?, right?) {
             (Some(left), None) => Ok(Some(left)),
             (None, Some(right)) => Ok(Some(right)),
@@ -223,7 +231,12 @@ impl Operation {
             OperationVersion::V2(two) => {
                 let mut new_file_set = HashSet::new();
                 for file_info in two.all_files_with_checksums() {
-                    let OperationFileInfo { pile_name, relative_path, checksum, .. } = file_info;
+                    let OperationFileInfo {
+                        pile_name,
+                        relative_path,
+                        checksum,
+                        ..
+                    } = file_info;
                     let pile_file = (pile_name, relative_path);
                     new_file_set.insert(pile_file.clone());
                     file_checksums.insert(pile_file, checksum);
@@ -261,20 +274,21 @@ impl Operation {
                     let path = item.path();
                     util::file_is_log(&path).then(|| path)
                 })
-                    .transpose()
+                .transpose()
             })
-            .map(|path| -> Result<Self, Error> {
-                path.map(|path| Self::from_file(&path))?
-            })
+            .map(|path| -> Result<Self, Error> { path.map(|path| Self::from_file(&path))? })
             .filter_map(|operation| match operation {
                 Err(err) => Some(Err(err)),
-                Ok(operation) => (!backups_only || operation.direction() == Direction::Backup).then(|| Ok(operation)),
+                Ok(operation) => (!backups_only || operation.direction() == Direction::Backup)
+                    .then(|| Ok(operation)),
             })
             .filter_map(|operation| match path {
                 None => Some(operation),
                 Some((pile_name, path)) => match operation {
                     Err(err) => Some(Err(err)),
-                    Ok(operation) => operation.contains_file(pile_name, path, only_modified).then(|| Ok(operation)),
+                    Ok(operation) => operation
+                        .contains_file(pile_name, path, only_modified)
+                        .then(|| Ok(operation)),
                 },
             })
             .reduce(Self::reduce_latest)
@@ -289,7 +303,10 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub(crate) fn latest_local(hoard: &str, file: Option<(Option<&str>, &Path)>) -> Result<Option<Self>, Error> {
+    pub(crate) fn latest_local(
+        hoard: &str,
+        file: Option<(Option<&str>, &Path)>,
+    ) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_local", %hoard).entered();
         tracing::trace!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
@@ -305,14 +322,20 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub(crate) fn latest_remote_backup(hoard: &str, file: Option<(Option<&str>, &Path)>, only_modified: bool) -> Result<Option<Self>, Error> {
+    pub(crate) fn latest_remote_backup(
+        hoard: &str,
+        file: Option<(Option<&str>, &Path)>,
+        only_modified: bool,
+    ) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
         tracing::trace!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid()?;
         let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
         other_folders
             .into_iter()
-            .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true, only_modified))
+            .map(|dir| {
+                Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true, only_modified)
+            })
             .reduce(Self::reduce_option_latest)
             .transpose()
             .map(Option::flatten)?
@@ -327,7 +350,11 @@ impl Operation {
     /// # Errors
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
-    pub(crate) fn file_has_remote_changes(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
+    pub(crate) fn file_has_remote_changes(
+        hoard: &str,
+        pile_name: Option<&str>,
+        file: &Path,
+    ) -> Result<bool, Error> {
         let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), true)?;
         let local = Self::latest_local(hoard, Some((pile_name, file)))?;
 
@@ -347,7 +374,11 @@ impl Operation {
     /// # Errors
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
-    pub(crate) fn file_has_records(hoard: &str, pile_name: Option<&str>, file: &Path) -> Result<bool, Error> {
+    pub(crate) fn file_has_records(
+        hoard: &str,
+        pile_name: Option<&str>,
+        file: &Path,
+    ) -> Result<bool, Error> {
         let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), false)?;
         let local = Self::latest_local(hoard, Some((pile_name, file)))?;
 
@@ -369,7 +400,12 @@ impl Operation {
 impl Checker for Operation {
     type Error = Error;
 
-    fn new(hoards_root: &Path, name: &str, hoard: &Hoard, direction: Direction) -> Result<Self, Self::Error> {
+    fn new(
+        hoards_root: &Path,
+        name: &str,
+        hoard: &Hoard,
+        direction: Direction,
+    ) -> Result<Self, Self::Error> {
         Self::new(hoards_root, name, hoard, direction)
     }
 

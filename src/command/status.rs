@@ -1,4 +1,4 @@
-use crate::hoard::iter::{HoardDiffIter, DiffSource, HoardFileDiff};
+use crate::hoard::iter::{DiffSource, HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
 use std::path::Path;
 
@@ -63,7 +63,7 @@ pub(crate) fn run_status<'a>(
                         hoard_name
                     ),
                 }
-            },
+            }
         }
     }
 

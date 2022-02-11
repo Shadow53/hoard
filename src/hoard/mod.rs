@@ -8,11 +8,11 @@ pub(crate) mod pile_config;
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::{Error as FilterError, Filter, Filters};
 pub use pile_config::Config as PileConfig;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
-use std::ops::Deref;
-use serde::{Serialize, Deserialize};
 use thiserror::Error;
 
 /// Errors that can happen while backing up or restoring a hoard.

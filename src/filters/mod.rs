@@ -50,8 +50,8 @@ impl Filter for Filters {
 
 #[cfg(test)]
 mod tests {
-    use crate::hoard_file::ChecksumType;
     use super::*;
+    use crate::hoard_file::ChecksumType;
 
     #[test]
     fn test_filters_derives() {

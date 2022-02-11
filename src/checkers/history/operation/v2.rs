@@ -7,15 +7,15 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
-use crate::hoard::{Direction, Hoard as ConfigHoard};
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::io;
-use time::OffsetDateTime;
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
 use crate::hoard::iter::{OperationIter, OperationType};
+use crate::hoard::{Direction, Hoard as ConfigHoard};
 use crate::hoard_file::{Checksum, ChecksumType, HoardFile};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::io;
+use std::path::{Path, PathBuf};
+use time::OffsetDateTime;
 
 use super::Error;
 
@@ -43,7 +43,12 @@ pub(crate) struct OperationV2 {
 }
 
 impl OperationV2 {
-    pub(super) fn new(hoards_root: &Path, name: &str, hoard: &ConfigHoard, direction: Direction) -> Result<Self, Error> {
+    pub(super) fn new(
+        hoards_root: &Path,
+        name: &str,
+        hoard: &ConfigHoard,
+        direction: Direction,
+    ) -> Result<Self, Error> {
         Ok(Self {
             timestamp: OffsetDateTime::now_utc(),
             direction,
@@ -72,7 +77,12 @@ impl OperationV2 {
         let is_anonymous = matches!(old_v1.hoard, super::v1::Hoard::Anonymous(_));
 
         for file_info in old_v1.all_files_with_checksums() {
-            let OperationFileInfo { pile_name, relative_path, checksum, .. } = file_info;
+            let OperationFileInfo {
+                pile_name,
+                relative_path,
+                checksum,
+                ..
+            } = file_info;
             let pile = {
                 if !files.contains_key(&pile_name) {
                     files.insert(pile_name.clone(), Pile::default());
@@ -88,7 +98,7 @@ impl OperationV2 {
                     None => {
                         // Recreated
                         pile.created.insert(relative_path, checksum.clone());
-                    },
+                    }
                     Some(old_checksum) => {
                         // Modified or Unchanged
                         if old_checksum == &checksum {
@@ -106,7 +116,8 @@ impl OperationV2 {
             these_files.insert(pile_file);
         }
 
-        let deleted: HashMap<Option<String>, HashSet<PathBuf>> = file_set.difference(&these_files)
+        let deleted: HashMap<Option<String>, HashSet<PathBuf>> = file_set
+            .difference(&these_files)
             .fold(HashMap::new(), |mut acc, (pile_name, rel_path)| {
                 if !acc.contains_key(pile_name) {
                     acc.insert(pile_name.clone(), HashSet::new());
@@ -125,20 +136,21 @@ impl OperationV2 {
         }
 
         let files = if is_anonymous {
-            Hoard::Anonymous(files.remove(&None).unwrap_or_else(|| {
-                Pile {
-                    deleted: {
-                        let mut map = HashSet::new();
-                        map.insert(PathBuf::new());
-                        map
-                    },
-                    .. Pile::default()
-                }
+            Hoard::Anonymous(files.remove(&None).unwrap_or_else(|| Pile {
+                deleted: {
+                    let mut map = HashSet::new();
+                    map.insert(PathBuf::new());
+                    map
+                },
+                ..Pile::default()
             }))
         } else {
-            Hoard::Named(files.into_iter().filter_map(|(name, pile)| {
-                name.map(|name| (name, pile))
-            }).collect())
+            Hoard::Named(
+                files
+                    .into_iter()
+                    .filter_map(|(name, pile)| name.map(|name| (name, pile)))
+                    .collect(),
+            )
         };
 
         Self {
@@ -146,7 +158,7 @@ impl OperationV2 {
             direction: old_v1.direction(),
             hoard: old_v1.hoard_name().to_string(),
             files,
-            hoards_root: PathBuf::new()
+            hoards_root: PathBuf::new(),
         }
     }
 }
@@ -157,7 +169,9 @@ impl OperationImpl for OperationV2 {
     }
 
     fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, only_modified: bool) -> bool {
-        self.files.get_pile(pile_name).map_or(false, |pile| pile.contains_file(rel_path, only_modified))
+        self.files
+            .get_pile(pile_name)
+            .map_or(false, |pile| pile.contains_file(rel_path, only_modified))
     }
 
     fn timestamp(&self) -> OffsetDateTime {
@@ -169,29 +183,30 @@ impl OperationImpl for OperationV2 {
     }
 
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &Path) -> Option<Checksum> {
-        self.files.get_pile(pile_name).and_then(|pile| pile.checksum_for(rel_path))
+        self.files
+            .get_pile(pile_name)
+            .and_then(|pile| pile.checksum_for(rel_path))
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         match &self.files {
-            Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(move |(path, checksum)| {
-                OperationFileInfo {
+            Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(
+                move |(path, checksum)| OperationFileInfo {
                     hoard: self.hoard.to_string(),
                     pile_name: None,
                     relative_path: path.to_path_buf(),
                     checksum,
-                }
-            })),
+                },
+            )),
             Hoard::Named(piles) => Box::new(piles.iter().flat_map(move |(pile_name, pile)| {
-                pile.all_files_with_checksums().map(move |(path, checksum)| {
-                    OperationFileInfo {
+                pile.all_files_with_checksums()
+                    .map(move |(path, checksum)| OperationFileInfo {
                         hoard: self.hoard.to_string(),
                         pile_name: Some(pile_name.to_string()),
                         relative_path: path.to_path_buf(),
                         checksum,
-                    }
-                })
-            }))
+                    })
+            })),
         }
     }
 }
@@ -205,7 +220,10 @@ enum Hoard {
 }
 
 impl Hoard {
-    fn get_or_create_pile<'a>(map: &'a mut HashMap<String, Pile>, pile_name: Option<&str>) -> &'a mut Pile {
+    fn get_or_create_pile<'a>(
+        map: &'a mut HashMap<String, Pile>,
+        pile_name: Option<&str>,
+    ) -> &'a mut Pile {
         let pile_name = pile_name.unwrap_or("");
         if !map.contains_key(pile_name) {
             map.insert(pile_name.to_string(), Pile::default());
@@ -214,61 +232,92 @@ impl Hoard {
     }
 
     fn require_checksum(checksum: Option<Checksum>, path: &Path) -> Result<Checksum, Error> {
-        checksum.ok_or_else(|| Error::IO(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("could not find {}", path.display())
-        )))
+        checksum.ok_or_else(|| {
+            Error::IO(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("could not find {}", path.display()),
+            ))
+        })
     }
 
     fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardFile) -> ChecksumType {
         match (hoard, hoard_file.pile_name()) {
             (ConfigHoard::Anonymous(pile), None) => pile.config.checksum_type,
-            (ConfigHoard::Named(piles), Some(pile_name)) => {
-                piles.piles.get(pile_name).map(|pile| pile.config.checksum_type)
-                    .expect("provided pile name should always be in hoard")
-            }
-            (hoard, pile_name) => panic!("mismatched hoard type and pile name option: hoard ({:?}), pile_name: {:?}", hoard, pile_name)
+            (ConfigHoard::Named(piles), Some(pile_name)) => piles
+                .piles
+                .get(pile_name)
+                .map(|pile| pile.config.checksum_type)
+                .expect("provided pile name should always be in hoard"),
+            (hoard, pile_name) => panic!(
+                "mismatched hoard type and pile name option: hoard ({:?}), pile_name: {:?}",
+                hoard, pile_name
+            ),
         }
     }
 
-    fn new(hoards_root: &Path, hoard_name: &str, hoard: &crate::hoard::Hoard, direction: Direction) -> Result<Self, Error> {
-        let mut inner: HashMap<String, Pile> = OperationIter::new(hoards_root, hoard_name.to_string(), hoard, direction)?
-            .fold(Ok(HashMap::new()), |acc, op| -> Result<HashMap<String, Pile>, Error> {
-                let mut acc = acc?;
-                let op = op?;
+    fn new(
+        hoards_root: &Path,
+        hoard_name: &str,
+        hoard: &crate::hoard::Hoard,
+        direction: Direction,
+    ) -> Result<Self, Error> {
+        let mut inner: HashMap<String, Pile> =
+            OperationIter::new(hoards_root, hoard_name.to_string(), hoard, direction)?.fold(
+                Ok(HashMap::new()),
+                |acc, op| -> Result<HashMap<String, Pile>, Error> {
+                    let mut acc = acc?;
+                    let op = op?;
 
-                match op {
-                    OperationType::Create(file) => {
-                        let checksum = match direction {
-                            Direction::Backup => Self::require_checksum(file.system_checksum(Self::checksum_type(hoard, &file))?, file.system_path())?,
-                            Direction::Restore => Self::require_checksum(file.hoard_checksum(Self::checksum_type(hoard, &file))?, file.hoard_path())?,
-                        };
-                        Self::get_or_create_pile(&mut acc, file.pile_name())
-                            .created
-                            .insert(file.relative_path().to_path_buf(), checksum);
+                    match op {
+                        OperationType::Create(file) => {
+                            let checksum = match direction {
+                                Direction::Backup => Self::require_checksum(
+                                    file.system_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.system_path(),
+                                )?,
+                                Direction::Restore => Self::require_checksum(
+                                    file.hoard_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.hoard_path(),
+                                )?,
+                            };
+                            Self::get_or_create_pile(&mut acc, file.pile_name())
+                                .created
+                                .insert(file.relative_path().to_path_buf(), checksum);
+                        }
+                        OperationType::Modify(file) => {
+                            let checksum = match direction {
+                                Direction::Backup => Self::require_checksum(
+                                    file.system_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.system_path(),
+                                )?,
+                                Direction::Restore => Self::require_checksum(
+                                    file.hoard_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.hoard_path(),
+                                )?,
+                            };
+                            Self::get_or_create_pile(&mut acc, file.pile_name())
+                                .modified
+                                .insert(file.relative_path().to_path_buf(), checksum);
+                        }
+                        OperationType::Delete(file) => {
+                            Self::get_or_create_pile(&mut acc, file.pile_name())
+                                .deleted
+                                .insert(file.relative_path().to_path_buf());
+                        }
+                        OperationType::Nothing(file) => {
+                            let checksum = Self::require_checksum(
+                                file.system_checksum(Self::checksum_type(hoard, &file))?,
+                                file.system_path(),
+                            )?;
+                            Self::get_or_create_pile(&mut acc, file.pile_name())
+                                .modified
+                                .insert(file.relative_path().to_path_buf(), checksum);
+                        }
                     }
-                    OperationType::Modify(file) => {
-                        let checksum = match direction {
-                            Direction::Backup => Self::require_checksum(file.system_checksum(Self::checksum_type(hoard, &file))?, file.system_path())?,
-                            Direction::Restore => Self::require_checksum(file.hoard_checksum(Self::checksum_type(hoard, &file))?, file.hoard_path())?,
-                        };
-                        Self::get_or_create_pile(&mut acc, file.pile_name())
-                            .modified
-                            .insert(file.relative_path().to_path_buf(), checksum);
-                    }
-                    OperationType::Delete(file) => {
-                        Self::get_or_create_pile(&mut acc, file.pile_name()).deleted.insert(file.relative_path().to_path_buf());
-                    }
-                    OperationType::Nothing(file) => {
-                        let checksum = Self::require_checksum(file.system_checksum(Self::checksum_type(hoard, &file))?, file.system_path())?;
-                        Self::get_or_create_pile(&mut acc, file.pile_name())
-                            .modified
-                            .insert(file.relative_path().to_path_buf(), checksum);
-                    }
-                }
 
-                Ok(acc)
-            })?;
+                    Ok(acc)
+                },
+            )?;
 
         if inner.len() == 1 && inner.contains_key("") {
             Ok(Self::Anonymous(inner.remove("").unwrap()))
@@ -296,23 +345,33 @@ struct Pile {
 
 impl Pile {
     fn contains_file(&self, rel_path: &Path, only_modified: bool) -> bool {
-        self.created.contains_key(rel_path) ||
-            self.modified.contains_key(rel_path) ||
-            self.deleted.contains(rel_path) ||
-            (!only_modified && self.unmodified.contains_key(rel_path))
+        self.created.contains_key(rel_path)
+            || self.modified.contains_key(rel_path)
+            || self.deleted.contains(rel_path)
+            || (!only_modified && self.unmodified.contains_key(rel_path))
     }
 
     fn checksum_for(&self, rel_path: &Path) -> Option<Checksum> {
-        self.created.get(rel_path)
+        self.created
+            .get(rel_path)
             .or_else(|| self.modified.get(rel_path))
             .or_else(|| self.unmodified.get(rel_path))
             .map(Clone::clone)
     }
 
-    fn all_files_with_checksums(&self) -> impl Iterator<Item=(&Path, Option<Checksum>)> {
-        let created = self.created.iter().map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
-        let modified = self.modified.iter().map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
-        let unmodified = self.unmodified.iter().map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
+    fn all_files_with_checksums(&self) -> impl Iterator<Item = (&Path, Option<Checksum>)> {
+        let created = self
+            .created
+            .iter()
+            .map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
+        let modified = self
+            .modified
+            .iter()
+            .map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
+        let unmodified = self
+            .unmodified
+            .iter()
+            .map(|(path, checksum)| (path.as_path(), Some(checksum.clone())));
         let deleted = self.deleted.iter().map(|path| (path.as_path(), None));
 
         created.chain(modified).chain(unmodified).chain(deleted)
@@ -340,8 +399,8 @@ mod tests {
     }
 
     mod v2_from_v1 {
-        use super::*;
         use super::super::super::v1;
+        use super::*;
         use maplit;
         use time::Duration;
 
@@ -362,35 +421,60 @@ mod tests {
             let third_timestamp = second_timestamp - Duration::hours(2);
             let hoard_name = String::from("anon_file");
             let ops_v1 = vec![
-                v1::OperationV1 { timestamp: first_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Anonymous(
-                    v1::Pile(maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") })
-                )},
-                v1::OperationV1 { timestamp: second_timestamp, is_backup: false, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Anonymous(
-                    v1::Pile(maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") })
-                )},
-                v1::OperationV1 { timestamp: third_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Anonymous(
-                    v1::Pile(HashMap::new())
-                )},
+                v1::OperationV1 {
+                    timestamp: first_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Anonymous(v1::Pile(
+                        maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") },
+                    )),
+                },
+                v1::OperationV1 {
+                    timestamp: second_timestamp,
+                    is_backup: false,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Anonymous(v1::Pile(
+                        maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") },
+                    )),
+                },
+                v1::OperationV1 {
+                    timestamp: third_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Anonymous(v1::Pile(HashMap::new())),
+                },
             ];
             let ops_v2 = vec![
-                OperationV2 { timestamp: first_timestamp, direction: Direction::Backup, hoard: hoard_name.clone(), hoards_root: PathBuf::new(), files: Hoard::Anonymous(
-                    Pile {
+                OperationV2 {
+                    timestamp: first_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name.clone(),
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Anonymous(Pile {
                         created: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
-                        .. Pile::default()
-                    }
-                )},
-                OperationV2 { timestamp: second_timestamp, direction: Direction::Restore, hoard: hoard_name.clone(), hoards_root: PathBuf::new(), files: Hoard::Anonymous(
-                    Pile {
+                        ..Pile::default()
+                    }),
+                },
+                OperationV2 {
+                    timestamp: second_timestamp,
+                    direction: Direction::Restore,
+                    hoard: hoard_name.clone(),
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Anonymous(Pile {
                         unmodified: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
-                        .. Pile::default()
-                    }
-                )},
-                OperationV2 { timestamp: third_timestamp, direction: Direction::Backup, hoard: hoard_name, hoards_root: PathBuf::new(), files: Hoard::Anonymous(
-                    Pile {
+                        ..Pile::default()
+                    }),
+                },
+                OperationV2 {
+                    timestamp: third_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name,
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Anonymous(Pile {
                         deleted: maplit::hashset! { PathBuf::new() },
-                        .. Pile::default()
-                    }
-                )},
+                        ..Pile::default()
+                    }),
+                },
             ];
 
             assert_conversion(ops_v1, ops_v2);
@@ -403,38 +487,55 @@ mod tests {
             let third_timestamp = second_timestamp - Duration::hours(2);
             let hoard_name = String::from("anon_file");
             let ops_v1 = vec![
-                v1::OperationV1 { timestamp: first_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Anonymous(
-                    v1::Pile(maplit::hashmap! {
+                v1::OperationV1 {
+                    timestamp: first_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
                         PathBuf::from("file_1") => String::from("ba9d332813a722b273a95fa13dd88d94"),
                         PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
-                    })
-                )},
-                v1::OperationV1 { timestamp: second_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Anonymous(
-                    v1::Pile(maplit::hashmap! {
+                    })),
+                },
+                v1::OperationV1 {
+                    timestamp: second_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
                         PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
                         PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
                         PathBuf::from("file_3") => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
-                    })
-                )},
-                v1::OperationV1 { timestamp: third_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Anonymous(
-                    v1::Pile(maplit::hashmap! {
+                    })),
+                },
+                v1::OperationV1 {
+                    timestamp: third_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
                         PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
                         PathBuf::from("file_3") => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
-                    })
-                )},
+                    })),
+                },
             ];
             let ops_v2 = vec![
-                OperationV2 { timestamp: first_timestamp, direction: Direction::Backup, hoard: hoard_name.clone(), hoards_root: PathBuf::new(), files: Hoard::Anonymous(
-                    Pile {
+                OperationV2 {
+                    timestamp: first_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name.clone(),
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Anonymous(Pile {
                         created: maplit::hashmap! {
                             PathBuf::from("file_1") => Checksum::MD5(String::from("ba9d332813a722b273a95fa13dd88d94")),
                             PathBuf::from("file_2") => Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c")),
                         },
-                        .. Pile::default()
-                    }
-                )},
-                OperationV2 { timestamp: second_timestamp, direction: Direction::Backup, hoard: hoard_name.clone(), hoards_root: PathBuf::new(), files: Hoard::Anonymous(
-                    Pile {
+                        ..Pile::default()
+                    }),
+                },
+                OperationV2 {
+                    timestamp: second_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name.clone(),
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Anonymous(Pile {
                         created: maplit::hashmap! {
                             PathBuf::from("file_3") => Checksum::MD5(String::from("797b373a9c4ec0d6de0a31a90b5bee8e"))
                         },
@@ -444,11 +545,15 @@ mod tests {
                         unmodified: maplit::hashmap! {
                             PathBuf::from("file_2") => Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c")),
                         },
-                        .. Pile::default()
-                    }
-                )},
-                OperationV2 { timestamp: third_timestamp, direction: Direction::Backup, hoard: hoard_name, hoards_root: PathBuf::new(), files: Hoard::Anonymous(
-                    Pile {
+                        ..Pile::default()
+                    }),
+                },
+                OperationV2 {
+                    timestamp: third_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name,
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Anonymous(Pile {
                         modified: maplit::hashmap! {
                             PathBuf::from("file_3") => Checksum::MD5(String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"))
                         },
@@ -456,9 +561,9 @@ mod tests {
                         unmodified: maplit::hashmap! {
                             PathBuf::from("file_1") => Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2")),
                         },
-                        .. Pile::default()
-                    }
-                )},
+                        ..Pile::default()
+                    }),
+                },
             ];
 
             assert_conversion(ops_v1, ops_v2);
@@ -471,38 +576,51 @@ mod tests {
             let third_timestamp = second_timestamp - Duration::hours(2);
             let hoard_name = String::from("anon_file");
             let ops_v1 = vec![
-                v1::OperationV1 { timestamp: first_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Named(
-                    maplit::hashmap! {
+                v1::OperationV1 {
+                    timestamp: first_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => v1::Pile(maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") }),
                         String::from("dir") => v1::Pile(maplit::hashmap! {
                             PathBuf::from("file_1") => String::from("ba9d332813a722b273a95fa13dd88d94"),
                             PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
                         })
-                    }
-                )},
-                v1::OperationV1 { timestamp: second_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Named(
-                    maplit::hashmap! {
+                    }),
+                },
+                v1::OperationV1 {
+                    timestamp: second_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => v1::Pile(maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") }),
                         String::from("dir") => v1::Pile(maplit::hashmap! {
                             PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
                             PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
                             PathBuf::from("file_3") => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
                         })
-                    }
-                )},
-                v1::OperationV1 { timestamp: third_timestamp, is_backup: true, hoard_name: hoard_name.clone(), hoard: v1::Hoard::Named(
-                    maplit::hashmap! {
+                    }),
+                },
+                v1::OperationV1 {
+                    timestamp: third_timestamp,
+                    is_backup: true,
+                    hoard_name: hoard_name.clone(),
+                    hoard: v1::Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => v1::Pile(HashMap::new()),
                         String::from("dir") => v1::Pile(maplit::hashmap! {
                             PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
                             PathBuf::from("file_3") => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
                         })
-                    }
-                )},
+                    }),
+                },
             ];
             let ops_v2 = vec![
-                OperationV2 { timestamp: first_timestamp, direction: Direction::Backup, hoard: hoard_name.clone(), hoards_root: PathBuf::new(), files: Hoard::Named(
-                    maplit::hashmap! {
+                OperationV2 {
+                    timestamp: first_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name.clone(),
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => Pile {
                             created: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
                             .. Pile::default()
@@ -514,10 +632,14 @@ mod tests {
                             },
                             .. Pile::default()
                         }
-                    }
-                )},
-                OperationV2 { timestamp: second_timestamp, direction: Direction::Backup, hoard: hoard_name.clone(), hoards_root: PathBuf::new(), files: Hoard::Named(
-                    maplit::hashmap! {
+                    }),
+                },
+                OperationV2 {
+                    timestamp: second_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name.clone(),
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => Pile {
                             unmodified: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
                             .. Pile::default()
@@ -534,10 +656,14 @@ mod tests {
                             },
                             .. Pile::default()
                         }
-                    }
-                )},
-                OperationV2 { timestamp: third_timestamp, direction: Direction::Backup, hoard: hoard_name, hoards_root: PathBuf::new(), files: Hoard::Named(
-                    maplit::hashmap! {
+                    }),
+                },
+                OperationV2 {
+                    timestamp: third_timestamp,
+                    direction: Direction::Backup,
+                    hoard: hoard_name,
+                    hoards_root: PathBuf::new(),
+                    files: Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => Pile {
                             deleted: maplit::hashset! { PathBuf::new() },
                             .. Pile::default()
@@ -552,12 +678,11 @@ mod tests {
                             },
                             .. Pile::default()
                         }
-                    }
-                )},
+                    }),
+                },
             ];
 
             assert_conversion(ops_v1, ops_v2);
         }
     }
 }
-

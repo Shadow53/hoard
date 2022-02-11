@@ -55,7 +55,10 @@ impl Pile {
         let trie = EnvTrie::new(&items, exclusivity)?;
         let path = trie.get_path(envs)?.map(expand_env_in_path).transpose()?;
 
-        Ok(ConfigSingle { config: config.unwrap_or_default(), path })
+        Ok(ConfigSingle {
+            config: config.unwrap_or_default(),
+            path,
+        })
     }
 
     pub(crate) fn layer_config(&mut self, config: Option<&PileConfig>) {
@@ -153,8 +156,8 @@ mod tests {
     };
 
     mod config {
-        use crate::hoard_file::ChecksumType;
         use super::*;
+        use crate::hoard_file::ChecksumType;
 
         #[test]
         fn test_layer_configs_both_none() {
@@ -266,9 +269,9 @@ mod tests {
 
     mod serde {
         use super::*;
+        use crate::hoard_file::ChecksumType;
         use maplit::hashmap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
-        use crate::hoard_file::ChecksumType;
 
         #[test]
         fn single_entry_no_config() {
@@ -318,7 +321,9 @@ mod tests {
                         len: 3,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum { name: "ChecksumType" },
+                    Token::Enum {
+                        name: "ChecksumType",
+                    },
                     Token::Str("sha256"),
                     Token::Unit,
                     Token::Str("encrypt"),
@@ -406,7 +411,9 @@ mod tests {
                         len: 3,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum { name: "ChecksumType" },
+                    Token::Enum {
+                        name: "ChecksumType",
+                    },
                     Token::Str("sha256"),
                     Token::Unit,
                     Token::Str("encrypt"),
@@ -477,7 +484,9 @@ mod tests {
                         len: 3,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum { name: "ChecksumType" },
+                    Token::Enum {
+                        name: "ChecksumType",
+                    },
                     Token::Str("sha256"),
                     Token::Unit,
                     Token::Str("encrypt"),

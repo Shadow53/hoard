@@ -1,22 +1,22 @@
-use std::{fs, io};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use super::{Error, Operation};
+use crate::checkers::history::get_history_root_dir;
+use crate::checkers::history::operation::OperationImpl;
+use crate::checkers::Checker;
+use crate::hoard::Direction;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::{fs, io};
 use time::format_description::FormatItem;
 use uuid::Uuid;
-use crate::checkers::Checker;
-use crate::checkers::history::get_history_root_dir;
-use crate::checkers::history::operation::OperationImpl;
-use crate::hoard::Direction;
-use super::{Operation, Error};
 
 pub(crate) static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
     time::format_description::parse(
         "[year]_[month]_[day]-[hour repr:24]_[minute]_[second].[subsecond digits:6]",
     )
-        .unwrap()
+    .unwrap()
 });
 
 pub(crate) static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -28,12 +28,12 @@ pub(crate) fn file_is_log(path: &Path) -> bool {
     let _span = tracing::trace_span!("file_is_log", ?path).entered();
     let result = path.is_file()
         && match path.file_name() {
-        None => false, // grcov: ignore
-        Some(name) => match name.to_str() {
             None => false, // grcov: ignore
-            Some(name) => LOG_FILE_REGEX.is_match(name),
-        },
-    };
+            Some(name) => match name.to_str() {
+                None => false, // grcov: ignore
+                Some(name) => LOG_FILE_REGEX.is_match(name),
+            },
+        };
     tracing::trace!(result, "determined if file is operation log");
     result
 }
@@ -154,11 +154,18 @@ pub(crate) fn cleanup_operations() -> Result<u32, (u32, Error)> {
         .map(|(count, _)| count)
 }
 
-fn all_operations() -> io::Result<impl Iterator<Item=Result<Operation, Error>>> {
+fn all_operations() -> io::Result<impl Iterator<Item = Result<Operation, Error>>> {
     let history_dir = get_history_root_dir();
     let iter = fs::read_dir(history_dir)?
         .filter_map_ok(|uuid_entry| {
-            let is_uuid = uuid_entry.file_name().to_str().map(Uuid::parse_str).transpose().ok().flatten().is_some();
+            let is_uuid = uuid_entry
+                .file_name()
+                .to_str()
+                .map(Uuid::parse_str)
+                .transpose()
+                .ok()
+                .flatten()
+                .is_some();
             let uuid_path = uuid_entry.path();
             (is_uuid && uuid_path.is_dir()).then(|| uuid_path)
         })
@@ -174,12 +181,10 @@ fn all_operations() -> io::Result<impl Iterator<Item=Result<Operation, Error>>> 
         .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
         .filter_ok(|path| file_is_log(path)) // Only those paths that are log files
         .map_ok(|path| Operation::from_file(&path)) // Operations
-        .map(|result| {
-            match result {
-                Err(err) => Err(Error::IO(err)),
-                Ok(Err(err)) => Err(err),
-                Ok(Ok(result)) => Ok(result),
-            }
+        .map(|result| match result {
+            Err(err) => Err(Error::IO(err)),
+            Ok(Err(err)) => Err(err),
+            Ok(Ok(result)) => Ok(result),
         });
     Ok(iter)
 }

@@ -1,9 +1,9 @@
 use crate::filters::{Filter, Filters};
+use crate::hoard::iter::HoardFile;
 use crate::hoard::{Hoard, HoardPath, SystemPath};
 use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
-use crate::hoard::iter::HoardFile;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
@@ -14,7 +14,10 @@ pub(crate) struct RootPathItem {
 impl RootPathItem {
     fn keep(&self) -> bool {
         (self.is_file() || self.is_dir())
-            && self.filters.keep(self.hoard_file.system_prefix(), self.hoard_file.system_path())
+            && self.filters.keep(
+                self.hoard_file.system_prefix(),
+                self.hoard_file.system_path(),
+            )
     }
 
     fn is_file(&self) -> bool {
@@ -50,7 +53,12 @@ impl AllFilesIter {
                         let hoard_prefix = HoardPath(hoards_root.join(hoard_name));
                         let system_prefix = SystemPath(path);
                         vec![RootPathItem {
-                            hoard_file: HoardFile::new(None, hoard_prefix, system_prefix, PathBuf::new()),
+                            hoard_file: HoardFile::new(
+                                None,
+                                hoard_prefix,
+                                system_prefix,
+                                PathBuf::new(),
+                            ),
                             filters,
                         }]
                     }
@@ -68,7 +76,12 @@ impl AllFilesIter {
                         let hoard_prefix = HoardPath(hoards_root.join(hoard_name).join(name));
                         let system_prefix = SystemPath(path.clone());
                         Ok(RootPathItem {
-                            hoard_file: HoardFile::new(Some(name.clone()), hoard_prefix, system_prefix, PathBuf::new()),
+                            hoard_file: HoardFile::new(
+                                Some(name.clone()),
+                                hoard_prefix,
+                                system_prefix,
+                                PathBuf::new(),
+                            ),
                             filters,
                         })
                     })
@@ -122,17 +135,33 @@ impl Iterator for AllFilesIter {
                                 let system_path = item.hoard_file.system_path();
                                 match fs::read_dir(system_path) {
                                     Ok(iter) => self.system_entries = Some(iter.peekable()),
-                                    Err(err) => if err.kind() == io::ErrorKind::NotFound { self.system_entries = None } else {
-                                        tracing::error!("failed to read directory {}: {}", system_path.display(), err);
-                                        return Some(Err(err));
-                                    },
+                                    Err(err) => {
+                                        if err.kind() == io::ErrorKind::NotFound {
+                                            self.system_entries = None
+                                        } else {
+                                            tracing::error!(
+                                                "failed to read directory {}: {}",
+                                                system_path.display(),
+                                                err
+                                            );
+                                            return Some(Err(err));
+                                        }
+                                    }
                                 }
                                 match fs::read_dir(hoard_path) {
                                     Ok(iter) => self.hoard_entries = Some(iter.peekable()),
-                                    Err(err) => if err.kind() == io::ErrorKind::NotFound { self.hoard_entries = None } else {
-                                        tracing::error!("failed to read directory {}: {}", hoard_path.display(), err);
-                                        return Some(Err(err));
-                                    },
+                                    Err(err) => {
+                                        if err.kind() == io::ErrorKind::NotFound {
+                                            self.hoard_entries = None
+                                        } else {
+                                            tracing::error!(
+                                                "failed to read directory {}: {}",
+                                                hoard_path.display(),
+                                                err
+                                            );
+                                            return Some(Err(err));
+                                        }
+                                    }
                                 }
                                 self.current_root = Some(item);
                             }
@@ -151,9 +180,18 @@ impl Iterator for AllFilesIter {
                     let entry = match entry {
                         Ok(entry) => entry,
                         Err(err) => {
-                            tracing::error!("could not process entry in {}: {}", self.current_root.as_ref().unwrap().hoard_file.system_path().display(), err);
+                            tracing::error!(
+                                "could not process entry in {}: {}",
+                                self.current_root
+                                    .as_ref()
+                                    .unwrap()
+                                    .hoard_file
+                                    .system_path()
+                                    .display(),
+                                err
+                            );
                             return Some(Err(err));
-                        },
+                        }
                     };
 
                     let relative_path = entry
@@ -167,7 +205,7 @@ impl Iterator for AllFilesIter {
                             current_root.hoard_file.pile_name().map(str::to_string),
                             HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
                             SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
-                            relative_path
+                            relative_path,
                         ),
                         filters: current_root.filters.clone(),
                     };
@@ -187,9 +225,18 @@ impl Iterator for AllFilesIter {
                     let entry = match entry {
                         Ok(entry) => entry,
                         Err(err) => {
-                            tracing::error!("could not process entry in {}: {}", self.current_root.as_ref().unwrap().hoard_file.hoard_path().display(), err);
+                            tracing::error!(
+                                "could not process entry in {}: {}",
+                                self.current_root
+                                    .as_ref()
+                                    .unwrap()
+                                    .hoard_file
+                                    .hoard_path()
+                                    .display(),
+                                err
+                            );
                             return Some(Err(err));
-                        },
+                        }
                     };
 
                     let relative_path = entry
@@ -203,7 +250,7 @@ impl Iterator for AllFilesIter {
                             current_root.hoard_file.pile_name().map(str::to_string),
                             HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
                             SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
-                            relative_path
+                            relative_path,
                         ),
                         filters: current_root.filters.clone(),
                     };

@@ -7,10 +7,10 @@ mod diff_files;
 mod operation;
 
 //pub(crate) use all_files::AllFilesIter;
-pub(crate) use diff_files::{DiffSource, HoardDiffIter, HoardFileDiff};
 pub(crate) use crate::hoard_file::HoardFile;
+pub(crate) use diff_files::{DiffSource, HoardDiffIter, HoardFileDiff};
+use macros::propagate_error;
 pub(crate) use operation::{OperationIter, OperationType};
- use macros::propagate_error;
 
 mod macros {
     macro_rules! propagate_error {
@@ -19,7 +19,7 @@ mod macros {
                 Ok(val) => val,
                 Err(err) => return Some(Err(err)),
             }
-        }
+        };
     }
 
     pub(crate) use propagate_error;
