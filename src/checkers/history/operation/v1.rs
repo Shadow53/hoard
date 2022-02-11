@@ -7,16 +7,12 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
-use crate::hoard::{Direction, Hoard as ConfigHoard, Pile as ConfigPile};
-use md5::{Digest, Md5};
+use crate::hoard::Direction;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
-use std::fs;
 use time::OffsetDateTime;
 use crate::checkers::history::operation::{Checksum, OperationFileInfo};
-use super::Error;
 
 /// A single operation log.
 ///
@@ -33,6 +29,7 @@ pub(crate) struct OperationV1 {
     /// The name of the hoard for this `HoardOperation`.
     pub(crate) hoard_name: String,
     /// Mapping of pile files to checksums
+    #[allow(dead_code)]
     pub(crate) hoard: Hoard,
 }
 
@@ -115,58 +112,6 @@ pub(crate) enum Hoard {
     Named(HashMap<String, Pile>),
 }
 
-impl TryFrom<&ConfigHoard> for Hoard {
-    type Error = Error;
-    fn try_from(hoard: &ConfigHoard) -> Result<Self, Self::Error> {
-        let _span = tracing::trace_span!("hoard_to_operation", ?hoard).entered();
-        match hoard {
-            ConfigHoard::Anonymous(pile) => Pile::try_from(pile).map(Hoard::Anonymous),
-            ConfigHoard::Named(map) => map
-                .piles
-                .iter()
-                .map(|(key, pile)| Pile::try_from(pile).map(|pile| (key.clone(), pile)))
-                .collect::<Result<HashMap<_, _>, _>>()
-                .map(Hoard::Named),
-        }
-    }
-}
-
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Pile(pub(super) HashMap<PathBuf, String>);
-
-fn hash_path(path: &Path, root: &Path) -> Result<HashMap<PathBuf, String>, Error> {
-    let mut map = HashMap::new();
-    if path.is_file() {
-        tracing::trace!(file=%path.display(), "Hashing file");
-        let bytes = fs::read(path)?;
-        let digest = Md5::digest(&bytes);
-        let rel_path = path
-            .strip_prefix(root)
-            .expect("paths in hash_path should always be children of the given root")
-            .to_path_buf();
-        map.insert(rel_path, format!("{:x}", digest));
-    } else if path.is_dir() {
-        tracing::trace!(dir=%path.display(), "Hashing all files in dir");
-        for item in fs::read_dir(path)? {
-            let item = item?;
-            let path = item.path();
-            map.extend(hash_path(&path, root)?);
-        }
-    } else {
-        tracing::warn!(path=%path.display(), "path is neither file nor directory, skipping");
-    }
-
-    Ok(map)
-}
-
-impl TryFrom<&ConfigPile> for Pile {
-    type Error = Error;
-    fn try_from(pile: &ConfigPile) -> Result<Self, Self::Error> {
-        let _span = tracing::trace_span!("pile_to_operation", ?pile).entered();
-        pile.path.as_ref().map_or_else(
-            || Ok(Self(HashMap::new())),
-            |path| hash_path(path, path).map(Self),
-        )
-    }
-}

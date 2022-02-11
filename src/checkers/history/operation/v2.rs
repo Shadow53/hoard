@@ -142,9 +142,9 @@ impl OperationV2 {
         };
 
         Self {
-            timestamp: old_v1.timestamp,
-            direction: if old_v1.is_backup { Direction::Backup } else { Direction::Restore },
-            hoard: old_v1.hoard_name,
+            timestamp: old_v1.timestamp(),
+            direction: old_v1.direction(),
+            hoard: old_v1.hoard_name().to_string(),
             files,
             hoards_root: PathBuf::new()
         }

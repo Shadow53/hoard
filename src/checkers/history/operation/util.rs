@@ -194,7 +194,7 @@ pub(crate) fn upgrade_operations() -> Result<(), Error> {
     for operation in all_ops {
         //let operation = operation?;
         tracing::trace!(?operation, "converting operation");
-        let operation = operation.into_latest_version(&mut file_checksum_map, &mut file_set);
+        let operation = operation.convert_to_latest_version(&mut file_checksum_map, &mut file_set);
         tracing::trace!(?operation, "converted operation");
         operation.commit_to_disk()?;
     }

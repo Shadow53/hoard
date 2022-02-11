@@ -152,12 +152,20 @@ impl Operation {
             .map(Self)
     }
 
-    fn as_latest_version(&self) -> Result<&OperationV2, Error> {
-        if let Self(OperationVersion::V2(op)) = self {
-            Ok(op)
+    fn require_latest_version(&self) -> Result<(), Error> {
+        if let Self(OperationVersion::V2(_)) = self {
+            Ok(())
         } else {
             Err(Error::UpgradeRequired)
         }
+    }
+
+    fn as_latest_version(&self) -> Result<&Self, Error> {
+        self.require_latest_version().map(|_| self)
+    }
+
+    fn into_latest_version(self) -> Result<Self, Error> {
+        self.require_latest_version().map(|_| self)
     }
 
     fn from_file(path: &Path) -> Result<Self, Error> {
@@ -204,7 +212,7 @@ impl Operation {
         }
     }
 
-    pub(crate) fn into_latest_version(
+    pub(crate) fn convert_to_latest_version(
         self,
         file_checksums: &mut HashMap<(Option<String>, PathBuf), Option<Checksum>>,
         file_set: &mut HashSet<(Option<String>, PathBuf)>,
@@ -307,7 +315,9 @@ impl Operation {
             .map(|dir| Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true, only_modified))
             .reduce(Self::reduce_option_latest)
             .transpose()
-            .map(Option::flatten)
+            .map(Option::flatten)?
+            .map(Self::into_latest_version)
+            .transpose()
     }
 
     /// Returns whether the given `file` has unapplied remote changes.
