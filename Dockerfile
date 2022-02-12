@@ -2,7 +2,7 @@ FROM rust:alpine
 
 ENV RUSTC_BOOTSTRAP="1"
 ENV RUSTFLAGS="-Zinstrument-coverage"
-ENV LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
+ENV LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%9m.profraw"
 ENV CI=true GITHUB_ACTIONS=true HOARD_LOG=trace
 WORKDIR /hoard-tests
 
