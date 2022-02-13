@@ -114,60 +114,69 @@ impl AllFilesIter {
 
         false
     }
+
+    #[allow(clippy::option_option)]
+    fn ensure_dir_entries(&mut self) -> Option<Option<io::Result<HoardFile>>> {
+        // Attempt to create direntry iterator.
+        // If a path to a file is encountered, return that.
+        // Otherwise, continue until existing directory is found.
+        while !self.has_dir_entries() {
+            match self.root_paths.pop() {
+                None => return Some(None),
+                Some(item) => {
+                    if item.keep() {
+                        if item.is_file() {
+                            return Some(Some(Ok(item.hoard_file)));
+                        } else if item.is_dir() {
+                            let hoard_path = item.hoard_file.hoard_path();
+                            let system_path = item.hoard_file.system_path();
+                            match fs::read_dir(system_path) {
+                                Ok(iter) => self.system_entries = Some(iter.peekable()),
+                                Err(err) => {
+                                    if err.kind() == io::ErrorKind::NotFound {
+                                        self.system_entries = None;
+                                    } else {
+                                        tracing::error!(
+                                                "failed to read directory {}: {}",
+                                                system_path.display(),
+                                                err
+                                            );
+                                        return Some(Some(Err(err)));
+                                    }
+                                }
+                            }
+                            match fs::read_dir(hoard_path) {
+                                Ok(iter) => self.hoard_entries = Some(iter.peekable()),
+                                Err(err) => {
+                                    if err.kind() == io::ErrorKind::NotFound {
+                                        self.hoard_entries = None;
+                                    } else {
+                                        tracing::error!(
+                                                "failed to read directory {}: {}",
+                                                hoard_path.display(),
+                                                err
+                                            );
+                                        return Some(Some(Err(err)));
+                                    }
+                                }
+                            }
+                            self.current_root = Some(item);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
 }
 
 impl Iterator for AllFilesIter {
     type Item = io::Result<HoardFile>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            // Attempt to create direntry iterator.
-            // If a path to a file is encountered, return that.
-            // Otherwise, continue until existing directory is found.
-            while !self.has_dir_entries() {
-                match self.root_paths.pop() {
-                    None => return None,
-                    Some(item) => {
-                        if item.keep() {
-                            if item.is_file() {
-                                return Some(Ok(item.hoard_file));
-                            } else if item.is_dir() {
-                                let hoard_path = item.hoard_file.hoard_path();
-                                let system_path = item.hoard_file.system_path();
-                                match fs::read_dir(system_path) {
-                                    Ok(iter) => self.system_entries = Some(iter.peekable()),
-                                    Err(err) => {
-                                        if err.kind() == io::ErrorKind::NotFound {
-                                            self.system_entries = None
-                                        } else {
-                                            tracing::error!(
-                                                "failed to read directory {}: {}",
-                                                system_path.display(),
-                                                err
-                                            );
-                                            return Some(Err(err));
-                                        }
-                                    }
-                                }
-                                match fs::read_dir(hoard_path) {
-                                    Ok(iter) => self.hoard_entries = Some(iter.peekable()),
-                                    Err(err) => {
-                                        if err.kind() == io::ErrorKind::NotFound {
-                                            self.hoard_entries = None
-                                        } else {
-                                            tracing::error!(
-                                                "failed to read directory {}: {}",
-                                                hoard_path.display(),
-                                                err
-                                            );
-                                            return Some(Err(err));
-                                        }
-                                    }
-                                }
-                                self.current_root = Some(item);
-                            }
-                        }
-                    }
-                }
+            if let Some(return_value) = self.ensure_dir_entries() {
+                return return_value;
             }
 
             let current_root = self

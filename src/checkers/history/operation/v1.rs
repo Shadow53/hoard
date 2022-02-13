@@ -85,7 +85,6 @@ impl super::OperationImpl for OperationV1 {
         match &self.hoard {
             Hoard::Anonymous(pile) => {
                 Box::new(pile.0.iter().map(move |(path, md5)| OperationFileInfo {
-                    hoard: self.hoard_name.to_string(),
                     pile_name: None,
                     relative_path: path.clone(),
                     checksum: Some(Checksum::MD5(md5.clone())),
@@ -94,7 +93,6 @@ impl super::OperationImpl for OperationV1 {
             Hoard::Named(piles) => Box::new({
                 piles.iter().flat_map(move |(pile_name, pile)| {
                     pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
-                        hoard: self.hoard_name.to_string(),
                         pile_name: Some(pile_name.clone()),
                         relative_path: rel_path.clone(),
                         checksum: Some(Checksum::MD5(md5.clone())),

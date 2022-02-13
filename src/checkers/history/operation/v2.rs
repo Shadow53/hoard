@@ -67,6 +67,7 @@ impl OperationV2 {
     ///   checksums. The checksum is `None` if the file did not exist prior to the `old_v1` operation.
     /// - `files`: contains all paths whose checksums are `None` in `file_checksums`. This is used
     ///   as an optimization technique while determining which files were created or deleted.
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn from_v1(
         file_checksums: &mut HashMap<(Option<String>, PathBuf), Option<Checksum>>,
         file_set: &mut HashSet<(Option<String>, PathBuf)>,
@@ -192,7 +193,6 @@ impl OperationImpl for OperationV2 {
         match &self.files {
             Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(
                 move |(path, checksum)| OperationFileInfo {
-                    hoard: self.hoard.to_string(),
                     pile_name: None,
                     relative_path: path.to_path_buf(),
                     checksum,
@@ -201,7 +201,6 @@ impl OperationImpl for OperationV2 {
             Hoard::Named(piles) => Box::new(piles.iter().flat_map(move |(pile_name, pile)| {
                 pile.all_files_with_checksums()
                     .map(move |(path, checksum)| OperationFileInfo {
-                        hoard: self.hoard.to_string(),
                         pile_name: Some(pile_name.to_string()),
                         relative_path: path.to_path_buf(),
                         checksum,
@@ -570,6 +569,7 @@ mod tests {
         }
 
         #[test]
+        #[allow(clippy::too_many_lines)]
         fn test_from_named() {
             let first_timestamp = time::OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);

@@ -47,6 +47,7 @@ pub trait Checker: Sized {
 
 /// Errors that may occur while using [`Checkers`].
 #[derive(Debug, Error)]
+#[allow(variant_size_differences)]
 pub enum Error {
     /// An error occurred while comparing paths for this run to the previous one.
     #[error("error while comparing previous run to current run: {0}")]

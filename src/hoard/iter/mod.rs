@@ -26,6 +26,7 @@ mod macros {
 }
 
 #[derive(Debug, Error)]
+#[allow(variant_size_differences)]
 pub enum Error {
     #[error("failed to create diff: {0}")]
     Diff(#[from] FilterError),

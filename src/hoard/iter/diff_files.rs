@@ -88,6 +88,7 @@ impl PartialOrd for HoardFileDiff {
 }
 
 impl Ord for HoardFileDiff {
+    #[allow(clippy::too_many_lines)]
     fn cmp(&self, other: &Self) -> Ordering {
         #[allow(clippy::match_same_arms)]
         match (self, other) {
@@ -309,6 +310,7 @@ impl HoardDiffIter {
 impl Iterator for HoardDiffIter {
     type Item = Result<HoardFileDiff, super::Error>;
 
+    #[allow(clippy::too_many_lines)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(result) = self.iterator.by_ref().next() {
             let file = super::propagate_error!(result.map_err(super::Error::IO));

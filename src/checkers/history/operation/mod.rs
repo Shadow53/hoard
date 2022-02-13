@@ -49,7 +49,6 @@ pub enum Error {
 ///
 /// This is *not* the Operation log file.
 pub(crate) struct OperationFileInfo {
-    hoard: String,
     pile_name: Option<String>,
     relative_path: PathBuf,
     checksum: Option<Checksum>,
