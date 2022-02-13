@@ -5,10 +5,12 @@ use crate::hoard::iter::HoardFile;
 use crate::hoard::Hoard;
 use std::cmp::Ordering;
 use std::fs::Permissions;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::{fmt, fs};
 use tracing::trace_span;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum DiffSource {
