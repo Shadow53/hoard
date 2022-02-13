@@ -81,7 +81,7 @@ configuration item:
 
 ### Hashing Algorithms
 
-Set `ignore` to one of the below strings to manually set which hashing algorithm is used when recording 
+Set `hash_algorithm` to one of the below strings to manually set which hashing algorithm is used when recording 
 [Hoard operations](../cli/checks.md#remote-operations).
 
 - `"sha256"` (default): SHA-256 is an older but unbroken algorithm.
