@@ -137,10 +137,10 @@ impl AllFilesIter {
                                         self.system_entries = None;
                                     } else {
                                         tracing::error!(
-                                                "failed to read directory {}: {}",
-                                                system_path.display(),
-                                                err
-                                            );
+                                            "failed to read directory {}: {}",
+                                            system_path.display(),
+                                            err
+                                        );
                                         return Some(Some(Err(err)));
                                     }
                                 }
@@ -152,10 +152,10 @@ impl AllFilesIter {
                                         self.hoard_entries = None;
                                     } else {
                                         tracing::error!(
-                                                "failed to read directory {}: {}",
-                                                hoard_path.display(),
-                                                err
-                                            );
+                                            "failed to read directory {}: {}",
+                                            hoard_path.display(),
+                                            err
+                                        );
                                         return Some(Some(Err(err)));
                                     }
                                 }
