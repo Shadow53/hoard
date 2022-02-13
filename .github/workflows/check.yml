@@ -127,7 +127,7 @@ jobs:
           LLVM_PROFILE_FILE: 'profraw/hoard-cargo-tests-%p-%m.profraw'
 
       - name: Install dependencies (Linux)
-        run: pip install pyyaml toml
+        run: pip install pyyaml toml pydantic
 
       - name: Run Integration Tests
         run: python ci-tests/tests all
