@@ -1,5 +1,4 @@
 exclusivity = [
-    ["first", "second"],
     ["unix", "windows"]
 ]
 
@@ -7,7 +6,7 @@ exclusivity = [
 [envs.windows]
     os = ["windows"]
 [[envs.windows.env]]
-    var = "HOMEPATH"
+    var = "USERPROFILE"
 [envs.unix]
     os = ["linux", "macos"]
 [[envs.unix.env]]

@@ -15,7 +15,7 @@ class OperationCheckerTester(HoardTester):
         # We are not changing env on this test
         self.env = {"USE_ENV": "1"}
 
-    def _checksum_matches(self, hoard_name, hoard_path, content, *, matches, message="", uuid=None):
+    def _checksum_matches(self, hoard_name, hoard_path, content, *, matches, pile=None, message="", uuid=None):
         if uuid is None:
             uuid = self.uuid
         operation_log_dir = self.data_dir_path().joinpath("history", uuid, hoard_name)
@@ -29,21 +29,44 @@ class OperationCheckerTester(HoardTester):
                 if entry.is_file() and "last_paths" not in entry.name and is_later:
                     print("    Marking as latest entry")
                     latest = entry
-        with open(latest.path) as file:
-            op_json = json.load(file)
-            for item in hoard_path:
-                op_json = op_json[item]
+        with open(latest.path, encoding="utf-8") as file:
+            root = json.load(file)
+            op_json = None
+            op_checksum = None
+            try: 
+                root = root["files"] if pile is None else root["files"][pile]
 
-        md5 = hashlib.md5(content).hexdigest()
+                if content is None:
+                    assert hoard_path in root["deleted"]
+                else:
+                    for collection in ["created", "modified", "unmodified"]:
+                        if collection not in root:
+                            continue
+                        op_json = root[collection]
+                        if hoard_path in op_json:
+                            op_json = op_json[hoard_path]
+                            if "md5" in op_json:
+                                op_checksum = op_json["md5"]
+                                checksum = hashlib.md5(content).hexdigest()
+                            elif "sha256" in op_json:
+                                op_checksum = op_json["sha256"]
+                                checksum = hashlib.sha256(content).hexdigest()
+                            else:
+                                raise ValueError(f"expected key md5 or sha256 in {op_json}")
+                            break
+            except KeyError as err:
+                d = root if op_json is None else op_json
+                raise KeyError(f"{err} with dict: {d}") from err
 
-        if matches:
-            assert md5 == op_json, f"expected file hash {md5} to match logged checksum {op_json} for uuid {uuid}: {message}"
-        else:
-            assert md5 != op_json, f"expected file hash {md5} to NOT match logged checksum {op_json} for uuid {uuid}: {message}"
+        if content is not None:
+            if matches:
+                assert checksum == op_checksum, f"expected file hash {checksum} to match logged checksum {op_json} for uuid {uuid}: {message}"
+            else:
+                assert checksum != op_checksum, f"expected file hash {checksum} to NOT match logged checksum {op_json} for uuid {uuid}: {message}"
 
     def _assert_anon_file_checksum_matching(self, content, *, matches, message="", uuid=None):
         self._checksum_matches(
-            "anon_file", ["hoard", "Anonymous", ""], content,
+            "anon_file", "", content,
             matches=matches, message=message, uuid=uuid
         )
 
@@ -60,7 +83,9 @@ class OperationCheckerTester(HoardTester):
         # This should still succeed because the files have the same checksum
         print("========= HOARD RUN #2 =========")
         print("  After removing the UUID file  ")
+        self.args = ["--force"]
         self.run_hoard("backup")
+        self.args = []
         assert self.uuid != self.old_uuid, "a new UUID should have been generated"
 
     def _run3(self):

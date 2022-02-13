@@ -6,9 +6,10 @@
 pub mod history;
 
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
-use crate::checkers::history::operation::{Error as HoardOperationError, HoardOperation};
+use crate::checkers::history::operation::{Error as OperationError, Operation};
 use crate::hoard::{Direction, Hoard};
 use std::collections::HashMap;
+use std::path::Path;
 use thiserror::Error;
 
 /// Trait for validating [`Hoard`]s.
@@ -23,7 +24,12 @@ pub trait Checker: Sized {
     /// # Errors
     ///
     /// Any errors that may occur while creating an instance, such as I/O or consistency errors.
-    fn new(name: &str, hoard: &Hoard, direction: Direction) -> Result<Self, Self::Error>;
+    fn new(
+        hoard_root: &Path,
+        hoard_name: &str,
+        hoard: &Hoard,
+        direction: Direction,
+    ) -> Result<Self, Self::Error>;
     /// Returns an error if it is not safe to operate on the given [`Hoard`].
     ///
     /// # Errors
@@ -41,23 +47,25 @@ pub trait Checker: Sized {
 
 /// Errors that may occur while using [`Checkers`].
 #[derive(Debug, Error)]
+#[allow(variant_size_differences)]
 pub enum Error {
     /// An error occurred while comparing paths for this run to the previous one.
     #[error("error while comparing previous run to current run: {0}")]
     LastPaths(#[from] LastPathsError),
     /// An error occurred while checking against remote operations.
     #[error("error while checking against recent remote operations: {0}")]
-    Operation(#[from] HoardOperationError),
+    Operation(#[from] OperationError),
 }
 
 pub(crate) struct Checkers {
     last_paths: HashMap<String, LastPaths>,
-    operations: HashMap<String, HoardOperation>,
+    operations: HashMap<String, Operation>,
 }
 
 impl Checkers {
     #[allow(single_use_lifetimes)]
     pub(crate) fn new<'a, S: AsRef<str>>(
+        hoards_root: &Path,
         hoards: impl IntoIterator<Item = (S, &'a Hoard)>,
         direction: Direction,
     ) -> Result<Self, Error> {
@@ -66,8 +74,8 @@ impl Checkers {
 
         for (name, hoard) in hoards {
             let name = name.as_ref();
-            let lp = LastPaths::new(name, hoard, direction)?;
-            let op = HoardOperation::new(name, hoard, direction)?;
+            let lp = LastPaths::new(hoards_root, name, hoard, direction)?;
+            let op = Operation::new(hoards_root, name, hoard, direction)?;
             last_paths.insert(name.to_string(), lp);
             operations.insert(name.to_string(), op);
         }

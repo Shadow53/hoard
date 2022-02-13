@@ -8,7 +8,9 @@ pub(crate) mod pile_config;
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::{Error as FilterError, Filter, Filters};
 pub use pile_config::Config as PileConfig;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
@@ -58,7 +60,8 @@ pub enum Error {
     Filter(#[from] FilterError),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 /// Indicates which direction files are being copied in. Used to determine which files are required
 /// to exist.
 pub enum Direction {
@@ -69,14 +72,22 @@ pub enum Direction {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct HoardPath(PathBuf);
 #[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SystemPath(PathBuf);
 
 impl AsRef<Path> for HoardPath {
     fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Deref for HoardPath {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
@@ -87,11 +98,31 @@ impl AsRef<Path> for SystemPath {
     }
 }
 
+impl Deref for SystemPath {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<PathBuf> for HoardPath {
+    fn from(p: PathBuf) -> Self {
+        Self(p)
+    }
+}
+
+impl From<PathBuf> for SystemPath {
+    fn from(p: PathBuf) -> Self {
+        Self(p)
+    }
+}
+
 /// A single path to hoard, with configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pile {
     /// Optional configuration for this path.
-    pub config: Option<PileConfig>,
+    pub config: PileConfig,
     /// The path to hoard.
     ///
     /// The path is optional because it will almost always be set by processing a configuration
@@ -218,9 +249,9 @@ impl Pile {
             )
             .entered();
 
-            let filter = self.config.as_ref().map(Filters::new).transpose()?;
+            let filter = Filters::new(&self.config)?;
 
-            Self::copy(filter.as_ref(), path, path, prefix)?;
+            Self::copy(Some(&filter), path, path, prefix)?;
         } else {
             tracing::warn!("pile has no associated path -- perhaps no environment matched?");
         }

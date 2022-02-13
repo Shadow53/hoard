@@ -21,6 +21,7 @@
     [tasks.build-stable.env]
         RUSTC_BOOTSTRAP="1"
         RUSTFLAGS="-Zinstrument-coverage"
+        LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
 [tasks.test-stable]
     install_crate = false
@@ -32,8 +33,8 @@
         RUSTFLAGS="-Zinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
-[tasks.integration-tests]
-    dependencies = ["build-stable", "create-profraw-dir"]
+[tasks.all-tests]
+    dependencies = ["clean-all", "test-stable", "create-profraw-dir"]
     script = """
     sudo docker image build . -t hoard-tests
     echo "Running tests"
@@ -46,7 +47,7 @@
         LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
 [tasks.grcov]
-    dependencies = ["clean-all", "test-stable", "integration-tests"]
+    dependencies = ["clean-all", "all-tests"]
     # Using `script` is necessary to get the glob expansion
     script = """
     grcov profraw/*.profraw --binary-path ./target/x86_64-unknown-linux-musl/debug \

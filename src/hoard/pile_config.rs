@@ -1,3 +1,4 @@
+use crate::hoard_file::ChecksumType;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -56,9 +57,12 @@ where
 }
 
 /// Hoard/Pile configuration.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    /// The [`ChecksumType`] to use when hashing files.
+    #[serde(default, rename = "hash_algorithm")]
+    pub checksum_type: ChecksumType,
     /// The [`Encryption`] configuration for a pile.
     #[serde(default, rename = "encrypt")]
     pub encryption: Option<Encryption>,

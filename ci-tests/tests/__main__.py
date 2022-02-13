@@ -10,10 +10,12 @@ from testers.hoard_edit import EditCommandTester
 from testers.hoard_list import ListHoardsTester
 from testers.hoard_status import StatusCommandTester
 from testers.hoard_tester import HoardFile, Environment
+from testers.hoard_upgrade import HoardUpgradeTester
 from testers.ignore_filter import IgnoreFilterTester
 from testers.last_paths import LastPathsTester
 from testers.no_config_dir import MissingConfigDirTester
 from testers.operations import OperationCheckerTester
+from testers.operation_checksums import OperationChecksumTester
 from testers.yaml_support import YAMLSupportTester
 
 
@@ -49,6 +51,7 @@ def print_checksums():
 
 
 TEST_MAPPING = {
+    "checksums": ("operation checksums", OperationChecksumTester),
     "cleanup": ("cleanup", LogCleanupTester),
     "diff_command": ("diff command", DiffCommandTester),
     "edit_command": ("edit command", EditCommandTester),
@@ -59,6 +62,7 @@ TEST_MAPPING = {
     "missing_config": ("missing config dir", MissingConfigDirTester),
     "operation": ("operation", OperationCheckerTester),
     "status_command": ("status command", StatusCommandTester),
+    "upgrade_command": ("upgrade command", HoardUpgradeTester),
     "yaml": ("YAML compat", YAMLSupportTester),
 }
 
@@ -99,10 +103,13 @@ if __name__ == "__main__":
         print_logs()
         print("\n### Configs:")
         config_dir = LastPathsTester.config_file_path().parent
-        for file in os.listdir(config_dir):
-            file_path = config_dir.joinpath(file)
-            if file_path.is_file():
-                with open(file_path, "r", encoding="utf-8") as opened:
-                    print(f"##### {file_path}\n")
-                    print(opened.read())
+        try:
+            for file in os.listdir(config_dir):
+                file_path = config_dir.joinpath(file)
+                if file_path.is_file():
+                    with open(file_path, "r", encoding="utf-8") as opened:
+                        print(f"##### {file_path}\n")
+                        print(opened.read())
+        except FileNotFoundError:
+            pass
         raise

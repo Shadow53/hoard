@@ -55,7 +55,10 @@ impl Pile {
         let trie = EnvTrie::new(&items, exclusivity)?;
         let path = trie.get_path(envs)?.map(expand_env_in_path).transpose()?;
 
-        Ok(ConfigSingle { config, path })
+        Ok(ConfigSingle {
+            config: config.unwrap_or_default(),
+            path,
+        })
     }
 
     pub(crate) fn layer_config(&mut self, config: Option<&PileConfig>) {
@@ -154,6 +157,7 @@ mod tests {
 
     mod config {
         use super::*;
+        use crate::hoard_file::ChecksumType;
 
         #[test]
         fn test_layer_configs_both_none() {
@@ -166,6 +170,7 @@ mod tests {
         #[test]
         fn test_layer_specific_some_general_none() {
             let mut specific = Some(PileConfig {
+                checksum_type: ChecksumType::default(),
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
@@ -181,6 +186,7 @@ mod tests {
         fn test_layer_specific_none_general_some() {
             let mut specific = None;
             let general = Some(PileConfig {
+                checksum_type: ChecksumType::default(),
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
@@ -193,6 +199,7 @@ mod tests {
         #[test]
         fn test_layer_configs_both_some() {
             let mut specific = Some(PileConfig {
+                checksum_type: ChecksumType::default(),
                 encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                     "password".into(),
                 ))),
@@ -203,6 +210,7 @@ mod tests {
             });
             let old_specific = specific.clone();
             let general = Some(PileConfig {
+                checksum_type: ChecksumType::default(),
                 encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                     public_key: "somekey".into(),
                 })),
@@ -246,7 +254,7 @@ mod tests {
 
             let home = std::env::var("HOME").expect("failed to read $HOME");
             let expected = RealPile {
-                config: None,
+                config: PileConfig::default(),
                 path: Some(PathBuf::from(format!("{}/something", home))),
             };
 
@@ -261,6 +269,7 @@ mod tests {
 
     mod serde {
         use super::*;
+        use crate::hoard_file::ChecksumType;
         use maplit::hashmap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 
@@ -290,6 +299,7 @@ mod tests {
         fn single_entry_with_config() {
             let hoard = Hoard::Single(Pile {
                 config: Some(PileConfig {
+                    checksum_type: ChecksumType::default(),
                     encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                         public_key: "public key".to_string(),
                     })),
@@ -308,8 +318,14 @@ mod tests {
                     Token::Some,
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum {
+                        name: "ChecksumType",
+                    },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::Some,
                     Token::Struct {
@@ -368,6 +384,7 @@ mod tests {
         fn multiple_entry_with_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: Some(PileConfig {
+                    checksum_type: ChecksumType::default(),
                     encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                         "correcthorsebatterystaple".into(),
                     ))),
@@ -391,8 +408,14 @@ mod tests {
                     Token::Some,
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum {
+                        name: "ChecksumType",
+                    },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::Some,
                     Token::Map { len: Some(2) },
@@ -423,8 +446,12 @@ mod tests {
                 &[
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum { name: "ChecksumType" },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::None,
                     Token::Str("ignore"),
@@ -441,6 +468,7 @@ mod tests {
         #[test]
         fn test_valid_globs() {
             let config = PileConfig {
+                checksum_type: ChecksumType::default(),
                 encryption: None,
                 ignore: vec![
                     glob::Pattern::new("**/valid*").unwrap(),
@@ -453,8 +481,14 @@ mod tests {
                 &[
                     Token::Struct {
                         name: "Config",
-                        len: 2,
+                        len: 3,
                     },
+                    Token::Str("hash_algorithm"),
+                    Token::Enum {
+                        name: "ChecksumType",
+                    },
+                    Token::Str("sha256"),
+                    Token::Unit,
                     Token::Str("encrypt"),
                     Token::None,
                     Token::Str("ignore"),

@@ -20,6 +20,7 @@ use std::fmt;
 
 /// Errors that may occur while evaluating an [`Environment`].
 #[derive(Debug, Error)]
+#[allow(variant_size_differences)]
 pub enum Error {
     /// An error that occurred while determining the system hostname.
     #[error("failed to detect hostname: {0}")]

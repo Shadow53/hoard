@@ -70,7 +70,7 @@ pub fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
     let uuid_file = get_uuid_file();
     let _span = tracing::debug_span!("get_or_generate_uuid", file = ?uuid_file);
 
-    tracing::debug!("attempting to read uuid from file");
+    tracing::trace!("attempting to read uuid from file");
     let id: Option<Uuid> = match fs::read_to_string(&uuid_file) {
         Ok(id) => match id.parse() {
             Ok(id) => {

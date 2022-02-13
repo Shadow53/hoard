@@ -1,5 +1,6 @@
-use crate::hoard::iter::{file_diffs, HoardDiff};
+use crate::hoard::iter::{HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
+use std::collections::BTreeSet;
 use std::path::Path;
 
 #[cfg(unix)]
@@ -11,24 +12,43 @@ pub(crate) fn run_diff(
     hoards_root: &Path,
     verbose: bool,
 ) -> Result<(), super::Error> {
-    let diff_iterator = file_diffs(hoards_root, hoard_name, hoard).map_err(super::Error::Diff)?;
-    for hoard_diff in diff_iterator {
+    let _span = tracing::trace_span!("run_diff").entered();
+    tracing::trace!("running the diff command");
+    let diffs: BTreeSet<HoardFileDiff> =
+        HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard)
+            .map_err(|err| {
+                tracing::error!("failed to create diff iterator: {}", err);
+                super::Error::Diff(err)
+            })?
+            .only_changed()
+            .collect::<Result<_, _>>()
+            .map_err(super::Error::Diff)?;
+    for hoard_diff in diffs {
+        tracing::trace!("printing diff: {:?}", hoard_diff);
         match hoard_diff {
-            HoardDiff::BinaryModified { path, diff_source } => {
-                tracing::info!("{}: binary file changed {}", path.display(), diff_source);
+            HoardFileDiff::BinaryModified { file, diff_source } => {
+                tracing::info!(
+                    "{}: binary file changed {}",
+                    file.system_path().display(),
+                    diff_source
+                );
             }
-            HoardDiff::TextModified {
-                path,
+            HoardFileDiff::TextModified {
+                file,
                 unified_diff,
                 diff_source,
             } => {
-                tracing::info!("{}: text file changed {}", path.display(), diff_source);
+                tracing::info!(
+                    "{}: text file changed {}",
+                    file.system_path().display(),
+                    diff_source
+                );
                 if verbose {
                     tracing::info!("{}", unified_diff);
                 }
             }
-            HoardDiff::PermissionsModified {
-                path,
+            HoardFileDiff::PermissionsModified {
+                file,
                 hoard_perms,
                 system_perms,
                 ..
@@ -36,14 +56,14 @@ pub(crate) fn run_diff(
                 #[cfg(unix)]
                 tracing::info!(
                     "{}: permissions changed: hoard ({:o}), system ({:o})",
-                    path.display(),
+                    file.system_path().display(),
                     hoard_perms.mode(),
                     system_perms.mode(),
                 );
                 #[cfg(not(unix))]
                 tracing::info!(
                     "{}: permissions changed: hoard ({}), system ({})",
-                    path.display(),
+                    file.system_path().display(),
                     if hoard_perms.readonly() {
                         "readonly"
                     } else {
@@ -56,14 +76,35 @@ pub(crate) fn run_diff(
                     },
                 );
             }
-            HoardDiff::Created { path, diff_source } => {
-                tracing::info!("{}: created {}", path.display(), diff_source);
+            HoardFileDiff::Created {
+                file,
+                diff_source,
+                unified_diff,
+            } => {
+                tracing::info!("{}: created {}", file.system_path().display(), diff_source);
+                if let (true, Some(unified_diff)) = (verbose, unified_diff) {
+                    tracing::info!("{}", unified_diff);
+                }
             }
-            HoardDiff::Recreated { path, diff_source } => {
-                tracing::info!("{}: recreated {}", path.display(), diff_source);
+            HoardFileDiff::Recreated {
+                file,
+                diff_source,
+                unified_diff,
+            } => {
+                tracing::info!(
+                    "{}: recreated {}",
+                    file.system_path().display(),
+                    diff_source
+                );
+                if let (true, Some(unified_diff)) = (verbose, unified_diff) {
+                    tracing::info!("{}", unified_diff);
+                }
             }
-            HoardDiff::Deleted { path, diff_source } => {
-                tracing::info!("{}: deleted {}", path.display(), diff_source);
+            HoardFileDiff::Deleted { file, diff_source } => {
+                tracing::info!("{}: deleted {}", file.system_path().display(), diff_source);
+            }
+            HoardFileDiff::Unchanged(file) => {
+                tracing::debug!("{}: unmodified", file.system_path().display());
             }
         }
     }
