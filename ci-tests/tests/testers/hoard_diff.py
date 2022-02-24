@@ -30,7 +30,7 @@ class ContentType(Enum):
 
 class DiffCommandTester(HoardTester):
     def setup(self):
-        self.env["HOARD_LOG"] = "info"
+        self.env["HOARD_LOG"] = "debug"
         self.local_uuid = str(uuid.uuid4())
         self.remote_uuid = str(uuid.uuid4())
 
@@ -212,6 +212,7 @@ class DiffCommandTester(HoardTester):
         if content is None:
             if path.exists():
                 os.remove(path)
+            assert not path.exists()
         elif isinstance(content, int):
             os.chmod(path, content)
         else:
@@ -255,7 +256,7 @@ class DiffCommandTester(HoardTester):
         )
         self._assert_diff_contains(
             hoard,
-            f"{file.path}: {file_type} file changed {location}\n{full_diff}".encode(),
+            f"{full_diff}".encode(),
             verbose=True,
             invert=file.ignored,
             partial=partial,
@@ -279,7 +280,11 @@ class DiffCommandTester(HoardTester):
                 partial=partial,
             )
 
-    def check_deleted_file(self, *, file, hoard, location, partial):
+    def check_deleted_file(self, *, file, hoard, location, partial, system_content, hoard_content):
+        if system_content is None:
+            assert (not file.path.exists()) or file.ignored, f"{file.path} was not deleted"
+        if hoard_content is None:
+            assert (not file.hoard_path.exists()) or file.ignored, f"{file.hoard_path} was not deleted"
         self._assert_diff_contains(
             hoard,
             f"{file.path}: deleted {location}\n".encode(),
@@ -375,9 +380,9 @@ class DiffCommandTester(HoardTester):
             # Permissions
             (self.setup_permissions, modify_file_perms, self.modify_file, self.check_modified_perms),
             # Deleted
-            # (self.setup_modify, delete_file_contents, self.modify_file, self.check_deleted_file),
+            (self.setup_modify, delete_file_contents, self.modify_file, self.check_deleted_file),
             # Recreated
-            # (self.setup_recreate, create_file_contents, self.modify_file, self.check_recreated_file),
+            (self.setup_recreate, create_file_contents, self.modify_file, self.check_recreated_file),
         ]
 
         try:

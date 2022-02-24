@@ -309,7 +309,7 @@ impl Hoard {
                                 file.system_path(),
                             )?;
                             Self::get_or_create_pile(&mut acc, file.pile_name())
-                                .modified
+                                .unmodified
                                 .insert(file.relative_path().to_path_buf(), checksum);
                         }
                     }

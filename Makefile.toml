@@ -30,18 +30,18 @@
     args = ["+stable", "test", "--target", "x86_64-unknown-linux-musl"]
     [tasks.test-stable.env]
         RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage"
+        RUSTFLAGS="-Zinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
 [tasks.all-tests]
     dependencies = ["clean-all", "test-stable", "create-profraw-dir"]
     script = """
-    sudo docker image build . -t hoard-tests
+    sudo docker image build . -t hoard-tests --no-cache
     echo "Running tests"
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
     echo "Ran tests"
     """
-    [tasks.integration-tests.env]
+    [tasks.all-tests.env]
         RUSTC_BOOTSTRAP="1"
         RUSTFLAGS="-Zinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"

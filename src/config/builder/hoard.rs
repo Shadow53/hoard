@@ -12,7 +12,7 @@ use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{expand_env_in_path, Error as EnvError};
 use crate::hoard::PileConfig;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
@@ -34,15 +34,15 @@ pub enum Error {
 /// A single pile in the hoard.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pile {
-    config: Option<PileConfig>,
+    pub config: Option<PileConfig>,
     #[serde(flatten)]
-    items: HashMap<String, String>,
+    pub items: BTreeMap<String, String>,
 }
 
 impl Pile {
     fn process_with(
         self,
-        envs: &HashMap<String, bool>,
+        envs: &BTreeMap<String, bool>,
         exclusivity: &[Vec<String>],
     ) -> Result<ConfigSingle, Error> {
         let _span = tracing::debug_span!(
@@ -69,28 +69,31 @@ impl Pile {
 /// A set of multiple related piles (i.e. in a single hoard).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MultipleEntries {
-    config: Option<PileConfig>,
+    pub config: Option<PileConfig>,
     #[serde(flatten)]
-    items: HashMap<String, Pile>,
+    pub items: BTreeMap<String, Pile>,
 }
 
 impl MultipleEntries {
     fn process_with(
         self,
-        envs: &HashMap<String, bool>,
+        envs: &BTreeMap<String, bool>,
         exclusivity: &[Vec<String>],
-    ) -> Result<ConfigMultiple, Error> {
+    ) -> Result<ConfigMultiple, super::Error> {
         let MultipleEntries { config, items } = self;
         let items = items
             .into_iter()
             .map(|(pile, mut entry)| {
                 tracing::debug!(%pile, "processing pile");
+                if pile == super::CONFIG_KEY {
+                    return Err(super::Error::NameConfigNotAllowed(vec![super::CONFIG_KEY.to_string()]));
+                }
                 entry.layer_config(config.as_ref());
                 let _span = tracing::debug_span!("processing_span_outer", name=%pile).entered();
-                let entry = entry.process_with(envs, exclusivity)?;
+                let entry = entry.process_with(envs, exclusivity).map_err(super::Error::from)?;
                 Ok((pile, entry))
             })
-            .collect::<Result<_, Error>>()?;
+            .collect::<Result<_, super::Error>>()?;
 
         Ok(ConfigMultiple { piles: items })
     }
@@ -121,14 +124,14 @@ impl Hoard {
     /// Any [`enum@Error`] that occurs while evaluating the `Hoard`.
     pub fn process_with(
         self,
-        envs: &HashMap<String, bool>,
+        envs: &BTreeMap<String, bool>,
         exclusivity: &[Vec<String>],
-    ) -> Result<crate::config::hoard::Hoard, Error> {
+    ) -> Result<crate::config::hoard::Hoard, super::Error> {
         match self {
             Hoard::Single(single) => {
                 tracing::debug!("processing anonymous pile");
                 Ok(ConfigHoard::Anonymous(
-                    single.process_with(envs, exclusivity)?,
+                    single.process_with(envs, exclusivity).map_err(super::Error::from)?,
                 ))
             }
             Hoard::Multiple(multiple) => {
@@ -239,7 +242,7 @@ mod tests {
     mod process {
         use super::*;
         use crate::hoard::Pile as RealPile;
-        use maplit::hashmap;
+        use maplit::btreemap;
         use std::path::PathBuf;
 
         #[test]
@@ -247,7 +250,7 @@ mod tests {
         fn env_vars_are_expanded() {
             let pile = Pile {
                 config: None,
-                items: hashmap! {
+                items: btreemap! {
                     "foo".into() => "${HOME}/something".into()
                 },
             };
@@ -258,7 +261,7 @@ mod tests {
                 path: Some(PathBuf::from(format!("{}/something", home))),
             };
 
-            let envs = hashmap! { "foo".into() =>  true };
+            let envs = btreemap! { "foo".into() =>  true };
             let result = pile
                 .process_with(&envs, &[])
                 .expect("pile should process without issues");
@@ -270,14 +273,14 @@ mod tests {
     mod serde {
         use super::*;
         use crate::hoard_file::ChecksumType;
-        use maplit::hashmap;
+        use maplit::btreemap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 
         #[test]
         fn single_entry_no_config() {
             let hoard = Hoard::Single(Pile {
                 config: None,
-                items: hashmap! {
+                items: btreemap! {
                     "bar_env|foo_env".to_string() => "/some/path".to_string()
                 },
             });
@@ -305,7 +308,7 @@ mod tests {
                     })),
                     ignore: Vec::new(),
                 }),
-                items: hashmap! {
+                items: btreemap! {
                     "bar_env|foo_env".to_string() => "/some/path".to_string()
                 },
             });
@@ -352,10 +355,10 @@ mod tests {
         fn multiple_entry_no_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: None,
-                items: hashmap! {
+                items: btreemap! {
                     "item1".to_string() => Pile {
                         config: None,
-                        items: hashmap! {
+                        items: btreemap! {
                             "bar_env|foo_env".to_string() => "/some/path".to_string()
                         }
                     },
@@ -390,10 +393,10 @@ mod tests {
                     ))),
                     ignore: Vec::new(),
                 }),
-                items: hashmap! {
+                items: btreemap! {
                     "item1".to_string() => Pile {
                         config: None,
-                        items: hashmap! {
+                        items: btreemap! {
                             "bar_env|foo_env".to_string() => "/some/path".to_string()
                         }
                     },

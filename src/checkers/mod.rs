@@ -57,6 +57,7 @@ pub enum Error {
     Operation(#[from] OperationError),
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Checkers {
     last_paths: HashMap<String, LastPaths>,
     operations: HashMap<String, Operation>,
@@ -87,7 +88,7 @@ impl Checkers {
     }
 
     pub(crate) fn check(&mut self) -> Result<(), Error> {
-        let _span = tracing::info_span!("running_checks").entered();
+        let _span = tracing::debug_span!("running_checks").entered();
         for last_path in &mut self.last_paths.values_mut() {
             last_path.check()?;
         }

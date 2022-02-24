@@ -10,4 +10,4 @@ RUN apk add python3 tree py3-pip py3-yaml py3-toml xdg-utils file && pip3 instal
 COPY target/x86_64-unknown-linux-musl/debug/hoard target/debug/hoard
 COPY ci-tests ci-tests
 
-CMD ["python3", "ci-tests/tests", "all"]
+CMD ["python3", "ci-tests/tests", "errors"]

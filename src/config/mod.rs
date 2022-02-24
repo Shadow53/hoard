@@ -40,13 +40,13 @@ pub struct Config {
     /// The command to run.
     pub command: Command,
     /// The root directory to backup/restore hoards from.
-    hoards_root: PathBuf,
+    pub hoards_root: PathBuf,
     /// Path to a configuration file.
-    config_file: PathBuf,
+    pub config_file: PathBuf,
     /// All of the configured hoards.
-    hoards: HashMap<String, Hoard>,
+    pub hoards: HashMap<String, Hoard>,
     /// Whether to force the operation to continue despite possible inconsistencies.
-    force: bool,
+    pub force: bool,
 }
 
 impl Default for Config {

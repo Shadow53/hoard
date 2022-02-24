@@ -19,6 +19,8 @@ pub(crate) use list::run_list;
 pub(crate) use status::run_status;
 pub(crate) use upgrade::run_upgrade;
 
+pub use backup_restore::Error as BackupRestoreError;
+
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -26,14 +28,8 @@ pub enum Error {
     #[error("error while printing help message: {0}")]
     PrintHelp(#[from] structopt::clap::Error),
     /// Error occurred while backing up a hoard.
-    #[error("failed to back up {name}: {error}")]
-    Backup {
-        /// The name of the hoard that failed to back up.
-        name: String,
-        /// The error that occurred.
-        #[source]
-        error: crate::hoard::Error,
-    },
+    #[error("failed to back up: {0}")]
+    Backup(#[source] BackupRestoreError),
     /// Error occurred while running [`Checkers`](crate::checkers::Checkers).
     #[error("error while running or saving consistency checks: {0}")]
     Checkers(#[from] crate::checkers::Error),
@@ -53,14 +49,8 @@ pub enum Error {
     #[error("error while running hoard edit: {0}")]
     Edit(#[from] edit::Error),
     /// Error occurred while restoring a hoard.
-    #[error("failed to back up {name}: {error}")]
-    Restore {
-        /// The name of the hoard that failed to restore.
-        name: String,
-        /// The error that occurred.
-        #[source]
-        error: crate::hoard::Error,
-    },
+    #[error("failed to restore: {0}")]
+    Restore(#[source] backup_restore::Error),
     /// Error occurred while running the status command.
     #[error("error while running hoard status: {0}")]
     Status(#[source] crate::hoard::iter::Error),
