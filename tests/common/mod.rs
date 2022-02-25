@@ -18,6 +18,24 @@ pub fn create_random_file<const SIZE: usize>() -> NamedTempFile {
     file
 }
 
+pub fn use_first_env() {
+    std::env::set_var("USE_ENV", "1");
+}
+
+pub fn use_second_env() {
+    std::env::set_var("USE_ENV", "2");
+}
+
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+pub enum UuidLocation {
+    Local,
+    Remote,
+}
+
+pub const HOARD_ANON_DIR: &str = "anon_dir";
+pub const HOARD_ANON_FILE: &str = "anon_file";
+pub const HOARD_NAMED: &str = "named";
+
 pub const BASE_CONFIG: &str = r#"
 # Using weird table-array syntax to make converting from TOML->YAML for tests easier.
 # Using inline {} tables uses a custom TOML type that does not translate correctly

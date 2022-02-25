@@ -320,7 +320,7 @@ macro_rules! test_diff_type {
             #[test]
             #[serial_test::serial]
             fn [<test_ $name _local>]() {
-                const location: &str = "locally";
+                const LOCATION: &str = "locally";
 
                 for do_backup in [true, false] {
                     let $tester = Tester::new(DIFF_TOML);
@@ -340,7 +340,7 @@ macro_rules! test_diff_type {
                         $tester.use_local_uuid();
                         for file in files {
                             $modify_fn(&file.path, $changed_content_a, file.is_text, &hoard);
-                            $check_fn(&$tester, &file, &hoard, location, files.len() > 1, $default_content, $changed_content_a);
+                            $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $default_content, $changed_content_a);
                         }
                     }
                 }
@@ -349,7 +349,7 @@ macro_rules! test_diff_type {
             #[test]
             #[serial_test::serial]
             fn [<test_ $name _remote>]() {
-                const location: &str = "remotely";
+                const LOCATION: &str = "remotely";
                 let $tester = Tester::new(DIFF_TOML);
 
                 let hoard_files = $files;
@@ -367,7 +367,7 @@ macro_rules! test_diff_type {
                     }
                     $tester.use_local_uuid();
                     for file in &files {
-                        $check_fn(&$tester, &file, &hoard, location, files.len() > 1, $changed_content_a, $default_content);
+                        $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $changed_content_a, $default_content);
                     }
                 }
             }
@@ -375,7 +375,7 @@ macro_rules! test_diff_type {
             #[test]
             #[serial_test::serial]
             fn [<test_ $name _mixed>]() {
-                const location: &str = "locally and remotely";
+                const LOCATION: &str = "locally and remotely";
                 let $tester = Tester::new(DIFF_TOML);
 
                 let hoard_files = $files;
@@ -391,7 +391,7 @@ macro_rules! test_diff_type {
                     $tester.use_local_uuid();
                     for file in &files {
                         $modify_fn(&file.path, $changed_content_b, file.is_text, &hoard);
-                        $check_fn(&$tester, &file, &hoard, location, files.len() > 1, $changed_content_a, $changed_content_b);
+                        $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $changed_content_a, $changed_content_b);
                     }
                 }
             }
@@ -399,7 +399,7 @@ macro_rules! test_diff_type {
             #[test]
             #[serial_test::serial]
             fn [<test_ $name _unexpected>]() {
-                const location: &str = "out-of-band";
+                const LOCATION: &str = "out-of-band";
                 let $tester = Tester::new(DIFF_TOML);
 
                 let hoard_files = $files;
@@ -411,7 +411,7 @@ macro_rules! test_diff_type {
                         if let Some(hoard_path) = file.hoard_path.as_ref() {
                             $modify_fn(hoard_path, $changed_content_a, file.is_text, &hoard);
                         }
-                        $check_fn(&$tester, &file, &hoard, location, files.len() > 1, $changed_content_a, $default_content);
+                        $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $changed_content_a, $default_content);
                     }
                 }
             }

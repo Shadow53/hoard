@@ -82,6 +82,14 @@ impl Tester {
         }
     }
 
+    pub fn local_uuid(&self) -> &uuid::Uuid {
+        &self.local_uuid
+    }
+
+    pub fn remote_uuid(&self) -> &uuid::Uuid {
+        &self.remote_uuid
+    }
+
     pub fn use_local_uuid(&self) {
         fs::write(self.uuid_path(), self.local_uuid.to_string())
             .expect("failed to write to uuid file");
