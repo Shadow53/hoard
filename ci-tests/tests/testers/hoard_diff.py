@@ -44,11 +44,8 @@ class DiffCommandTester(HoardTester):
         result = self.run_hoard("diff", capture_output=True)
         if invert:
             assert content not in result.stdout
-        #elif partial:
         else:
             assert content in result.stdout, f"expected \"{content}\" in \"{result.stdout}\""
-        #else:
-        #    assert result.stdout == content, f"expected \"{content}\", got \"{result.stdout}\""
 
     def _backup(self, hoard, *, is_remote):
         if is_remote:

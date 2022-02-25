@@ -25,7 +25,7 @@ pub(crate) fn run_backup<'a, S: AsRef<str>>(
     hoards: impl IntoIterator<Item = (S, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
-    backup_or_restore(hoards_root, Direction::Backup, hoards, force).map_err(super::Error::Restore)
+    backup_or_restore(hoards_root, Direction::Backup, hoards, force).map_err(super::Error::Backup)
 }
 
 #[allow(single_use_lifetimes)]
@@ -66,6 +66,13 @@ fn backup_or_restore<'a, S: AsRef<str>>(
                         Direction::Backup => (file.system_path(), file.hoard_path()),
                         Direction::Restore => (file.hoard_path(), file.system_path()),
                     };
+                    if let Some(parent) = dest.parent() {
+                        tracing::trace!(?parent, "ensuring parent dirs");
+                        if let Err(err) = fs::create_dir_all(parent) {
+                            tracing::error!("failed to create parent directories for {}: {}", dest.display(), err);
+                            return Err(Error::IO(err));
+                        }
+                    }
                     tracing::debug!("copying {} to {}", src.display(), dest.display());
                     if let Err(err) = fs::copy(src, dest) {
                         tracing::error!("failed to copy {} to {}: {}", src.display(), dest.display(), err);

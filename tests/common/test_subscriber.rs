@@ -39,10 +39,10 @@ pub struct MemorySubscriber {
 
 impl MemorySubscriber {
     pub fn new(log_level: tracing::Level) -> Self {
+        ::std::env::set_var("HOARD_LOG", log_level.to_string());
         let writer = MakeMemoryWriter { buffer: Arc::new(Mutex::new(Vec::new())) };
         let subscriber = hoard::logging::get_subscriber()
             .with_writer(writer.clone())
-            .with_max_level(log_level)
             .finish();
         let guard = subscriber.set_default();
         MemorySubscriber { writer, guard }

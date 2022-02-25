@@ -4,7 +4,6 @@ use std::fs;
 use std::io::Write;
 use common::test_helper::Tester;
 use hoard::config::builder::{Builder, environment::Environment};
-use pretty_assertions::assert_eq;
 
 #[test]
 #[serial_test::serial]
