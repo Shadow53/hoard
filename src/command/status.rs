@@ -42,23 +42,23 @@ pub(crate) fn run_status<'a>(
             });
 
         match source {
-            None => println!("{}: up to date", hoard_name),
+            None => tracing::info!("{}: up to date", hoard_name),
             Some(source) => {
                 let source = source.map_err(super::Error::Status)?;
                 match source {
-                    DiffSource::Local => println!(
+                    DiffSource::Local => tracing::info!(
                         "{}: modified {} -- sync with `hoard backup {}`",
                         hoard_name, source, hoard_name
                     ),
-                    DiffSource::Remote => println!(
+                    DiffSource::Remote => tracing::info!(
                         "{}: modified {} -- sync with `hoard restore {}`",
                         hoard_name, source, hoard_name
                     ),
-                    DiffSource::Mixed => println!(
+                    DiffSource::Mixed => tracing::info!(
                         "{0}: mixed changes -- manual intervention recommended (see `hoard diff {0}`)",
                         hoard_name
                     ),
-                    DiffSource::Unknown => println!(
+                    DiffSource::Unknown => tracing::info!(
                         "{0}: unexpected changes -- manual intervention recommended (see `hoard diff {0}`)",
                         hoard_name
                     ),
