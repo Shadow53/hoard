@@ -20,6 +20,7 @@ pub(crate) use status::run_status;
 pub(crate) use upgrade::run_upgrade;
 
 pub use backup_restore::Error as BackupRestoreError;
+pub use edit::Error as EditError;
 
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]

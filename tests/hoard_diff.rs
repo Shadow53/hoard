@@ -96,7 +96,7 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, hoard: &str
             assert!(path.exists(), "writing to the {} failed to create file", path.display());
         }
         Some(Content::Perms(octet)) => {
-            let mut file = fs::File::open(path)
+            let file = fs::File::open(path)
                 .expect("file should exist and be able to be opened");
             let mut permissions = file.metadata()
                 .expect("failed to read file metadata")
@@ -105,6 +105,7 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, hoard: &str
             permissions.set_mode(octet);
             #[cfg(windows)]
             permissions.set_readonly(!is_writable(octet));
+
             file.set_permissions(permissions)
                 .expect("failed to set permissions on file");
         }
