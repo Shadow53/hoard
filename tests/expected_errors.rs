@@ -5,8 +5,8 @@ use std::io::Write;
 
 use common::test_helper::Tester;
 use hoard::config::builder::{Builder, Error as BuilderError};
-use hoard::command::{Command, Error as CommandError};
-use hoard::command::BackupRestoreError;
+use hoard::command::{Command};
+
 
 #[test]
 #[serial_test::serial]

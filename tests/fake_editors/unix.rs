@@ -122,7 +122,7 @@ Exec={} %f
 }
 
 pub fn set_default_cli_editor(editor: Editor) -> EditorGuard {
-    let mut guard = create_script_file(editor);
+    let guard = create_script_file(editor);
     std::env::set_var("EDITOR", EDITOR_NAME);
     let mut path: OsString = guard.temp_dir.path().into();
     path.push(":");

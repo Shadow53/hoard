@@ -354,7 +354,7 @@ impl Builder {
         tracing::debug!("building configuration from builder");
         let environments = self.evaluated_environments()?;
         tracing::debug!(?environments);
-        let exclusivity = self.exclusivity.unwrap_or_else(Vec::new);
+        let exclusivity = self.exclusivity.unwrap_or_default();
         tracing::debug!(?exclusivity);
         let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
         tracing::debug!(?hoards_root);
@@ -374,8 +374,7 @@ impl Builder {
 
         tracing::debug!("processing hoards...");
         let hoards = self
-            .hoards
-            .unwrap_or_else(BTreeMap::new)
+            .hoards.unwrap_or_default()
             .into_iter()
             .map(|(name, hoard)| {
                 let _span = tracing::debug_span!("processing_hoard", %name).entered();

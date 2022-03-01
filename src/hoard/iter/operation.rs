@@ -39,6 +39,7 @@ impl Iterator for OperationIter {
         // changes, and Unknown counts as a remote change.
         self.iterator.next().map(|diff| {
             tracing::trace!("found diff: {:?}", diff);
+            #[allow(clippy::match_same_arms)]
             let op = match diff? {
                 HoardFileDiff::BinaryModified { file, .. }
                 | HoardFileDiff::TextModified { file, .. }

@@ -34,7 +34,6 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
     if interface == InterfaceType::CommandLine {
         const GOOD_ERROR: i32 = 1;
         const BAD_ERROR: i32 = 2;
-        let tester = tester.clone();
         let result = unsafe {
             run_in_pty(move || {
                 tester.run_command(HoardCommand::Edit).map_err(|err| {
@@ -51,7 +50,7 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
             assert!(matches!(result, Err(PtyError::NonZeroExitCode(status)) if status == GOOD_ERROR), "expected editor to return failure code");
         } else {
             assert!(result.is_ok(), "expected editor to exit without error, got {:?}", result);
-            verify_editor_called_on(&tester, &config_path);
+            verify_editor_called_on(tester, &config_path);
         }
 
         return;
@@ -66,11 +65,11 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
         }
     } else {
         assert!(result.is_ok(), "expected editor to exit without error, got this instead: {:?}", result);
-        verify_editor_called_on(&tester, &config_path);
+        verify_editor_called_on(tester, &config_path);
     }
 }
 
-fn verify_editor_called_on(tester: &Tester, file: &Path) {
+fn verify_editor_called_on(tester: &Tester, _file: &Path) {
     let watchdog_path = tester.home_dir().join(WATCHDOG_FILE_NAME);
     assert!(watchdog_path.exists(), "watchdog file should have been created");
     fs::remove_file(&watchdog_path).expect("deleting the watchdog file should not fail");

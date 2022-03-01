@@ -60,7 +60,7 @@ fn setup_modify(tester: &Tester, path: &Path, content: Option<Content>, is_text:
 }
 
 fn setup_permissions(tester: &Tester, path: &Path, content: Option<Content>, is_text: bool, hoard: &str) {
-    modify_file(path, Some(Content::Data(DEFAULT_CONTENT.clone())), is_text, hoard);
+    modify_file(path, Some(Content::Data(DEFAULT_CONTENT)), is_text, hoard);
     setup_modify(tester, path, content, is_text, hoard);
 }
 
@@ -76,7 +76,7 @@ fn is_writable(octet: u32) -> bool {
     octet & 0o000400 != 0
 }
 
-fn modify_file(path: &Path, content: Option<Content>, is_text: bool, hoard: &str) {
+fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &str) {
     match content {
         None => if path.exists() {
             fs::remove_file(path).expect("removing file should succeed");
@@ -280,8 +280,8 @@ fn check_recreated_file(
     hoard: &str,
     location: &str,
     is_partial: bool,
-    hoard_content: Option<Content>,
-    system_content: Option<Content>
+    _hoard_content: Option<Content>,
+    _system_content: Option<Content>
 ) {
     assert_diff_contains(tester, hoard, format!("{}: recreated {}\n", file.path.display(), location), is_partial, file.ignored, false);
     assert_diff_contains(tester, hoard, format!("{}: recreated {}\n", file.path.display(), location), is_partial, file.ignored, true);

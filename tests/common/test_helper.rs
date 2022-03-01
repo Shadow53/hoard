@@ -170,7 +170,7 @@ impl Tester {
 
     fn handle_command_result(&self, command: Command, result: Result<(), Error>) {
         if let Err(error) = result {
-            let debug_output = Self::extra_logging_output(&self);
+            let debug_output = Self::extra_logging_output(self);
             panic!("command {:?} failed: {:?}\n{}", command, error, debug_output);
         }
     }

@@ -14,7 +14,7 @@ enum Direction {
     Restore,
 }
 
-const STRATEGY: [(UuidLocation, Direction, &'static str); 29] = [
+const STRATEGY: [(UuidLocation, Direction, &str); 29] = [
     // AnonDir operations
     (UuidLocation::Local, Direction::Backup, HOARD_ANON_DIR),
     (UuidLocation::Remote, Direction::Restore, HOARD_ANON_DIR),

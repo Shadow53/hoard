@@ -166,7 +166,7 @@ where
 }
 
 /// Returns a [`SubscriberBuilder`] with the default settings for Hoard.
-pub fn get_subscriber() -> SubscriberBuilder<Formatter, Formatter, EnvFilter> {
+#[must_use] pub fn get_subscriber() -> SubscriberBuilder<Formatter, Formatter, EnvFilter> {
     let max_level = {
         let env_str = std::env::var(LOG_ENV).unwrap_or_else(|_| String::new());
 
@@ -178,7 +178,7 @@ pub fn get_subscriber() -> SubscriberBuilder<Formatter, Formatter, EnvFilter> {
             .map(FromStr::from_str)
             .find_map(Result::ok);
 
-        level_opt.unwrap_or_else(|| {
+        level_opt.unwrap_or({
             if cfg!(debug_assertions) {
                 Level::DEBUG
             } else {
