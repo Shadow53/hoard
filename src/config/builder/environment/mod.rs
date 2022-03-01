@@ -201,7 +201,7 @@ mod tests {
                 expected: None,
             };
             let exe_exists = ExeExists("test".into());
-            let path_exists = PathExists("/test/path".into());
+            let path_exists = PathExists(Some("/test/path".into()));
 
             let env = Environment {
                 hostname: Some(Combinator(vec![Inner::Single(hostname.clone())])),
