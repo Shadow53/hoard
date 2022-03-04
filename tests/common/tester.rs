@@ -1,4 +1,5 @@
 use std::{fs, io, path::{Path, PathBuf}, ops::Deref};
+use std::ops::DerefMut;
 
 use super::test_subscriber::MemorySubscriber;
 use hoard::{config::{Config, Error, Builder}, command::Command};
@@ -240,17 +241,5 @@ impl Tester {
 
     pub fn set_uuid(&self, content: &str) -> io::Result<()> {
         fs::write(self.uuid_path(), content)
-    }
-
-    pub fn use_first_env(&self) {
-        std::env::set_var("USE_ENV", "1");
-    }
-
-    pub fn use_second_env(&self) {
-        std::env::set_var("USE_ENV", "2");
-    }
-
-    pub fn unset_env(&self) {
-        std::env::remove_var("USE_ENV");
     }
 }

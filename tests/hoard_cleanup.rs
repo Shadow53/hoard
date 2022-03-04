@@ -3,11 +3,11 @@ mod common;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use common::tester::Tester;
 use common::UuidLocation;
 use common::base::{HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
 use hoard::command::Command;
 use once_cell::sync::Lazy;
+use common::base::DefaultConfigTester;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 enum Direction {
@@ -80,7 +80,7 @@ static RETAINED: Lazy<HashMap<UuidLocation, HashMap<&'static str, Vec<usize>>>> 
 // |         | RSTR x 4 | RSTR x 2  | rstr x 1 |
 // +---------+----------+-----------+----------+
 
-fn run_operation(tester: &Tester, location: UuidLocation, direction: Direction, hoard: &str) {
+fn run_operation(tester: &DefaultConfigTester, location: UuidLocation, direction: Direction, hoard: &str) {
     // Create new file contents.
     let file_path = if hoard == HOARD_NAMED {
         tester.home_dir().join("first_named_file")
@@ -120,7 +120,7 @@ fn files_in_dir(root: &Path) -> Vec<PathBuf> {
 #[test]
 #[serial_test::serial]
 fn test_operation_cleanup() {
-    let tester = Tester::new(common::base::BASE_CONFIG);
+    let tester = DefaultConfigTester::new();
     for (location, direction, hoard) in &STRATEGY {
         run_operation(&tester, *location, *direction, hoard);
     }

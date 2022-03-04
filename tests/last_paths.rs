@@ -1,12 +1,13 @@
 mod common;
 
-use common::base::{BASE_CONFIG, HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
+use common::base::{HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
 use common::tester::Tester;
 
 use hoard::checkers::history::last_paths::{Error as LastPathsError, PilePaths, HoardPaths, LastPaths};
 use hoard::checkers::Error as CheckerError;
 use hoard::command::{BackupRestoreError, Command, Error as CommandError};
 use hoard::config::Error as ConfigError;
+use common::base::DefaultConfigTester;
 
 fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
     let current = LastPaths::from_default_file().expect("reading last_paths.json should not fail");
@@ -30,8 +31,7 @@ fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
 #[test]
 #[serial_test::serial]
 fn test_last_paths() {
-    let mut tester = Tester::with_log_level(
-        common::base::BASE_CONFIG,
+    let mut tester = DefaultConfigTester::with_log_level(
         tracing::Level::TRACE
     );
 
@@ -93,10 +93,9 @@ fn test_last_paths() {
     });
 
     let backup = Command::Backup { hoards: Vec::new() };
-    common::base::setup_files(&tester);
+    tester.setup_files();
 
-    common::base::use_first_env();
-    tester.reset_config(BASE_CONFIG);
+    tester.use_first_env();
 
     // Running twice should succeed
     tester.expect_command(backup.clone());
@@ -104,8 +103,7 @@ fn test_last_paths() {
     assert_expected_paths(&tester, &first_env_paths);
 
     // Switching environments (thus paths) should fail
-    common::base::use_second_env();
-    tester.reset_config(BASE_CONFIG);
+    tester.use_second_env();
 
     let error = tester.run_command(backup.clone())
         .expect_err("changing environment should have caused last_paths to fail");
@@ -113,14 +111,12 @@ fn test_last_paths() {
     assert_expected_paths(&tester, &first_env_paths);
 
     // Mismatched paths should not be saved, so first env should succeed still
-    common::base::use_first_env();
-    tester.reset_config(BASE_CONFIG);
+    tester.use_first_env();
 
     tester.expect_command(backup.clone());
     assert_expected_paths(&tester, &first_env_paths);
 
-    common::base::use_second_env();
-    tester.reset_config(BASE_CONFIG);
+    tester.use_second_env();
 
     tester.expect_forced_command(backup);
     assert_expected_paths(&tester, &second_env_paths);
