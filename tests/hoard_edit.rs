@@ -1,7 +1,7 @@
 mod common;
 mod fake_editors;
 
-use common::test_helper::Tester;
+use common::tester::Tester;
 use fake_editors::Editor;
 
 use std::fs;

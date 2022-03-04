@@ -70,11 +70,13 @@ impl Checkers {
         hoards: impl IntoIterator<Item = (S, &'a Hoard)>,
         direction: Direction,
     ) -> Result<Self, Error> {
+        let _span = tracing::debug_span!("create_checkers", ?hoards_root).entered();
         let mut last_paths = HashMap::new();
         let mut operations = HashMap::new();
 
         for (name, hoard) in hoards {
             let name = name.as_ref();
+            tracing::debug!(%name, ?hoard, "processing hoard");
             let lp = LastPaths::new(hoards_root, name, hoard, direction)?;
             let op = Operation::new(hoards_root, name, hoard, direction)?;
             last_paths.insert(name.to_string(), lp);

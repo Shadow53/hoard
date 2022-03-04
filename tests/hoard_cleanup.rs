@@ -3,10 +3,11 @@ mod common;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use common::test_helper::Tester;
-use common::{UuidLocation, HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
+use common::tester::Tester;
+use common::UuidLocation;
+use common::base::{HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
 use hoard::command::Command;
-use once_cell::unsync::Lazy;
+use once_cell::sync::Lazy;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 enum Direction {
@@ -49,7 +50,7 @@ const STRATEGY: [(UuidLocation, Direction, &str); 29] = [
     (UuidLocation::Remote, Direction::Backup, HOARD_NAMED),
 ];
 
-const RETAINED: Lazy<HashMap<UuidLocation, HashMap<&'static str, Vec<usize>>>> = Lazy::new(|| {
+static RETAINED: Lazy<HashMap<UuidLocation, HashMap<&'static str, Vec<usize>>>> = Lazy::new(|| {
     maplit::hashmap! {
         UuidLocation::Local => maplit::hashmap! {
             HOARD_ANON_FILE => vec![5],
@@ -119,7 +120,7 @@ fn files_in_dir(root: &Path) -> Vec<PathBuf> {
 #[test]
 #[serial_test::serial]
 fn test_operation_cleanup() {
-    let tester = Tester::new(common::BASE_CONFIG);
+    let tester = Tester::new(common::base::BASE_CONFIG);
     for (location, direction, hoard) in &STRATEGY {
         run_operation(&tester, *location, *direction, hoard);
     }
@@ -149,7 +150,7 @@ fn test_operation_cleanup() {
     tester.expect_command(Command::Cleanup);
 
     for (location, retained) in RETAINED.iter() {
-        for (hoard, _) in retained {
+        for hoard in retained.keys() {
             let system_id = match location {
                 UuidLocation::Local => tester.local_uuid().to_hyphenated().to_string(),
                 UuidLocation::Remote => tester.remote_uuid().to_hyphenated().to_string(),

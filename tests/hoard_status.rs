@@ -1,7 +1,7 @@
 mod common;
 
 use std::fs;
-use common::test_helper::Tester;
+use common::tester::Tester;
 use hoard::command::Command;
 
 const DEFAULT_CONTENT: &str = "default text";

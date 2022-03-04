@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::io::Write;
 
-use common::test_helper::Tester;
+use common::tester::Tester;
 use hoard::config::builder::{Builder, Error as BuilderError};
 use hoard::command::{Command};
 
@@ -11,7 +11,7 @@ use hoard::command::{Command};
 #[test]
 #[serial_test::serial]
 fn test_invalid_uuid() {
-    let tester = Tester::new(common::BASE_CONFIG);
+    let tester = Tester::new(common::base::BASE_CONFIG);
     let uuid_path = tester.config_dir().join("uuid");
     let bad_content = "INVALID UUID";
     {
@@ -31,7 +31,7 @@ fn test_invalid_uuid() {
 #[test]
 #[serial_test::serial]
 fn test_invalid_config_extensions() {
-    let tester = Tester::new(common::BASE_CONFIG);
+    let tester = Tester::new(common::base::BASE_CONFIG);
     let expected_output = "configuration file must have file extension \"";
 
     let path = tester.config_dir().join("config_file");
@@ -53,7 +53,7 @@ fn test_invalid_config_extensions() {
 #[test]
 #[serial_test::serial]
 fn test_missing_config_dir() {
-    let tester = Tester::new(common::BASE_CONFIG);
+    let tester = Tester::new(common::base::BASE_CONFIG);
     fs::remove_dir(tester.config_dir()).expect("failed to delete config dir");
     tester.run_command(Command::Backup { hoards: Vec::new() }).expect("running backup without config dir should not fail");
     tester.assert_not_has_output("error while saving uuid to file");

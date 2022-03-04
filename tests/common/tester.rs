@@ -1,7 +1,7 @@
 use std::{fs, io, path::{Path, PathBuf}, ops::Deref};
 
 use super::test_subscriber::MemorySubscriber;
-use hoard::{config::{Config, Error}, command::Command};
+use hoard::{config::{Config, Error, Builder}, command::Command};
 
 pub struct Tester {
     config: Config,
@@ -65,10 +65,12 @@ impl Tester {
         ::std::fs::create_dir_all(&home_dir).expect("failed to create test home dir");
         ::std::fs::create_dir_all(&data_dir).expect("failed to create test data dir");
 
-        let config = ::toml::from_str::<::hoard::config::builder::Builder>(toml_str)
-            .expect("failed to parse configuration from TOML")
-            .build()
-            .expect("failed to build config");
+        let config = {
+            ::toml::from_str::<Builder>(toml_str)
+                .expect("failed to parse configuration from TOML")
+                .build()
+                .expect("failed to build config")
+        };
 
         Self {
             config,
@@ -108,6 +110,13 @@ impl Tester {
         &mut self.config
     }
 
+    pub fn reset_config(&mut self, toml_str: &str) {
+        self.config = toml::from_str::<Builder>(toml_str)
+            .expect("configuration should parse correctly")
+            .build()
+            .expect("configuration should build correctly");
+    }
+
     pub fn home_dir(&self) -> &Path { &self.home_dir }
 
     pub fn config_dir(&self) -> &Path { &self.config_dir }
@@ -138,7 +147,11 @@ impl Tester {
     pub fn extra_logging_output(&self) -> String {
         let list_home = Self::list_dir_to_string(self.home_dir(), 3, 0);
         let list_data = Self::list_dir_to_string(self.data_dir(), 4, 0);
-        format!("OUTPUT:\n{}\nHOME:\n{}\nDATA DIR:\n{}", self.output(), list_home, list_data)
+        let list_env: String = std::env::vars()
+            .map(|(key, val)| format!("{} = {}", key, val))
+            .collect::<Vec<String>>()
+            .join("\n");
+        format!("CONFIG:\n{:#?}\nOUTPUT:\n{}\nENV\n{}\nHOME:\n{}\nDATA DIR:\n{}", self.config(), self.output(), list_env, list_home, list_data)
     }
 
     fn list_dir_to_string(dir: &Path, max_depth: u8, depth: u8) -> String {
@@ -227,5 +240,17 @@ impl Tester {
 
     pub fn set_uuid(&self, content: &str) -> io::Result<()> {
         fs::write(self.uuid_path(), content)
+    }
+
+    pub fn use_first_env(&self) {
+        std::env::set_var("USE_ENV", "1");
+    }
+
+    pub fn use_second_env(&self) {
+        std::env::set_var("USE_ENV", "2");
+    }
+
+    pub fn unset_env(&self) {
+        std::env::remove_var("USE_ENV");
     }
 }

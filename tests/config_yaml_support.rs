@@ -2,18 +2,18 @@ mod common;
 
 use std::fs;
 use std::io::Write;
-use common::test_helper::Tester;
+use common::tester::Tester;
 use hoard::config::builder::{Builder, environment::Environment};
 
 #[test]
 #[serial_test::serial]
 fn test_yaml_support() {
-    let tester = Tester::new(common::BASE_CONFIG);
+    let tester = Tester::new(common::base::BASE_CONFIG);
     let path = tester.config_dir().join("config.yaml");
 
     let mut file = fs::File::create(&path)
         .expect("failed to create YAML config file");
-    let builder: Builder = toml::from_str(common::BASE_CONFIG)
+    let builder: Builder = toml::from_str(common::base::BASE_CONFIG)
         .expect("failed to parse TOML");
     serde_yaml::to_writer(&mut file, &builder).expect("failed to serialize to YAML");
     drop(file);
@@ -39,7 +39,7 @@ fn test_yaml_support() {
 #[test]
 #[serial_test::serial]
 fn test_toml_takes_precedence() {
-    let tester = Tester::new(common::BASE_CONFIG);
+    let tester = Tester::new(common::base::BASE_CONFIG);
     let yaml_path = tester.config_dir().join("config.yaml");
     let yml_path = tester.config_dir().join("config.yml");
     let toml_path = tester.config_dir().join("config.toml");

@@ -36,6 +36,12 @@ pub enum Error {
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LastPaths(HashMap<String, HoardPaths>);
 
+impl<T> From<T> for LastPaths where T: IntoIterator<Item=(String, HoardPaths)> {
+    fn from(other: T) -> Self {
+        Self(other.into_iter().collect())
+    }
+}
+
 fn get_last_paths_file_path() -> Result<PathBuf, io::Error> {
     tracing::debug!("getting lastpaths file path");
     let id = super::get_or_generate_uuid()?;
@@ -64,11 +70,12 @@ impl Checker for LastPaths {
     }
 
     fn check(&mut self) -> Result<(), Self::Error> {
-        let _span = tracing::debug_span!("running last_paths check", current=?self).entered();
+        let _span = tracing::debug_span!("last_paths_check", current=?self).entered();
         let (name, new_hoard) = self.0.iter().next().ok_or(Error::NoEntries)?;
 
         let last_paths = LastPaths::from_default_file()?;
         if let Some(old_hoard) = last_paths.hoard(name) {
+            tracing::trace!(previous=?last_paths, "comparing against previous paths");
             HoardPaths::enforce_old_and_new_piles_are_same(old_hoard, new_hoard)?;
         }
 
@@ -98,7 +105,7 @@ impl Checker for LastPaths {
 impl LastPaths {
     /// Get the entry for the given hoard, if exists.
     #[must_use]
-    fn hoard(&self, hoard: &str) -> Option<&HoardPaths> {
+    pub fn hoard(&self, hoard: &str) -> Option<&HoardPaths> {
         self.0.get(hoard)
     }
 
@@ -114,7 +121,7 @@ impl LastPaths {
     /// Any I/O or `serde` error that occurs while reading and parsing the file.
     /// The exception is an I/O error with kind `NotFound`, which returns an empty
     /// `LastPaths`.
-    fn from_default_file() -> Result<Self, Error> {
+    pub fn from_default_file() -> Result<Self, Error> {
         tracing::debug!("reading lastpaths from file");
         let reader = match read_last_paths_file() {
             Ok(file) => file,
@@ -139,8 +146,8 @@ impl LastPaths {
 /// hoard.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HoardPaths {
-    timestamp: OffsetDateTime,
-    piles: PilePaths,
+    pub timestamp: OffsetDateTime,
+    pub piles: PilePaths,
 }
 
 /// Internal type for [`HoardPaths`] mapping to anonymous or named piles.
@@ -566,5 +573,51 @@ mod tests {
             ),
             "single path and two paths containing that single are different"
         );
+    }
+
+    #[test]
+    fn test_serde() {
+        let original_anon = anonymous_hoard_paths();
+        let parsed_anon: HoardPaths = serde_json::from_str(&serde_json::to_string(&original_anon).unwrap()).unwrap();
+        assert_eq!(original_anon, parsed_anon);
+
+        let original_named = named_hoard_paths();
+        let parsed_named: HoardPaths = serde_json::from_str(&serde_json::to_string(&original_named).unwrap()).unwrap();
+        assert_eq!(original_named, parsed_named);
+    }
+
+    #[test]
+    fn pile_paths_from_hoard() {
+        use crate::hoard::{PileConfig, Hoard, Pile, MultipleEntries};
+        let anon_hoard = Hoard::Anonymous(Pile {
+            config: PileConfig::default(),
+            path: Some(PathBuf::from("/anon/path")),
+        });
+
+        let named_hoard = Hoard::Named(MultipleEntries {
+            piles: maplit::hashmap! {
+                String::from("first") => Pile {
+                    config: PileConfig::default(),
+                    path: Some(PathBuf::from("/first/path"))
+                },
+                String::from("missing") => Pile {
+                    config: PileConfig::default(),
+                    path: None,
+                },
+                String::from("second") => Pile {
+                    config: PileConfig::default(),
+                    path: Some(PathBuf::from("/second/path"))
+                }
+            }
+        });
+
+        let anon_paths = PilePaths::from(anon_hoard);
+        let named_paths = PilePaths::from(named_hoard);
+
+        assert_eq!(anon_paths, PilePaths::Anonymous(Some(PathBuf::from("/anon/path"))));
+        assert_eq!(named_paths, PilePaths::Named(maplit::hashmap! {
+            String::from("first") => PathBuf::from("/first/path"),
+            String::from("second") => PathBuf::from("/second/path"),
+        }));
     }
 }

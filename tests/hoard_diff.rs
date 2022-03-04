@@ -4,7 +4,7 @@ use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use common::test_helper::Tester;
+use common::tester::Tester;
 use hoard::command::Command;
 use paste::paste;
 
