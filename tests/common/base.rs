@@ -1,6 +1,11 @@
+use std::collections::HashMap;
 use std::fs;
 use std::ops::{Deref, DerefMut};
+use std::path::{Path, PathBuf};
 use rand::RngCore;
+use sha2::digest::generic_array::GenericArray;
+use sha2::{Digest, Sha256};
+use sha2::digest::OutputSizeUser;
 
 use super::tester::Tester;
 
@@ -70,6 +75,8 @@ exclusivity = [
         "unix|second" = "${HOME}/second_named_dir2"
         "windows|first"  = "${USERPROFILE}/first_named_dir2"
         "windows|second" = "${USERPROFILE}/second_named_dir2"
+    [hoards.named.dir2.config]
+        ignore = ["**/.hidden"]
 "#;
 
 pub struct DefaultConfigTester(Tester);
@@ -157,5 +164,81 @@ impl DefaultConfigTester {
             rand::thread_rng().fill_bytes(&mut content);
             fs::write(&file, &content).expect("writing data to file should not fail");
         }
+    }
+
+    fn hash_file(file: &Path) -> GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize> {
+        let data = fs::read(file).expect("file should always exist");
+        Sha256::digest(&data)
+    }
+
+    fn file_contents(path: &Path, root: &Path) -> HashMap<PathBuf, GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>> {
+        if path.is_file() {
+            let key = path.strip_prefix(root).expect("path should always have root as prefix").to_path_buf();
+            maplit::hashmap! { key => Self::hash_file(path) }
+        } else if path.is_dir() {
+            let mut map = HashMap::new();
+            for entry in fs::read_dir(path).expect("reading dir should not fail") {
+                let entry = entry.expect("reading entry should not fail");
+                let nested = Self::file_contents(&entry.path(), root);
+                map.extend(nested);
+            }
+            map
+        } else {
+            panic!("{} does not exist", path.display());
+        }
+    }
+
+    fn assert_same_tree(left: &Path, right: &Path) {
+        let left_content = Self::file_contents(left, left);
+        let right_content = Self::file_contents(right, right);
+        assert_eq!(left_content, right_content, "{} and {} do not have matching contents", left.display(), right.display());
+    }
+
+    pub fn assert_first_tree(&self) {
+        let hoards_root = self.data_dir().join("hoards");
+        Self::assert_same_tree(
+            &self.home_dir().join("first_anon_file"),
+            &hoards_root.join("anon_file")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("first_anon_dir"),
+            &hoards_root.join("anon_dir")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("first_named_file"),
+            &hoards_root.join("named").join("file")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("first_named_dir1"),
+            &hoards_root.join("named").join("dir1")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("first_named_dir2"),
+            &hoards_root.join("named").join("dir2")
+        );
+    }
+
+    pub fn assert_second_tree(&self) {
+        let hoards_root = self.data_dir().join("hoards");
+        Self::assert_same_tree(
+            &self.home_dir().join("second_anon_file"),
+            &hoards_root.join("anon_file")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("second_anon_dir"),
+            &hoards_root.join("anon_dir")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("second_named_file"),
+            &hoards_root.join("named").join("file")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("second_named_dir1"),
+            &hoards_root.join("named").join("dir1")
+        );
+        Self::assert_same_tree(
+            &self.home_dir().join("second_named_dir2"),
+            &hoards_root.join("named").join("dir2")
+        );
     }
 }
