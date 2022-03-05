@@ -20,7 +20,7 @@ impl Default for ChecksumType {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum Checksum {
+pub enum Checksum {
     MD5(String),
     SHA256(String),
 }

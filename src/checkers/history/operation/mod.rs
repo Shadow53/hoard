@@ -48,7 +48,8 @@ pub enum Error {
 /// Information logged about a single Hoard file inside of an Operation.
 ///
 /// This is *not* the Operation log file.
-pub(crate) struct OperationFileInfo {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OperationFileInfo {
     pile_name: Option<String>,
     relative_path: PathBuf,
     checksum: Option<Checksum>,
@@ -61,7 +62,7 @@ enum OperationVersion {
     V2(OperationV2),
 }
 
-pub(crate) trait OperationImpl {
+pub trait OperationImpl {
     fn direction(&self) -> Direction;
     fn contains_file(&self, pile_name: Option<&str>, rel_path: &Path, only_modified: bool) -> bool;
     fn timestamp(&self) -> OffsetDateTime;
@@ -116,7 +117,7 @@ impl OperationImpl for OperationVersion {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
-pub(crate) struct Operation(OperationVersion);
+pub struct Operation(OperationVersion);
 
 impl OperationImpl for Operation {
     fn direction(&self) -> Direction {
@@ -302,7 +303,7 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub(crate) fn latest_local(
+    pub fn latest_local(
         hoard: &str,
         file: Option<(Option<&str>, &Path)>,
     ) -> Result<Option<Self>, Error> {
