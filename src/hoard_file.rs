@@ -4,6 +4,7 @@ use sha2::Digest as _;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
+use crate::hoard::{HoardPath, SystemPath};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -42,10 +43,9 @@ impl fmt::Display for Checksum {
         }
     }
 }
-use crate::hoard::{HoardPath, SystemPath};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct HoardFile {
+pub struct HoardFile {
     pile_name: Option<String>,
     hoard_prefix: HoardPath,
     system_prefix: SystemPath,
@@ -55,7 +55,7 @@ pub(crate) struct HoardFile {
 }
 
 impl HoardFile {
-    pub(crate) fn new(
+    pub fn new(
         pile_name: Option<String>,
         hoard_prefix: HoardPath,
         system_prefix: SystemPath,
@@ -79,31 +79,31 @@ impl HoardFile {
         }
     }
 
-    pub(crate) fn pile_name(&self) -> Option<&str> {
+    pub fn pile_name(&self) -> Option<&str> {
         self.pile_name.as_deref()
     }
 
-    pub(crate) fn relative_path(&self) -> &Path {
+    pub fn relative_path(&self) -> &Path {
         &self.relative_path
     }
 
-    pub(crate) fn hoard_prefix(&self) -> &Path {
+    pub fn hoard_prefix(&self) -> &Path {
         &self.hoard_prefix
     }
 
-    pub(crate) fn system_prefix(&self) -> &Path {
+    pub fn system_prefix(&self) -> &Path {
         &self.system_prefix
     }
 
-    pub(crate) fn hoard_path(&self) -> &Path {
+    pub fn hoard_path(&self) -> &Path {
         &self.hoard_path
     }
 
-    pub(crate) fn system_path(&self) -> &Path {
+    pub fn system_path(&self) -> &Path {
         &self.system_path
     }
 
-    pub(crate) fn is_file(&self) -> bool {
+    pub fn is_file(&self) -> bool {
         let sys = self.system_path();
         let hoard = self.hoard_path();
         let sys_exists = sys.exists();
@@ -113,7 +113,7 @@ impl HoardFile {
             && (sys_exists || hoard_exists)
     }
 
-    pub(crate) fn is_dir(&self) -> bool {
+    pub fn is_dir(&self) -> bool {
         let sys = self.system_path();
         let hoard = self.hoard_path();
         let sys_exists = sys.exists();
@@ -133,11 +133,11 @@ impl HoardFile {
         }
     }
 
-    pub(crate) fn system_content(&self) -> io::Result<Option<Vec<u8>>> {
+    pub fn system_content(&self) -> io::Result<Option<Vec<u8>>> {
         Self::content(self.system_path())
     }
 
-    pub(crate) fn hoard_content(&self) -> io::Result<Option<Vec<u8>>> {
+    pub fn hoard_content(&self) -> io::Result<Option<Vec<u8>>> {
         Self::content(self.hoard_path())
     }
 
@@ -148,12 +148,12 @@ impl HoardFile {
         }
     }
 
-    pub(crate) fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
+    pub fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
         self.hoard_content()
             .map(|content| content.as_deref().map(Self::md5))
     }
 
-    pub(crate) fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
+    pub fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
         self.hoard_content()
             .map(|content| content.as_deref().map(Self::sha256))
     }
@@ -165,12 +165,12 @@ impl HoardFile {
         }
     }
 
-    pub(crate) fn system_md5(&self) -> io::Result<Option<Checksum>> {
+    pub fn system_md5(&self) -> io::Result<Option<Checksum>> {
         self.system_content()
             .map(|content| content.as_deref().map(Self::md5))
     }
 
-    pub(crate) fn system_sha256(&self) -> io::Result<Option<Checksum>> {
+    pub fn system_sha256(&self) -> io::Result<Option<Checksum>> {
         self.system_content()
             .map(|content| content.as_deref().map(Self::sha256))
     }

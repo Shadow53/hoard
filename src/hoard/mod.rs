@@ -73,10 +73,10 @@ pub enum Direction {
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct HoardPath(PathBuf);
+pub struct HoardPath(PathBuf);
 #[repr(transparent)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct SystemPath(PathBuf);
+pub struct SystemPath(PathBuf);
 
 impl AsRef<Path> for HoardPath {
     fn as_ref(&self) -> &Path {

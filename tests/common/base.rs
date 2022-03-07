@@ -2,16 +2,25 @@ use std::collections::HashMap;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use nix::libc::write;
 use rand::RngCore;
 use sha2::digest::generic_array::GenericArray;
 use sha2::{Digest, Sha256};
 use sha2::digest::OutputSizeUser;
+use hoard::hoard::{HoardPath, SystemPath};
+use hoard::hoard_file::HoardFile;
 
 use super::tester::Tester;
 
 pub const HOARD_ANON_DIR: &str = "anon_dir";
 pub const HOARD_ANON_FILE: &str = "anon_file";
 pub const HOARD_NAMED: &str = "named";
+pub const HOARD_NAMED_FILE: &str = "file";
+pub const HOARD_NAMED_DIR1: &str = "dir1";
+pub const HOARD_NAMED_DIR2: &str = "dir2";
+pub const DIR_FILE_1: &str = "1";
+pub const DIR_FILE_2: &str = "2";
+pub const DIR_FILE_3: &str = "3";
 
 pub const BASE_CONFIG: &str = r#"
 # Using weird table-array syntax to make converting from TOML->YAML for tests easier.
@@ -79,90 +88,161 @@ exclusivity = [
         ignore = ["**/.hidden"]
 "#;
 
-pub struct DefaultConfigTester(Tester);
+pub struct DefaultConfigTester {
+    tester: Tester,
+    is_first_env: Option<bool>,
+}
 
 impl AsRef<Tester> for DefaultConfigTester {
     fn as_ref(&self) -> &Tester {
-        &self.0
+        &self.tester
     }
 }
 
 impl Deref for DefaultConfigTester {
     type Target = Tester;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.tester
     }
 }
 
 impl DerefMut for DefaultConfigTester {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.tester
     }
 }
 
 impl DefaultConfigTester {
     pub fn new() -> Self {
-        Self(Tester::new(BASE_CONFIG))
+        Self::with_log_level(tracing::Level::INFO)
     }
 
     pub fn with_log_level(log_level: tracing::Level) -> Self {
-        Self(Tester::with_log_level(BASE_CONFIG, log_level))
+        Self {
+            tester: Tester::with_log_level(BASE_CONFIG, log_level),
+            is_first_env: None,
+        }
     }
 
     pub fn use_first_env(&mut self) {
         std::env::set_var("USE_ENV", "1");
+        self.is_first_env = Some(true);
         self.reset_config(BASE_CONFIG);
     }
 
     pub fn use_second_env(&mut self) {
         std::env::set_var("USE_ENV", "2");
+        self.is_first_env = Some(false);
         self.reset_config(BASE_CONFIG);
     }
 
     pub fn unset_env(&mut self) {
         std::env::remove_var("USE_ENV");
+        self.is_first_env = None;
         self.reset_config(BASE_CONFIG);
     }
 
-    pub fn setup_files(&self) {
+    fn is_first_env(&self) -> bool {
+        self.is_first_env.expect("USE_ENV must be set")
+    }
+
+    fn file_prefix(&self) -> &'static str {
+        if self.is_first_env() {
+            "first_"
+        } else {
+            "second_"
+        }
+    }
+
+    pub fn anon_file(&self) -> HoardFile {
+        let system_path = SystemPath::from(self.home_dir().join(format!("{}{}", self.file_prefix(), HOARD_ANON_FILE)));
+        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_FILE));
+        HoardFile::new(None, hoard_path, system_path, PathBuf::new())
+    }
+
+    pub fn anon_dir(&self) -> HoardFile {
+        let system_path = SystemPath::from(self.home_dir().join(format!("{}{}", self.file_prefix(), HOARD_ANON_DIR)));
+        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_DIR));
+        HoardFile::new(None, hoard_path, system_path, PathBuf::new())
+    }
+
+    pub fn named_file(&self) -> HoardFile {
+        let system_path = SystemPath::from(self.home_dir().join(format!("{}named_{}", self.file_prefix(), HOARD_NAMED_FILE)));
+        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_NAMED).join(HOARD_NAMED_FILE));
+        HoardFile::new(Some(String::from(HOARD_NAMED_FILE)), hoard_path, system_path, PathBuf::new())
+    }
+
+    pub fn named_dir1(&self) -> HoardFile {
+        let system_path = SystemPath::from(self.home_dir().join(format!("{}named_{}", self.file_prefix(), HOARD_NAMED_DIR1)));
+        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_NAMED).join(HOARD_NAMED_DIR1));
+        HoardFile::new(Some(String::from(HOARD_NAMED_DIR1)), hoard_path, system_path, PathBuf::new())
+    }
+
+    pub fn named_dir2(&self) -> HoardFile {
+        let system_path = SystemPath::from(self.home_dir().join(format!("{}named_{}", self.file_prefix(), HOARD_NAMED_DIR2)));
+        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_NAMED).join(HOARD_NAMED_DIR2));
+        HoardFile::new(Some(String::from(HOARD_NAMED_DIR2)), hoard_path, system_path, PathBuf::new())
+    }
+
+    fn file_in_hoard_dir(dir: &HoardFile, file: PathBuf) -> HoardFile {
+        HoardFile::new(
+            dir.pile_name().map(ToString::to_string),
+            HoardPath::from(dir.hoard_prefix().to_path_buf()),
+            SystemPath::from(dir.system_prefix().to_path_buf()),
+            file,
+        )
+    }
+
+    fn env_files_inner(&self) -> Vec<HoardFile> {
+        let anon_dir = self.anon_dir();
+        let named_dir1 = self.named_dir1();
+        let named_dir2 = self.named_dir2();
+        vec![
+            self.anon_file(),
+            Self::file_in_hoard_dir(&anon_dir, PathBuf::from(DIR_FILE_1)),
+            Self::file_in_hoard_dir(&anon_dir, PathBuf::from(DIR_FILE_2)),
+            Self::file_in_hoard_dir(&anon_dir, PathBuf::from(DIR_FILE_3)),
+            self.named_file(),
+            Self::file_in_hoard_dir(&named_dir1, PathBuf::from(DIR_FILE_1)),
+            Self::file_in_hoard_dir(&named_dir1, PathBuf::from(DIR_FILE_2)),
+            Self::file_in_hoard_dir(&named_dir1, PathBuf::from(DIR_FILE_3)),
+            Self::file_in_hoard_dir(&named_dir2, PathBuf::from(DIR_FILE_1)),
+            Self::file_in_hoard_dir(&named_dir2, PathBuf::from(DIR_FILE_2)),
+            Self::file_in_hoard_dir(&named_dir2, PathBuf::from(DIR_FILE_3)),
+        ]
+    }
+
+    pub fn first_env_files(&mut self) -> Vec<HoardFile> {
+        let old_env = self.is_first_env;
+        self.is_first_env = Some(true);
+        let result = self.env_files_inner();
+        self.is_first_env = old_env;
+        result
+    }
+
+    pub fn second_env_files(&mut self) -> Vec<HoardFile> {
+        let old_env = self.is_first_env;
+        self.is_first_env = Some(false);
+        let result = self.env_files_inner();
+        self.is_first_env = old_env;
+        result
+    }
+
+    pub fn setup_files(&mut self) {
         // First Env
-        let first_paths = [
-            self.home_dir().join("first_anon_file"),
-            self.home_dir().join("first_named_file"),
-            self.home_dir().join("first_anon_dir").join("1"),
-            self.home_dir().join("first_anon_dir").join("2"),
-            self.home_dir().join("first_anon_dir").join("3"),
-            self.home_dir().join("first_named_dir1").join("1"),
-            self.home_dir().join("first_named_dir1").join("2"),
-            self.home_dir().join("first_named_dir1").join("3"),
-            self.home_dir().join("first_named_dir2").join("1"),
-            self.home_dir().join("first_named_dir2").join("2"),
-            self.home_dir().join("first_named_dir2").join("3"),
-        ];
+        let first_paths = self.first_env_files();
 
         // Second Env
-        let second_paths = [
-            self.home_dir().join("second_anon_file"),
-            self.home_dir().join("second_named_file"),
-            self.home_dir().join("second_anon_dir").join("1"),
-            self.home_dir().join("second_anon_dir").join("2"),
-            self.home_dir().join("second_anon_dir").join("3"),
-            self.home_dir().join("second_named_dir1").join("1"),
-            self.home_dir().join("second_named_dir1").join("2"),
-            self.home_dir().join("second_named_dir1").join("3"),
-            self.home_dir().join("second_named_dir2").join("1"),
-            self.home_dir().join("second_named_dir2").join("2"),
-            self.home_dir().join("second_named_dir2").join("3"),
-        ];
+        let second_paths = self.second_env_files();
 
-        for file in first_paths.into_iter().chain(second_paths) {
+        let paths = first_paths.into_iter().chain(second_paths).map(|file| file.system_path().to_path_buf());
+
+        for file in paths {
             if let Some(parent) = file.parent() {
                 fs::create_dir_all(parent).expect("creating parent dirs should not fail");
             }
 
-            let mut content = [0; 2048];
-            rand::thread_rng().fill_bytes(&mut content);
-            fs::write(&file, &content).expect("writing data to file should not fail");
+           super::create_file_with_random_data::<2048>(&file);
         }
     }
 

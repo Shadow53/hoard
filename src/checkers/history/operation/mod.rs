@@ -48,7 +48,7 @@ pub enum Error {
 /// Information logged about a single Hoard file inside of an Operation.
 ///
 /// This is *not* the Operation log file.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct OperationFileInfo {
     pile_name: Option<String>,
     relative_path: PathBuf,
@@ -386,7 +386,9 @@ impl Operation {
     }
 
     pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
-        if self.as_latest_version()? == other.as_latest_version()? {
+        let self_files: HashSet<OperationFileInfo> = self.as_latest_version()?.all_files_with_checksums().collect();
+        let other_files: HashSet<OperationFileInfo> = other.as_latest_version()?.all_files_with_checksums().collect();
+        if self_files == other_files {
             Ok(())
         } else {
             match self.0.direction() {
@@ -427,7 +429,7 @@ impl Checker for Operation {
                 Ok(())
             }
             (None, Some(last_remote)) => {
-                tracing::debug!("no local operations found, is not safe to continue");
+                tracing::debug!("no local operations found, might not be safe to continue");
                 self.check_has_same_files(&last_remote)
             }
             (Some(last_local), Some(last_remote)) => {

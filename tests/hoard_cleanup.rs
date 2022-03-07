@@ -120,7 +120,8 @@ fn files_in_dir(root: &Path) -> Vec<PathBuf> {
 #[test]
 #[serial_test::serial]
 fn test_operation_cleanup() {
-    let tester = DefaultConfigTester::new();
+    let mut tester = DefaultConfigTester::new();
+    tester.use_first_env();
     for (location, direction, hoard) in &STRATEGY {
         run_operation(&tester, *location, *direction, hoard);
     }
@@ -167,6 +168,7 @@ fn test_operation_cleanup() {
     }
 
     tester.use_local_uuid();
+    common::create_file_with_random_data::<2048>(tester.named_file().system_path());
     tester.run_command(Command::Backup { hoards: vec![HOARD_NAMED.to_string()] })
         .expect_err("backing up named hoard should fail");
 

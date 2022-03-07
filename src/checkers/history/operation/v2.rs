@@ -26,7 +26,7 @@ use super::Error;
 /// This keeps track of the timestamp of the operation (which may include multiple hoards),
 /// all hoards involved in the operation (and the related [`HoardOperation`]), and a record
 /// of the latest operation log for each external system at the time of invocation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub(crate) struct OperationV2 {
     /// Timestamp of last operation
@@ -37,9 +37,6 @@ pub(crate) struct OperationV2 {
     hoard: String,
     /// Mapping of pile files to checksums
     files: Hoard,
-    // TODO: include unchanged as well
-    #[serde(skip, default)]
-    hoards_root: PathBuf,
 }
 
 impl OperationV2 {
@@ -54,7 +51,6 @@ impl OperationV2 {
             direction,
             hoard: name.into(),
             files: Hoard::new(hoards_root, name, hoard, direction)?,
-            hoards_root: hoards_root.to_path_buf(),
         })
     }
 
@@ -159,7 +155,6 @@ impl OperationV2 {
             direction: old_v1.direction(),
             hoard: old_v1.hoard_name().to_string(),
             files,
-            hoards_root: PathBuf::new(),
         }
     }
 }
@@ -448,7 +443,6 @@ mod tests {
                     timestamp: first_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Anonymous(Pile {
                         created: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
                         ..Pile::default()
@@ -458,7 +452,6 @@ mod tests {
                     timestamp: second_timestamp,
                     direction: Direction::Restore,
                     hoard: hoard_name.clone(),
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Anonymous(Pile {
                         unmodified: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
                         ..Pile::default()
@@ -468,7 +461,6 @@ mod tests {
                     timestamp: third_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name,
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Anonymous(Pile {
                         deleted: maplit::hashset! { PathBuf::new() },
                         ..Pile::default()
@@ -520,7 +512,6 @@ mod tests {
                     timestamp: first_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Anonymous(Pile {
                         created: maplit::hashmap! {
                             PathBuf::from("file_1") => Checksum::MD5(String::from("ba9d332813a722b273a95fa13dd88d94")),
@@ -533,7 +524,6 @@ mod tests {
                     timestamp: second_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Anonymous(Pile {
                         created: maplit::hashmap! {
                             PathBuf::from("file_3") => Checksum::MD5(String::from("797b373a9c4ec0d6de0a31a90b5bee8e"))
@@ -551,7 +541,6 @@ mod tests {
                     timestamp: third_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name,
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Anonymous(Pile {
                         modified: maplit::hashmap! {
                             PathBuf::from("file_3") => Checksum::MD5(String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"))
@@ -619,7 +608,6 @@ mod tests {
                     timestamp: first_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => Pile {
                             created: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
@@ -638,7 +626,6 @@ mod tests {
                     timestamp: second_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => Pile {
                             unmodified: maplit::hashmap! { PathBuf::new() => Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")) },
@@ -662,7 +649,6 @@ mod tests {
                     timestamp: third_timestamp,
                     direction: Direction::Backup,
                     hoard: hoard_name,
-                    hoards_root: PathBuf::new(),
                     files: Hoard::Named(maplit::hashmap! {
                         String::from("single_file") => Pile {
                             deleted: maplit::hashset! { PathBuf::new() },
