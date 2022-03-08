@@ -33,7 +33,7 @@
         RUSTFLAGS="-Zinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
-[tasks.all-tests]
+[tasks.docker-tests]
     dependencies = ["clean-all", "test-stable", "create-profraw-dir"]
     script = """
     sudo docker image build . -t hoard-tests --no-cache
@@ -41,13 +41,9 @@
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
     echo "Ran tests"
     """
-    [tasks.all-tests.env]
-        RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage"
-        LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
 [tasks.grcov]
-    dependencies = ["clean-all", "all-tests"]
+    dependencies = ["clean-all", "test-stable"]
     # Using `script` is necessary to get the glob expansion
     script = """
     grcov profraw/*.profraw --binary-path ./target/x86_64-unknown-linux-musl/debug \
