@@ -43,8 +43,7 @@ fn ignored_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
 
 fn all_extra_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
     ["first_anon_dir", "first_named_dir1", "first_named_dir2"]
-        .into_iter()
-        .map(|slug| {
+        .into_iter().flat_map(|slug| {
             vec![
                 tester.home_dir().join(slug).join("global_ignore"),
                 tester.home_dir().join(slug).join("ignore_for_hoard"),
@@ -56,7 +55,6 @@ fn all_extra_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
                     .join(".hidden"),
             ]
         })
-        .flatten()
         .collect()
 }
 

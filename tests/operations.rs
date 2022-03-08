@@ -62,12 +62,12 @@ fn test_operations() {
     common::create_file_with_random_data::<2048>(file.system_path());
 
     // TODO: assert error
-    let error_1 = tester
+    let _error_1 = tester
         .run_command(backup.clone())
         .expect_err("backup should fail because this id does not have latest backup");
 
     // 5 - should fail when trying again
-    let error_2 = tester
+    let _error_2 = tester
         .run_command(backup.clone())
         .expect_err("backup should *still* fail because this id does not have latest backup");
 
