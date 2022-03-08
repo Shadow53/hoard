@@ -10,9 +10,9 @@ use crate::filters::Error as FilterError;
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::io;
 use thiserror::Error;
 
 /// Errors that can happen while backing up or restoring a hoard.

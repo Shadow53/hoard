@@ -1,13 +1,13 @@
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::{
     fs::{File, Metadata},
     io::{Read, Seek, SeekFrom},
 };
-use std::path::Path;
 
-use tempfile::{NamedTempFile, TempDir};
 use hoard::hoard_file::{Checksum, HoardFile};
+use tempfile::{NamedTempFile, TempDir};
 
 pub fn get_temp_file() -> NamedTempFile {
     NamedTempFile::new().expect("failed to create temp file")

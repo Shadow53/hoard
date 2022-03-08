@@ -7,9 +7,9 @@ use tempfile::NamedTempFile;
 
 pub mod base;
 pub mod file;
-pub mod toml;
 pub mod test_subscriber;
 pub mod tester;
+pub mod toml;
 
 pub fn create_random_file<const SIZE: usize>() -> NamedTempFile {
     let mut file = NamedTempFile::new().expect("failed to create temporary file");

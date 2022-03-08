@@ -1,8 +1,8 @@
-use std::fs;
 use crate::checkers::{Checkers, Error as ConsistencyError};
+use crate::hoard::iter::{Error as IterError, OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard};
+use std::fs;
 use std::path::Path;
-use crate::hoard::iter::{OperationIter, OperationType, Error as IterError};
 use thiserror::Error;
 
 /// Errors that may occur while backing up or restoring hoards.
@@ -69,13 +69,22 @@ fn backup_or_restore<'a, S: AsRef<str>>(
                     if let Some(parent) = dest.parent() {
                         tracing::trace!(?parent, "ensuring parent dirs");
                         if let Err(err) = fs::create_dir_all(parent) {
-                            tracing::error!("failed to create parent directories for {}: {}", dest.display(), err);
+                            tracing::error!(
+                                "failed to create parent directories for {}: {}",
+                                dest.display(),
+                                err
+                            );
                             return Err(Error::IO(err));
                         }
                     }
                     tracing::debug!("copying {} to {}", src.display(), dest.display());
                     if let Err(err) = fs::copy(src, dest) {
-                        tracing::error!("failed to copy {} to {}: {}", src.display(), dest.display(), err);
+                        tracing::error!(
+                            "failed to copy {} to {}: {}",
+                            src.display(),
+                            dest.display(),
+                            err
+                        );
                         return Err(Error::IO(err));
                     }
                 }

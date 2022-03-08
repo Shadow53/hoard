@@ -86,11 +86,15 @@ impl MultipleEntries {
             .map(|(pile, mut entry)| {
                 tracing::debug!(%pile, "processing pile");
                 if pile == super::CONFIG_KEY {
-                    return Err(super::Error::NameConfigNotAllowed(vec![super::CONFIG_KEY.to_string()]));
+                    return Err(super::Error::NameConfigNotAllowed(vec![
+                        super::CONFIG_KEY.to_string()
+                    ]));
                 }
                 entry.layer_config(config.as_ref());
                 let _span = tracing::debug_span!("processing_span_outer", name=%pile).entered();
-                let entry = entry.process_with(envs, exclusivity).map_err(super::Error::from)?;
+                let entry = entry
+                    .process_with(envs, exclusivity)
+                    .map_err(super::Error::from)?;
                 Ok((pile, entry))
             })
             .collect::<Result<_, super::Error>>()?;
@@ -131,7 +135,9 @@ impl Hoard {
             Hoard::Single(single) => {
                 tracing::debug!("processing anonymous pile");
                 Ok(ConfigHoard::Anonymous(
-                    single.process_with(envs, exclusivity).map_err(super::Error::from)?,
+                    single
+                        .process_with(envs, exclusivity)
+                        .map_err(super::Error::from)?,
                 ))
             }
             Hoard::Multiple(multiple) => {

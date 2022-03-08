@@ -11,8 +11,8 @@ use std::process::Command;
 #[cfg(unix)]
 use pty_closure::{run_in_pty, Error as PtyError};
 
-use hoard::command::{Command as HoardCommand, Error as CommandError};
 use hoard::command::EditError;
+use hoard::command::{Command as HoardCommand, Error as CommandError};
 use hoard::config::Error as ConfigError;
 
 const WATCHDOG_FILE_NAME: &str = "watchdog.txt";
@@ -24,7 +24,10 @@ enum InterfaceType {
 }
 
 fn error_is_editor_exit(err: &ConfigError) -> bool {
-    matches!(err, ConfigError::Command(CommandError::Edit(EditError::Exit(_))))
+    matches!(
+        err,
+        ConfigError::Command(CommandError::Edit(EditError::Exit(_)))
+    )
 }
 
 fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) {
@@ -47,9 +50,16 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
         };
 
         if should_fail {
-            assert!(matches!(result, Err(PtyError::NonZeroExitCode(status)) if status == GOOD_ERROR), "expected editor to return failure code");
+            assert!(
+                matches!(result, Err(PtyError::NonZeroExitCode(status)) if status == GOOD_ERROR),
+                "expected editor to return failure code"
+            );
         } else {
-            assert!(result.is_ok(), "expected editor to exit without error, got {:?}", result);
+            assert!(
+                result.is_ok(),
+                "expected editor to exit without error, got {:?}",
+                result
+            );
             verify_editor_called_on(tester, &config_path);
         }
 
@@ -59,19 +69,30 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
     let result = tester.run_command(HoardCommand::Edit);
     if should_fail {
         if let Err(err) = result {
-            assert!(error_is_editor_exit(&err), "expected editor to exit with error code, got this instead: {:?}", err);
+            assert!(
+                error_is_editor_exit(&err),
+                "expected editor to exit with error code, got this instead: {:?}",
+                err
+            );
         } else {
             panic!("expected editor to exit with error");
         }
     } else {
-        assert!(result.is_ok(), "expected editor to exit without error, got this instead: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "expected editor to exit without error, got this instead: {:?}",
+            result
+        );
         verify_editor_called_on(tester, &config_path);
     }
 }
 
 fn verify_editor_called_on(tester: &Tester, _file: &Path) {
     let watchdog_path = tester.home_dir().join(WATCHDOG_FILE_NAME);
-    assert!(watchdog_path.exists(), "watchdog file should have been created");
+    assert!(
+        watchdog_path.exists(),
+        "watchdog file should have been created"
+    );
     fs::remove_file(&watchdog_path).expect("deleting the watchdog file should not fail");
 }
 
@@ -87,11 +108,9 @@ fn verify_watchdog_works() {
                 InterfaceType::Graphical => editor.set_as_default_gui_editor(),
                 InterfaceType::CommandLine => editor.set_as_default_cli_editor(),
             };
-        
+
             #[cfg(unix)]
-            let result = Command::new(guard.script_path())
-                .arg(&file)
-                .status();
+            let result = Command::new(guard.script_path()).arg(&file).status();
 
             #[cfg(windows)]
             let result = Command::new("powershell.exe")
@@ -99,7 +118,8 @@ fn verify_watchdog_works() {
                 .arg(&file)
                 .status();
 
-            let status = result.expect("no I/O errors should have occurred while running the editor");
+            let status =
+                result.expect("no I/O errors should have occurred while running the editor");
             if editor.is_good() {
                 assert!(status.success(), "expected editor to exit with success");
                 verify_editor_called_on(&tester, &file);

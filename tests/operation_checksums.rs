@@ -1,13 +1,13 @@
 mod common;
 
-use std::fs;
-use std::path::PathBuf;
+use common::tester::Tester;
+use hoard::checkers::history::operation::{Operation, OperationImpl};
+use hoard::command::Command;
+use hoard::hoard_file::Checksum;
 use md5::{Digest as _, Md5};
 use sha2::{Digest as _, Sha256};
-use common::tester::Tester;
-use hoard::command::Command;
-use hoard::checkers::history::operation::{Operation, OperationImpl};
-use hoard::hoard_file::Checksum;
+use std::fs;
+use std::path::PathBuf;
 
 const CONFIG: &str = r#"
 exclusivity = [[ "unix", "windows" ]]

@@ -1,14 +1,14 @@
+use hoard::hoard::{HoardPath, SystemPath};
+use hoard::hoard_file::HoardFile;
+use nix::libc::write;
+use rand::RngCore;
+use sha2::digest::generic_array::GenericArray;
+use sha2::digest::OutputSizeUser;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use nix::libc::write;
-use rand::RngCore;
-use sha2::digest::generic_array::GenericArray;
-use sha2::{Digest, Sha256};
-use sha2::digest::OutputSizeUser;
-use hoard::hoard::{HoardPath, SystemPath};
-use hoard::hoard_file::HoardFile;
 
 use super::tester::Tester;
 
@@ -155,33 +155,83 @@ impl DefaultConfigTester {
     }
 
     pub fn anon_file(&self) -> HoardFile {
-        let system_path = SystemPath::from(self.home_dir().join(format!("{}{}", self.file_prefix(), HOARD_ANON_FILE)));
+        let system_path = SystemPath::from(self.home_dir().join(format!(
+            "{}{}",
+            self.file_prefix(),
+            HOARD_ANON_FILE
+        )));
         let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_FILE));
         HoardFile::new(None, hoard_path, system_path, PathBuf::new())
     }
 
     pub fn anon_dir(&self) -> HoardFile {
-        let system_path = SystemPath::from(self.home_dir().join(format!("{}{}", self.file_prefix(), HOARD_ANON_DIR)));
+        let system_path = SystemPath::from(self.home_dir().join(format!(
+            "{}{}",
+            self.file_prefix(),
+            HOARD_ANON_DIR
+        )));
         let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_DIR));
         HoardFile::new(None, hoard_path, system_path, PathBuf::new())
     }
 
     pub fn named_file(&self) -> HoardFile {
-        let system_path = SystemPath::from(self.home_dir().join(format!("{}named_{}", self.file_prefix(), HOARD_NAMED_FILE)));
-        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_NAMED).join(HOARD_NAMED_FILE));
-        HoardFile::new(Some(String::from(HOARD_NAMED_FILE)), hoard_path, system_path, PathBuf::new())
+        let system_path = SystemPath::from(self.home_dir().join(format!(
+            "{}named_{}",
+            self.file_prefix(),
+            HOARD_NAMED_FILE
+        )));
+        let hoard_path = HoardPath::from(
+            self.data_dir()
+                .join("hoards")
+                .join(HOARD_NAMED)
+                .join(HOARD_NAMED_FILE),
+        );
+        HoardFile::new(
+            Some(String::from(HOARD_NAMED_FILE)),
+            hoard_path,
+            system_path,
+            PathBuf::new(),
+        )
     }
 
     pub fn named_dir1(&self) -> HoardFile {
-        let system_path = SystemPath::from(self.home_dir().join(format!("{}named_{}", self.file_prefix(), HOARD_NAMED_DIR1)));
-        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_NAMED).join(HOARD_NAMED_DIR1));
-        HoardFile::new(Some(String::from(HOARD_NAMED_DIR1)), hoard_path, system_path, PathBuf::new())
+        let system_path = SystemPath::from(self.home_dir().join(format!(
+            "{}named_{}",
+            self.file_prefix(),
+            HOARD_NAMED_DIR1
+        )));
+        let hoard_path = HoardPath::from(
+            self.data_dir()
+                .join("hoards")
+                .join(HOARD_NAMED)
+                .join(HOARD_NAMED_DIR1),
+        );
+        HoardFile::new(
+            Some(String::from(HOARD_NAMED_DIR1)),
+            hoard_path,
+            system_path,
+            PathBuf::new(),
+        )
     }
 
     pub fn named_dir2(&self) -> HoardFile {
-        let system_path = SystemPath::from(self.home_dir().join(format!("{}named_{}", self.file_prefix(), HOARD_NAMED_DIR2)));
-        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_NAMED).join(HOARD_NAMED_DIR2));
-        HoardFile::new(Some(String::from(HOARD_NAMED_DIR2)), hoard_path, system_path, PathBuf::new())
+        let system_path = SystemPath::from(self.home_dir().join(format!(
+            "{}named_{}",
+            self.file_prefix(),
+            HOARD_NAMED_DIR2
+        )));
+        let hoard_path = HoardPath::from(
+            self.data_dir()
+                .join("hoards")
+                .join(HOARD_NAMED)
+                .join(HOARD_NAMED_DIR2),
+        );
+        HoardFile::new(
+            Some(String::from(HOARD_NAMED_DIR2)),
+            hoard_path,
+            system_path,
+            PathBuf::new(),
+        )
     }
 
     fn file_in_hoard_dir(dir: &HoardFile, file: PathBuf) -> HoardFile {
@@ -235,14 +285,17 @@ impl DefaultConfigTester {
         // Second Env
         let second_paths = self.second_env_files();
 
-        let paths = first_paths.into_iter().chain(second_paths).map(|file| file.system_path().to_path_buf());
+        let paths = first_paths
+            .into_iter()
+            .chain(second_paths)
+            .map(|file| file.system_path().to_path_buf());
 
         for file in paths {
             if let Some(parent) = file.parent() {
                 fs::create_dir_all(parent).expect("creating parent dirs should not fail");
             }
 
-           super::create_file_with_random_data::<2048>(&file);
+            super::create_file_with_random_data::<2048>(&file);
         }
     }
 
@@ -251,9 +304,15 @@ impl DefaultConfigTester {
         Sha256::digest(&data)
     }
 
-    fn file_contents(path: &Path, root: &Path) -> HashMap<PathBuf, GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>> {
+    fn file_contents(
+        path: &Path,
+        root: &Path,
+    ) -> HashMap<PathBuf, GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>> {
         if path.is_file() {
-            let key = path.strip_prefix(root).expect("path should always have root as prefix").to_path_buf();
+            let key = path
+                .strip_prefix(root)
+                .expect("path should always have root as prefix")
+                .to_path_buf();
             maplit::hashmap! { key => Self::hash_file(path) }
         } else if path.is_dir() {
             let mut map = HashMap::new();
@@ -271,30 +330,36 @@ impl DefaultConfigTester {
     fn assert_same_tree(left: &Path, right: &Path) {
         let left_content = Self::file_contents(left, left);
         let right_content = Self::file_contents(right, right);
-        assert_eq!(left_content, right_content, "{} and {} do not have matching contents", left.display(), right.display());
+        assert_eq!(
+            left_content,
+            right_content,
+            "{} and {} do not have matching contents",
+            left.display(),
+            right.display()
+        );
     }
 
     pub fn assert_first_tree(&self) {
         let hoards_root = self.data_dir().join("hoards");
         Self::assert_same_tree(
             &self.home_dir().join("first_anon_file"),
-            &hoards_root.join("anon_file")
+            &hoards_root.join("anon_file"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("first_anon_dir"),
-            &hoards_root.join("anon_dir")
+            &hoards_root.join("anon_dir"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("first_named_file"),
-            &hoards_root.join("named").join("file")
+            &hoards_root.join("named").join("file"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("first_named_dir1"),
-            &hoards_root.join("named").join("dir1")
+            &hoards_root.join("named").join("dir1"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("first_named_dir2"),
-            &hoards_root.join("named").join("dir2")
+            &hoards_root.join("named").join("dir2"),
         );
     }
 
@@ -302,23 +367,23 @@ impl DefaultConfigTester {
         let hoards_root = self.data_dir().join("hoards");
         Self::assert_same_tree(
             &self.home_dir().join("second_anon_file"),
-            &hoards_root.join("anon_file")
+            &hoards_root.join("anon_file"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("second_anon_dir"),
-            &hoards_root.join("anon_dir")
+            &hoards_root.join("anon_dir"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("second_named_file"),
-            &hoards_root.join("named").join("file")
+            &hoards_root.join("named").join("file"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("second_named_dir1"),
-            &hoards_root.join("named").join("dir1")
+            &hoards_root.join("named").join("dir1"),
         );
         Self::assert_same_tree(
             &self.home_dir().join("second_named_dir2"),
-            &hoards_root.join("named").join("dir2")
+            &hoards_root.join("named").join("dir2"),
         );
     }
 }

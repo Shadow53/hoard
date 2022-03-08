@@ -1,10 +1,10 @@
+use super::Editor;
+use registry::{Data, Error as RegError, Hive, Security};
 use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
-use registry::{Data, Hive, Security, Error as RegError};
-use super::Editor;
 
 const EDITOR_NAME: &str = "editor.ps1";
 
@@ -17,11 +17,14 @@ fn set_reg_key(key: &str, val: &Data) {
 
 fn get_reg_key(key: &str) -> Option<Data> {
     match Hive::ClassesRoot::open(key, Security::Read) {
-        Ok(reg) => reg.value().map(Some).expect("reading registry key should not fail"),
+        Ok(reg) => reg
+            .value()
+            .map(Some)
+            .expect("reading registry key should not fail"),
         Err(err) => match err {
             RegError::NotFound(_, _) => Ok(None),
             _ => panic!("failed to open registry item {}: {:?}", key, err),
-        }
+        },
     }
 }
 
@@ -61,13 +64,13 @@ impl Drop for EditorGuard {
 fn create_script_file(editor: Editor) -> EditorGuard {
     let temp_dir = tempfile::tempdir().expect("creating tempdir should succeed");
     let script_file = temp_dir.path().join(EDITOR_NAME);
-    let mut script = fs::File::create(&script_file)
-        .expect("creating script file should not succeed");
-    script.write_all(editor.file_content().as_bytes())
+    let mut script =
+        fs::File::create(&script_file).expect("creating script file should not succeed");
+    script
+        .write_all(editor.file_content().as_bytes())
         .expect("writing to script file should succeed");
 
-    let old_path = std::env::var_os("PATH")
-        .expect("windows systems should always have PATH set");
+    let old_path = std::env::var_os("PATH").expect("windows systems should always have PATH set");
 
     EditorGuard {
         temp_dir,
@@ -86,9 +89,12 @@ const TXTFILE_OPEN_COMMAND: &str = "txtfile\\shell\\Open\\command";
 pub fn set_default_gui_editor(editor: Editor) -> EditorGuard {
     let mut guard = create_script_file(editor);
     let reg_value = Data::String(
-        format!("powershell.exe -Path {} \"%1\"", guard.script_path().display())
+        format!(
+            "powershell.exe -Path {} \"%1\"",
+            guard.script_path().display()
+        )
         .try_into()
-        .expect("converting ASCII string to U16 string should not fail")
+        .expect("converting ASCII string to U16 string should not fail"),
     );
 
     guard.old_shell_editor_command = get_reg_key(SHELL_EDITOR_COMMAND);

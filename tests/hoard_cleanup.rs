@@ -1,13 +1,13 @@
 mod common;
 
+use common::base::DefaultConfigTester;
+use common::base::{HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
+use common::UuidLocation;
+use hoard::command::Command;
+use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use common::UuidLocation;
-use common::base::{HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
-use hoard::command::Command;
-use once_cell::sync::Lazy;
-use common::base::DefaultConfigTester;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 enum Direction {
@@ -80,7 +80,12 @@ static RETAINED: Lazy<HashMap<UuidLocation, HashMap<&'static str, Vec<usize>>>> 
 // |         | RSTR x 4 | RSTR x 2  | rstr x 1 |
 // +---------+----------+-----------+----------+
 
-fn run_operation(tester: &DefaultConfigTester, location: UuidLocation, direction: Direction, hoard: &str) {
+fn run_operation(
+    tester: &DefaultConfigTester,
+    location: UuidLocation,
+    direction: Direction,
+    hoard: &str,
+) {
     // Create new file contents.
     let file_path = if hoard == HOARD_NAMED {
         tester.home_dir().join("first_named_file")
@@ -104,8 +109,12 @@ fn run_operation(tester: &DefaultConfigTester, location: UuidLocation, direction
     }
 
     match direction {
-        Direction::Backup => tester.expect_command(Command::Backup { hoards: vec![hoard.to_string()] }),
-        Direction::Restore => tester.expect_command(Command::Restore { hoards: vec![hoard.to_string()] }),
+        Direction::Backup => tester.expect_command(Command::Backup {
+            hoards: vec![hoard.to_string()],
+        }),
+        Direction::Restore => tester.expect_command(Command::Restore {
+            hoards: vec![hoard.to_string()],
+        }),
     }
 }
 
@@ -126,27 +135,37 @@ fn test_operation_cleanup() {
         run_operation(&tester, *location, *direction, hoard);
     }
 
-    let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> = RETAINED.iter()
+    let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> = RETAINED
+        .iter()
         .map(|(location, retained)| {
-            let retained = retained.iter().map(|(hoard, indices)| {
-                let system_id = match location {
-                    UuidLocation::Local => tester.local_uuid().to_hyphenated().to_string(),
-                    UuidLocation::Remote => tester.remote_uuid().to_hyphenated().to_string(),
-                };
-                let path = tester.data_dir().join("history").join(system_id).join(hoard);
-                let mut files = files_in_dir(&path);
-                files.sort_unstable();
+            let retained = retained
+                .iter()
+                .map(|(hoard, indices)| {
+                    let system_id = match location {
+                        UuidLocation::Local => tester.local_uuid().to_hyphenated().to_string(),
+                        UuidLocation::Remote => tester.remote_uuid().to_hyphenated().to_string(),
+                    };
+                    let path = tester
+                        .data_dir()
+                        .join("history")
+                        .join(system_id)
+                        .join(hoard);
+                    let mut files = files_in_dir(&path);
+                    files.sort_unstable();
 
-                let files = files.into_iter()
-                    .filter(|path| !path.to_string_lossy().contains("last_paths"))
-                    .enumerate()
-                    .filter_map(|(i, path)| indices.contains(&i).then(|| path))
-                    .collect();
-                (*hoard, files)
-            }).collect();
+                    let files = files
+                        .into_iter()
+                        .filter(|path| !path.to_string_lossy().contains("last_paths"))
+                        .enumerate()
+                        .filter_map(|(i, path)| indices.contains(&i).then(|| path))
+                        .collect();
+                    (*hoard, files)
+                })
+                .collect();
 
             (*location, retained)
-        }).collect();
+        })
+        .collect();
 
     tester.expect_command(Command::Cleanup);
 
@@ -156,22 +175,37 @@ fn test_operation_cleanup() {
                 UuidLocation::Local => tester.local_uuid().to_hyphenated().to_string(),
                 UuidLocation::Remote => tester.remote_uuid().to_hyphenated().to_string(),
             };
-            let path = tester.data_dir().join("history").join(system_id).join(hoard);
+            let path = tester
+                .data_dir()
+                .join("history")
+                .join(system_id)
+                .join(hoard);
             let files: HashSet<PathBuf> = files_in_dir(&path).into_iter().collect();
             let expected_files = expected
                 .get(location)
                 .expect("location should exist")
                 .get(hoard)
                 .expect("hoard should exist");
-            assert_eq!(&files, expected_files, "expected {:?} got {:?}", expected_files, files);
+            assert_eq!(
+                &files, expected_files,
+                "expected {:?} got {:?}",
+                expected_files, files
+            );
         }
     }
 
     tester.use_local_uuid();
     common::create_file_with_random_data::<2048>(tester.named_file().system_path());
-    tester.run_command(Command::Backup { hoards: vec![HOARD_NAMED.to_string()] })
+    tester
+        .run_command(Command::Backup {
+            hoards: vec![HOARD_NAMED.to_string()],
+        })
         .expect_err("backing up named hoard should fail");
 
-    tester.expect_command(Command::Backup { hoards: vec![HOARD_ANON_DIR.to_string()] });
-    tester.expect_command(Command::Backup { hoards: vec![HOARD_ANON_FILE.to_string()] });
+    tester.expect_command(Command::Backup {
+        hoards: vec![HOARD_ANON_DIR.to_string()],
+    });
+    tester.expect_command(Command::Backup {
+        hoards: vec![HOARD_ANON_FILE.to_string()],
+    });
 }

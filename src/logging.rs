@@ -1,7 +1,7 @@
 //! Defines the default logging behavior for Hoard, using [`tracing`].
-//! 
+//!
 //! [`Formatter`] does the heavy lifting of formatting the output.
-//! 
+//!
 //! [`get_subscriber`] returns a default [`SubscriberBuilder`] that can be used without any changes.
 
 use std::collections::BTreeMap;
@@ -12,7 +12,9 @@ use tracing::field::{Field, Visit};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::field::RecordFields;
 use tracing_subscriber::fmt::format::Writer;
-use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields, FormattedFields, SubscriberBuilder};
+use tracing_subscriber::fmt::{
+    FmtContext, FormatEvent, FormatFields, FormattedFields, SubscriberBuilder,
+};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -166,7 +168,8 @@ where
 }
 
 /// Returns a [`SubscriberBuilder`] with the default settings for Hoard.
-#[must_use] pub fn get_subscriber() -> SubscriberBuilder<Formatter, Formatter, EnvFilter> {
+#[must_use]
+pub fn get_subscriber() -> SubscriberBuilder<Formatter, Formatter, EnvFilter> {
     let max_level = {
         let env_str = std::env::var(LOG_ENV).unwrap_or_else(|_| String::new());
 

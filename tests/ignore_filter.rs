@@ -1,9 +1,9 @@
 mod common;
 
-use std::fs;
-use std::path::PathBuf;
 use common::base::DefaultConfigTester;
 use hoard::command::Command;
+use std::fs;
+use std::path::PathBuf;
 
 const GLOBAL_FILE: &str = "global_ignore";
 const HOARD_FILE: &str = "ignore_for_hoard";
@@ -12,25 +12,52 @@ const NESTED_FILE: &str = "nested_dir/.hidden";
 
 fn ignored_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
     vec![
-        tester.home_dir().join("first_anon_dir").join("global_ignore"),
-        tester.home_dir().join("first_named_dir1").join("global_ignore"),
-        tester.home_dir().join("first_named_dir2").join("global_ignore"),
-        tester.home_dir().join("first_named_dir1").join("ignore_for_hoard"),
-        tester.home_dir().join("first_named_dir2").join("ignore_for_hoard"),
+        tester
+            .home_dir()
+            .join("first_anon_dir")
+            .join("global_ignore"),
+        tester
+            .home_dir()
+            .join("first_named_dir1")
+            .join("global_ignore"),
+        tester
+            .home_dir()
+            .join("first_named_dir2")
+            .join("global_ignore"),
+        tester
+            .home_dir()
+            .join("first_named_dir1")
+            .join("ignore_for_hoard"),
+        tester
+            .home_dir()
+            .join("first_named_dir2")
+            .join("ignore_for_hoard"),
         tester.home_dir().join("first_named_dir1").join("spilem"),
-        tester.home_dir().join("first_named_dir2").join("nested_dir").join(".hidden"),
+        tester
+            .home_dir()
+            .join("first_named_dir2")
+            .join("nested_dir")
+            .join(".hidden"),
     ]
 }
 
 fn all_extra_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
-    ["first_anon_dir", "first_named_dir1", "first_named_dir2"].into_iter().map(|slug| {
-        vec![
-            tester.home_dir().join(slug).join("global_ignore"),
-            tester.home_dir().join(slug).join("ignore_for_hoard"),
-            tester.home_dir().join(slug).join("spilem"),
-            tester.home_dir().join(slug).join("nested_dir").join(".hidden")
-        ]
-    }).flatten().collect()
+    ["first_anon_dir", "first_named_dir1", "first_named_dir2"]
+        .into_iter()
+        .map(|slug| {
+            vec![
+                tester.home_dir().join(slug).join("global_ignore"),
+                tester.home_dir().join(slug).join("ignore_for_hoard"),
+                tester.home_dir().join(slug).join("spilem"),
+                tester
+                    .home_dir()
+                    .join(slug)
+                    .join("nested_dir")
+                    .join(".hidden"),
+            ]
+        })
+        .flatten()
+        .collect()
 }
 
 #[test]

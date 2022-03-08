@@ -36,7 +36,10 @@ pub enum Error {
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LastPaths(HashMap<String, HoardPaths>);
 
-impl<T> From<T> for LastPaths where T: IntoIterator<Item=(String, HoardPaths)> {
+impl<T> From<T> for LastPaths
+where
+    T: IntoIterator<Item = (String, HoardPaths)>,
+{
     fn from(other: T) -> Self {
         Self(other.into_iter().collect())
     }
@@ -578,17 +581,19 @@ mod tests {
     #[test]
     fn test_serde() {
         let original_anon = anonymous_hoard_paths();
-        let parsed_anon: HoardPaths = serde_json::from_str(&serde_json::to_string(&original_anon).unwrap()).unwrap();
+        let parsed_anon: HoardPaths =
+            serde_json::from_str(&serde_json::to_string(&original_anon).unwrap()).unwrap();
         assert_eq!(original_anon, parsed_anon);
 
         let original_named = named_hoard_paths();
-        let parsed_named: HoardPaths = serde_json::from_str(&serde_json::to_string(&original_named).unwrap()).unwrap();
+        let parsed_named: HoardPaths =
+            serde_json::from_str(&serde_json::to_string(&original_named).unwrap()).unwrap();
         assert_eq!(original_named, parsed_named);
     }
 
     #[test]
     fn pile_paths_from_hoard() {
-        use crate::hoard::{PileConfig, Hoard, Pile, MultipleEntries};
+        use crate::hoard::{Hoard, MultipleEntries, Pile, PileConfig};
         let anon_hoard = Hoard::Anonymous(Pile {
             config: PileConfig::default(),
             path: Some(PathBuf::from("/anon/path")),
@@ -608,16 +613,22 @@ mod tests {
                     config: PileConfig::default(),
                     path: Some(PathBuf::from("/second/path"))
                 }
-            }
+            },
         });
 
         let anon_paths = PilePaths::from(anon_hoard);
         let named_paths = PilePaths::from(named_hoard);
 
-        assert_eq!(anon_paths, PilePaths::Anonymous(Some(PathBuf::from("/anon/path"))));
-        assert_eq!(named_paths, PilePaths::Named(maplit::hashmap! {
-            String::from("first") => PathBuf::from("/first/path"),
-            String::from("second") => PathBuf::from("/second/path"),
-        }));
+        assert_eq!(
+            anon_paths,
+            PilePaths::Anonymous(Some(PathBuf::from("/anon/path")))
+        );
+        assert_eq!(
+            named_paths,
+            PilePaths::Named(maplit::hashmap! {
+                String::from("first") => PathBuf::from("/first/path"),
+                String::from("second") => PathBuf::from("/second/path"),
+            })
+        );
     }
 }

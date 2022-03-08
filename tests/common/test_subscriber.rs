@@ -1,4 +1,8 @@
-use std::{sync::{Arc, Mutex, MutexGuard}, ops::Deref, io};
+use std::{
+    io,
+    ops::Deref,
+    sync::{Arc, Mutex, MutexGuard},
+};
 use tracing::dispatcher::DefaultGuard;
 use tracing_subscriber::{fmt::MakeWriter, util::SubscriberInitExt};
 
@@ -22,13 +26,19 @@ impl<'a> io::Write for GuardWrapper<'a> {
 impl<'a> MakeWriter<'a> for MakeMemoryWriter {
     type Writer = GuardWrapper<'a>;
     fn make_writer(&'a self) -> Self::Writer {
-        self.buffer.lock().map(GuardWrapper).expect("memory writer mutex was poisoned")
+        self.buffer
+            .lock()
+            .map(GuardWrapper)
+            .expect("memory writer mutex was poisoned")
     }
 }
 
 impl MakeMemoryWriter {
     fn clear(&self) {
-        self.buffer.lock().expect("memory writer lock was poisoned").clear();
+        self.buffer
+            .lock()
+            .expect("memory writer lock was poisoned")
+            .clear();
     }
 }
 
@@ -40,16 +50,21 @@ pub struct MemorySubscriber {
 impl MemorySubscriber {
     pub fn new(log_level: tracing::Level) -> Self {
         ::std::env::set_var("HOARD_LOG", log_level.to_string());
-        let writer = MakeMemoryWriter { buffer: Arc::new(Mutex::new(Vec::new())) };
+        let writer = MakeMemoryWriter {
+            buffer: Arc::new(Mutex::new(Vec::new())),
+        };
         let subscriber = hoard::logging::get_subscriber()
             .with_writer(writer.clone())
             .finish();
         let guard = subscriber.set_default();
         MemorySubscriber { writer, guard }
     }
-    
-    pub fn output(&'_ self) -> impl Deref<Target=Vec<u8>> + '_ {
-        self.writer.buffer.lock().expect("memory writer lock was poisoned")
+
+    pub fn output(&'_ self) -> impl Deref<Target = Vec<u8>> + '_ {
+        self.writer
+            .buffer
+            .lock()
+            .expect("memory writer lock was poisoned")
     }
 
     pub fn clear(&self) {

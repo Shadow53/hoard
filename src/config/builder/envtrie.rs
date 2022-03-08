@@ -376,7 +376,8 @@ fn get_exclusivity_map(exclusivity_list: &[Vec<String>]) -> BTreeMap<String, Has
                 .map(|item| (item.clone(), list.iter().cloned().collect()))
                 .collect()
         })
-        .reduce(merge_maps).unwrap_or_default()
+        .reduce(merge_maps)
+        .unwrap_or_default()
 }
 
 impl EnvTrie {

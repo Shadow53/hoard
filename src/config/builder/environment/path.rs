@@ -1,7 +1,7 @@
 //! See [`PathExists`].
 
 use crate::env_vars::expand_env_in_path;
-use serde::{de, Deserialize, Serialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
@@ -16,7 +16,10 @@ impl<'de> de::Visitor<'de> for PathExistsVisitor {
         formatter.write_str("a path that may or may not contain environment variables")
     }
 
-    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         deserializer.deserialize_str(self)
     }
 
@@ -25,8 +28,7 @@ impl<'de> de::Visitor<'de> for PathExistsVisitor {
         E: de::Error,
     {
         tracing::trace!("parsing path_exists item {}", s);
-        let inner = expand_env_in_path(s)
-            .ok();
+        let inner = expand_env_in_path(s).ok();
         Ok(PathExists(inner))
     }
 }
@@ -59,7 +61,7 @@ impl TryInto<bool> for PathExists {
             Some(path) => {
                 tracing::trace!("checking if path \"{}\" exists", path.to_string_lossy());
                 Ok(path.exists())
-            },
+            }
             None => Ok(false),
         }
     }

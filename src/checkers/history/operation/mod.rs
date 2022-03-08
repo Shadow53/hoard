@@ -386,8 +386,14 @@ impl Operation {
     }
 
     pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
-        let self_files: HashSet<OperationFileInfo> = self.as_latest_version()?.all_files_with_checksums().collect();
-        let other_files: HashSet<OperationFileInfo> = other.as_latest_version()?.all_files_with_checksums().collect();
+        let self_files: HashSet<OperationFileInfo> = self
+            .as_latest_version()?
+            .all_files_with_checksums()
+            .collect();
+        let other_files: HashSet<OperationFileInfo> = other
+            .as_latest_version()?
+            .all_files_with_checksums()
+            .collect();
         if self_files == other_files {
             Ok(())
         } else {

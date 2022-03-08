@@ -208,9 +208,11 @@ pub(crate) fn upgrade_operations() -> Result<(), Error> {
             top_file_checksum_map.insert(operation.hoard_name().to_string(), HashMap::new());
             top_file_set.insert(operation.hoard_name().to_string(), HashSet::new());
         }
-        let mut file_checksum_map = top_file_checksum_map.get_mut(operation.hoard_name())
+        let mut file_checksum_map = top_file_checksum_map
+            .get_mut(operation.hoard_name())
             .expect("checksum map should always exist");
-        let mut file_set = top_file_set.get_mut(operation.hoard_name())
+        let mut file_set = top_file_set
+            .get_mut(operation.hoard_name())
             .expect("file set should always exist");
         tracing::trace!(?operation, "converting operation");
         let operation = operation.convert_to_latest_version(&mut file_checksum_map, &mut file_set);

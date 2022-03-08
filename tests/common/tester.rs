@@ -1,8 +1,15 @@
-use std::{fs, io, path::{Path, PathBuf}, ops::Deref};
 use std::ops::DerefMut;
+use std::{
+    fs, io,
+    ops::Deref,
+    path::{Path, PathBuf},
+};
 
 use super::test_subscriber::MemorySubscriber;
-use hoard::{config::{Config, Error, Builder}, command::Command};
+use hoard::{
+    command::Command,
+    config::{Builder, Config, Error},
+};
 
 pub struct Tester {
     config: Config,
@@ -34,8 +41,14 @@ impl Tester {
             ::std::env::set_var("HOME", home_path);
             (
                 home_path.to_path_buf(),
-                home_path.join("Library").join("Application Support").join("com.shadow53.hoard"),
-                home_path.join("Library").join("Application Support").join("com.shadow53.hoard"),
+                home_path
+                    .join("Library")
+                    .join("Application Support")
+                    .join("com.shadow53.hoard"),
+                home_path
+                    .join("Library")
+                    .join("Application Support")
+                    .join("com.shadow53.hoard"),
             )
         };
 
@@ -46,7 +59,11 @@ impl Tester {
             (
                 _home_tmp.path().to_path_buf(),
                 _config_tmp.path().join("shadow53").join("hoard"),
-                _config_tmp.path().join("shadow53").join("hoard").join("data"),
+                _config_tmp
+                    .path()
+                    .join("shadow53")
+                    .join("hoard")
+                    .join("data"),
             )
         };
 
@@ -118,17 +135,23 @@ impl Tester {
             .expect("configuration should build correctly");
     }
 
-    pub fn home_dir(&self) -> &Path { &self.home_dir }
+    pub fn home_dir(&self) -> &Path {
+        &self.home_dir
+    }
 
-    pub fn config_dir(&self) -> &Path { &self.config_dir }
+    pub fn config_dir(&self) -> &Path {
+        &self.config_dir
+    }
 
-    pub fn data_dir(&self) -> &Path { &self.data_dir }
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
+    }
 
     fn inner_run_command(&self, command: Command, force: bool) -> Result<(), Error> {
         let config = Config {
             command,
             force,
-            .. self.config.clone()
+            ..self.config.clone()
         };
 
         self.clear_output();
@@ -152,20 +175,30 @@ impl Tester {
             .map(|(key, val)| format!("{} = {}", key, val))
             .collect::<Vec<String>>()
             .join("\n");
-        format!("CONFIG:\n{:#?}\nOUTPUT:\n{}\nENV\n{}\nHOME:\n{}\nDATA DIR:\n{}", self.config(), self.output(), list_env, list_home, list_data)
+        format!(
+            "CONFIG:\n{:#?}\nOUTPUT:\n{}\nENV\n{}\nHOME:\n{}\nDATA DIR:\n{}",
+            self.config(),
+            self.output(),
+            list_env,
+            list_home,
+            list_data
+        )
     }
 
     fn list_dir_to_string(dir: &Path, max_depth: u8, depth: u8) -> String {
         let this_path = format!("{}|- {}", " ".repeat(depth.into()), dir.display());
         let content = match fs::read_dir(dir) {
             Err(error) => format!("ERROR: {}", error),
-            Ok(iter) => {
-                iter.map(|entry| {
+            Ok(iter) => iter
+                .map(|entry| {
                     let entry_str = match entry {
                         Err(error) => format!("ERROR: {}", error),
                         Ok(entry) => {
                             let sub_entry = if entry.path().is_dir() && depth < max_depth {
-                                format!("\n{}", Self::list_dir_to_string(&entry.path(), max_depth, depth + 1))
+                                format!(
+                                    "\n{}",
+                                    Self::list_dir_to_string(&entry.path(), max_depth, depth + 1)
+                                )
                             } else {
                                 String::new()
                             };
@@ -176,8 +209,8 @@ impl Tester {
                     let prefix = format!("{}|-", " ".repeat(depth.into()));
 
                     format!("\n{} {}", prefix, entry_str)
-                }).collect::<String>()
-            }
+                })
+                .collect::<String>(),
         };
         format!("{}{}", this_path, content)
     }
@@ -185,7 +218,10 @@ impl Tester {
     fn handle_command_result(&self, command: Command, result: Result<(), Error>) {
         if let Err(error) = result {
             let debug_output = Self::extra_logging_output(self);
-            panic!("command {:?} failed: {:?}\n{}", command, error, debug_output);
+            panic!(
+                "command {:?} failed: {:?}\n{}",
+                command, error, debug_output
+            );
         }
     }
 
@@ -212,7 +248,8 @@ impl Tester {
             return false;
         }
 
-        self.subscriber.output()
+        self.subscriber
+            .output()
             .windows(as_bytes.len())
             .any(|window| window == as_bytes)
     }
@@ -220,7 +257,13 @@ impl Tester {
     fn assert_output(&self, output: &str, matches: bool) {
         let debug_output = self.extra_logging_output();
         let not_or_not = if matches { "" } else { "not " };
-        assert!(self.has_output(output) == matches, "expected \"{}\" {}in program output\n{}", output, not_or_not, debug_output);
+        assert!(
+            self.has_output(output) == matches,
+            "expected \"{}\" {}in program output\n{}",
+            output,
+            not_or_not,
+            debug_output
+        );
     }
 
     pub fn assert_has_output(&self, output: &str) {

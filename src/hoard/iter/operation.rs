@@ -52,8 +52,12 @@ impl Iterator for OperationIter {
                 } => match (self.direction, diff_source) {
                     (_, DiffSource::Mixed) => OperationType::Create(file),
                     (Direction::Backup, DiffSource::Local) => OperationType::Create(file),
-                    (Direction::Backup, DiffSource::Remote | DiffSource::Unknown) => OperationType::Delete(file),
-                    (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => OperationType::Create(file),
+                    (Direction::Backup, DiffSource::Remote | DiffSource::Unknown) => {
+                        OperationType::Delete(file)
+                    }
+                    (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => {
+                        OperationType::Create(file)
+                    }
                     (Direction::Restore, DiffSource::Local) => OperationType::Delete(file),
                 },
                 HoardFileDiff::Deleted {
@@ -61,7 +65,9 @@ impl Iterator for OperationIter {
                 } => match (self.direction, diff_source) {
                     (_, DiffSource::Mixed) => OperationType::Delete(file),
                     (Direction::Backup, DiffSource::Local)
-                    | (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => OperationType::Delete(file),
+                    | (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => {
+                        OperationType::Delete(file)
+                    }
                     (Direction::Backup, DiffSource::Remote | DiffSource::Unknown)
                     | (Direction::Restore, DiffSource::Local) => OperationType::Create(file),
                 },

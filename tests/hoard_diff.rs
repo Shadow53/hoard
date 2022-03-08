@@ -1,12 +1,12 @@
 mod common;
 
+use common::tester::Tester;
+use hoard::command::Command;
+use paste::paste;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use common::tester::Tester;
-use hoard::command::Command;
-use paste::paste;
 
 const DIFF_TOML: &str = r#"
 exclusivity = [
@@ -48,28 +48,53 @@ exclusivity = [
     "windows" = "${USERPROFILE}/testdir"
 "#;
 
-
 fn no_op(_tester: &Tester, _path: &Path, _content: Option<Content>, _is_text: bool, _hoard: &str) {}
 
-fn setup_modify(tester: &Tester, path: &Path, content: Option<Content>, is_text: bool, hoard: &str) {
+fn setup_modify(
+    tester: &Tester,
+    path: &Path,
+    content: Option<Content>,
+    is_text: bool,
+    hoard: &str,
+) {
     modify_file(path, content, is_text, hoard);
     tester.use_local_uuid();
-    tester.expect_command(Command::Backup { hoards: vec![hoard.to_string()] });
+    tester.expect_command(Command::Backup {
+        hoards: vec![hoard.to_string()],
+    });
     tester.use_remote_uuid();
-    tester.expect_command(Command::Restore { hoards: vec![hoard.to_string()] });
+    tester.expect_command(Command::Restore {
+        hoards: vec![hoard.to_string()],
+    });
 }
 
-fn setup_permissions(tester: &Tester, path: &Path, content: Option<Content>, is_text: bool, hoard: &str) {
+fn setup_permissions(
+    tester: &Tester,
+    path: &Path,
+    content: Option<Content>,
+    is_text: bool,
+    hoard: &str,
+) {
     modify_file(path, Some(Content::Data(DEFAULT_CONTENT)), is_text, hoard);
     setup_modify(tester, path, content, is_text, hoard);
 }
 
-fn setup_recreate(tester: &Tester, path: &Path, content: Option<Content>, is_text: bool, hoard: &str) {
+fn setup_recreate(
+    tester: &Tester,
+    path: &Path,
+    content: Option<Content>,
+    is_text: bool,
+    hoard: &str,
+) {
     modify_file(path, content, is_text, hoard);
     tester.use_local_uuid();
-    tester.expect_command(Command::Backup { hoards: vec![hoard.to_string()] });
+    tester.expect_command(Command::Backup {
+        hoards: vec![hoard.to_string()],
+    });
     modify_file(path, None, is_text, hoard);
-    tester.expect_command(Command::Restore { hoards: vec![hoard.to_string()] });
+    tester.expect_command(Command::Restore {
+        hoards: vec![hoard.to_string()],
+    });
 }
 
 fn is_writable(octet: u32) -> bool {
@@ -78,9 +103,11 @@ fn is_writable(octet: u32) -> bool {
 
 fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &str) {
     match content {
-        None => if path.exists() {
-            fs::remove_file(path).expect("removing file should succeed");
-            assert!(!path.exists());
+        None => {
+            if path.exists() {
+                fs::remove_file(path).expect("removing file should succeed");
+                assert!(!path.exists());
+            }
         }
         Some(Content::Data((text, binary))) => {
             if let Some(parent) = path.parent() {
@@ -93,12 +120,16 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &st
                 fs::write(path, binary).expect("writing text to file should succeed");
             }
 
-            assert!(path.exists(), "writing to the {} failed to create file", path.display());
+            assert!(
+                path.exists(),
+                "writing to the {} failed to create file",
+                path.display()
+            );
         }
         Some(Content::Perms(octet)) => {
-            let file = fs::File::open(path)
-                .expect("file should exist and be able to be opened");
-            let mut permissions = file.metadata()
+            let file = fs::File::open(path).expect("file should exist and be able to be opened");
+            let mut permissions = file
+                .metadata()
                 .expect("failed to read file metadata")
                 .permissions();
             #[cfg(unix)]
@@ -121,7 +152,10 @@ fn assert_diff_contains(
     is_verbose: bool,
 ) {
     tester.use_local_uuid();
-    tester.expect_command(Command::Diff { hoard: hoard.to_string(), verbose: is_verbose });
+    tester.expect_command(Command::Diff {
+        hoard: hoard.to_string(),
+        verbose: is_verbose,
+    });
     if invert {
         tester.assert_not_has_output(&content);
     } else if is_partial {
@@ -139,15 +173,33 @@ fn check_created_file(
     location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
-    system_content: Option<Content>
+    system_content: Option<Content>,
 ) {
     let summary = format!("{}: created {}\n", file.path.display(), location);
     let full_diff = get_full_diff(file, hoard_content, system_content);
-    assert_diff_contains(tester, hoard, summary.clone(), is_partial, file.ignored, false);
-    assert_diff_contains(tester, hoard, format!("{}{}", summary, full_diff), is_partial, file.ignored, true);
+    assert_diff_contains(
+        tester,
+        hoard,
+        summary.clone(),
+        is_partial,
+        file.ignored,
+        false,
+    );
+    assert_diff_contains(
+        tester,
+        hoard,
+        format!("{}{}", summary, full_diff),
+        is_partial,
+        file.ignored,
+        true,
+    );
 }
 
-fn get_full_diff(file: &File, hoard_content: Option<Content>, system_content: Option<Content>) -> String {
+fn get_full_diff(
+    file: &File,
+    hoard_content: Option<Content>,
+    system_content: Option<Content>,
+) -> String {
     let hoard_content = match hoard_content {
         None => return String::new(),
         Some(Content::Data((hoard_content, _))) => hoard_content,
@@ -161,7 +213,8 @@ fn get_full_diff(file: &File, hoard_content: Option<Content>, system_content: Op
     };
 
     if file.is_text && file.hoard_path.is_some() {
-        format!(r#"--- {}
+        format!(
+            r#"--- {}
 +++ {}
 @@ -1 +1 @@
 -{}
@@ -175,7 +228,9 @@ fn get_full_diff(file: &File, hoard_content: Option<Content>, system_content: Op
             hoard_content,
             system_content
         )
-    } else { String::new() }
+    } else {
+        String::new()
+    }
 }
 
 fn check_modified_file(
@@ -185,13 +240,32 @@ fn check_modified_file(
     location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
-    system_content: Option<Content>
+    system_content: Option<Content>,
 ) {
     let file_type = if file.is_text { "text" } else { "binary" };
-    let summary = format!("{}: {} file changed {}\n", file.path.display(), file_type, location);
+    let summary = format!(
+        "{}: {} file changed {}\n",
+        file.path.display(),
+        file_type,
+        location
+    );
     let full_diff = get_full_diff(file, hoard_content, system_content);
-    assert_diff_contains(tester, hoard, summary.clone(), is_partial, file.ignored, false);
-    assert_diff_contains(tester, hoard, format!("{}{}", summary, full_diff), is_partial, file.ignored, true);
+    assert_diff_contains(
+        tester,
+        hoard,
+        summary.clone(),
+        is_partial,
+        file.ignored,
+        false,
+    );
+    assert_diff_contains(
+        tester,
+        hoard,
+        format!("{}{}", summary, full_diff),
+        is_partial,
+        file.ignored,
+        true,
+    );
 }
 
 #[cfg(unix)]
@@ -202,7 +276,7 @@ fn check_modified_perms(
     _location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
-    system_content: Option<Content>
+    system_content: Option<Content>,
 ) {
     let hoard_perms = match hoard_content.expect("expected permissions") {
         Content::Data(_) => panic!("expected permissions, not data"),
@@ -215,22 +289,35 @@ fn check_modified_perms(
     };
 
     #[cfg(unix)]
-    let (hoard_perms, system_perms) = (format!("{:o}", hoard_perms), format!("{:o}",  system_perms));
+    let (hoard_perms, system_perms) = (format!("{:o}", hoard_perms), format!("{:o}", system_perms));
 
     #[cfg(windows)]
-    let hoard_perms = if is_writable(hoard_perms) { "writable" } else { "readonly" };
+    let hoard_perms = if is_writable(hoard_perms) {
+        "writable"
+    } else {
+        "readonly"
+    };
 
     #[cfg(windows)]
-    let system_perms = if is_writable(system_perms) { "writable" } else { "readonly" };
+    let system_perms = if is_writable(system_perms) {
+        "writable"
+    } else {
+        "readonly"
+    };
 
     for verbose in [true, false] {
         assert_diff_contains(
             tester,
             hoard,
-            format!("{}: permissions changed: hoard ({}), system ({})\n", file.path.display(), hoard_perms, system_perms),
+            format!(
+                "{}: permissions changed: hoard ({}), system ({})\n",
+                file.path.display(),
+                hoard_perms,
+                system_perms
+            ),
             is_partial,
             file.ignored,
-            verbose
+            verbose,
         );
     }
 }
@@ -242,17 +329,25 @@ fn check_deleted_file(
     location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
-    system_content: Option<Content>
+    system_content: Option<Content>,
 ) {
     let system_deleted = system_content.is_none();
     let hoard_deleted = hoard_content.is_none();
-    
+
     if system_deleted {
-        assert!(!file.path.exists() || file.ignored, "{} was not deleted", file.path.display());
+        assert!(
+            !file.path.exists() || file.ignored,
+            "{} was not deleted",
+            file.path.display()
+        );
     }
-    
+
     if hoard_deleted {
-        assert!(!file.hoard_path.as_ref().unwrap().exists() || file.ignored, "{} was not deleted", file.hoard_path.as_ref().unwrap().display());
+        assert!(
+            !file.hoard_path.as_ref().unwrap().exists() || file.ignored,
+            "{} was not deleted",
+            file.hoard_path.as_ref().unwrap().display()
+        );
     }
 
     assert_diff_contains(
@@ -281,10 +376,24 @@ fn check_recreated_file(
     location: &str,
     is_partial: bool,
     _hoard_content: Option<Content>,
-    _system_content: Option<Content>
+    _system_content: Option<Content>,
 ) {
-    assert_diff_contains(tester, hoard, format!("{}: recreated {}\n", file.path.display(), location), is_partial, file.ignored, false);
-    assert_diff_contains(tester, hoard, format!("{}: recreated {}\n", file.path.display(), location), is_partial, file.ignored, true);
+    assert_diff_contains(
+        tester,
+        hoard,
+        format!("{}: recreated {}\n", file.path.display(), location),
+        is_partial,
+        file.ignored,
+        false,
+    );
+    assert_diff_contains(
+        tester,
+        hoard,
+        format!("{}: recreated {}\n", file.path.display(), location),
+        is_partial,
+        file.ignored,
+        true,
+    );
 }
 
 struct File {
@@ -300,8 +409,14 @@ enum Content {
 }
 
 const DEFAULT_CONTENT: (&str, [u8; 5]) = ("This is a text file", [0x12, 0xFB, 0x3D, 0x00, 0x3A]);
-const CHANGED_CONTENT_A: (&str, [u8; 5]) = ("This is different text content", [0x12, 0xFB, 0x45, 0x00, 0x3A]);
-const CHANGED_CONTENT_B: (&str, [u8; 5]) = ("This is yet other text content", [0x12, 0xFB, 0x91, 0x00, 0x3A]);
+const CHANGED_CONTENT_A: (&str, [u8; 5]) = (
+    "This is different text content",
+    [0x12, 0xFB, 0x45, 0x00, 0x3A],
+);
+const CHANGED_CONTENT_B: (&str, [u8; 5]) = (
+    "This is yet other text content",
+    [0x12, 0xFB, 0x91, 0x00, 0x3A],
+);
 
 macro_rules! test_diff_type {
     ($({
@@ -506,7 +621,7 @@ macro_rules! test_diffs {
             //    check: check_created_file
             //}
         }
-    }
+    };
 }
 
 test_diffs! {

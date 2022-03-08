@@ -42,7 +42,11 @@ fn xdg_desktop_menu(command: &str, file_name: &str) {
         .arg(file_name)
         .status()
         .expect("xdg-desktop-menu command should not error");
-    assert_eq!(status.code(), Some(0), "xdg-desktop-menu exited with non-zero status");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "xdg-desktop-menu exited with non-zero status"
+    );
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -53,7 +57,11 @@ fn set_desktop_file_default(mime_type: &str) {
         .arg(mime_type)
         .status()
         .expect("xdg-mime command should not error");
-    assert_eq!(status.code(), Some(0), "xdg-mime exited with non-zero status");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "xdg-mime exited with non-zero status"
+    );
     let output = Command::new("xdg-mime")
         .arg("query")
         .arg("default")
@@ -61,23 +69,35 @@ fn set_desktop_file_default(mime_type: &str) {
         .output()
         .expect("xdg-mime command should not error");
     let as_bytes = EDITOR_DESKTOP.as_bytes();
-    assert!(output.stdout.windows(as_bytes.len()).any(|window| window == as_bytes), "{} does not seem to be correctly set as GUI default", EDITOR_DESKTOP);
+    assert!(
+        output
+            .stdout
+            .windows(as_bytes.len())
+            .any(|window| window == as_bytes),
+        "{} does not seem to be correctly set as GUI default",
+        EDITOR_DESKTOP
+    );
 }
 
 fn create_script_file(editor: Editor) -> EditorGuard {
     let temp_dir = tempfile::tempdir().expect("creating tempdir should succeed");
     let script_file = temp_dir.path().join(EDITOR_NAME);
-    let mut script = fs::File::create(&script_file)
-        .expect("creating script file should not succeed");
-    script.write_all(editor.file_content().as_bytes())
+    let mut script =
+        fs::File::create(&script_file).expect("creating script file should not succeed");
+    script
+        .write_all(editor.file_content().as_bytes())
         .expect("writing to script file should succeed");
-    let mut permissions = script.metadata().expect("reading script file metadata should succeed").permissions();
+    let mut permissions = script
+        .metadata()
+        .expect("reading script file metadata should succeed")
+        .permissions();
     // Mark script executable
     permissions.set_mode(permissions.mode() | 0o000111);
-    script.set_permissions(permissions).expect("making script executable should succeed");
+    script
+        .set_permissions(permissions)
+        .expect("making script executable should succeed");
 
-    let old_path = std::env::var_os("PATH")
-        .expect("unixy systems should always have PATH set");
+    let old_path = std::env::var_os("PATH").expect("unixy systems should always have PATH set");
 
     EditorGuard {
         temp_dir,
@@ -97,16 +117,17 @@ pub fn set_default_gui_editor(editor: Editor) -> EditorGuard {
     let mut guard = create_script_file(editor);
     let desktop_path = guard.temp_dir.path().join(EDITOR_DESKTOP);
     let content = format!(
-r#"[Desktop Entry]
+        r#"[Desktop Entry]
 Type=Application
 Name=Fake Editor
 GenericName=Editor
 Categories=System
 MimeType=text/plain;application/x-yaml
 Exec={} %f
-"#, guard.script_path().display());
-    fs::write(&desktop_path, content)
-        .expect("writing to desktop file should succeed");
+"#,
+        guard.script_path().display()
+    );
+    fs::write(&desktop_path, content).expect("writing to desktop file should succeed");
     xdg_desktop_menu("install", &desktop_path.to_string_lossy());
     // The mime type reported by xdg-mime for TOML files
     set_desktop_file_default("text/plain");

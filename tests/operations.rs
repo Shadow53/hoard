@@ -1,7 +1,7 @@
+use crate::common::base::{DefaultConfigTester, HOARD_ANON_FILE};
 use hoard::checkers::history::operation::{Operation, OperationImpl};
 use hoard::command::Command;
 use hoard::hoard_file::{Checksum, HoardFile};
-use crate::common::base::{DefaultConfigTester, HOARD_ANON_FILE};
 
 mod common;
 
@@ -12,12 +12,14 @@ fn last_op(file: &HoardFile) -> Operation {
 }
 
 fn last_checksum(file: &HoardFile) -> Checksum {
-    last_op(file).checksum_for(None, file.relative_path())
+    last_op(file)
+        .checksum_for(None, file.relative_path())
         .expect("checksum should exist for file")
 }
 
 fn current_checksum(file: &HoardFile) -> Checksum {
-    file.system_sha256().expect("getting checksum should not fail")
+    file.system_sha256()
+        .expect("getting checksum should not fail")
         .expect("file should exist to checksum")
 }
 
@@ -60,11 +62,13 @@ fn test_operations() {
     common::create_file_with_random_data::<2048>(file.system_path());
 
     // TODO: assert error
-    let error_1 = tester.run_command(backup.clone())
+    let error_1 = tester
+        .run_command(backup.clone())
         .expect_err("backup should fail because this id does not have latest backup");
 
     // 5 - should fail when trying again
-    let error_2 = tester.run_command(backup.clone())
+    let error_2 = tester
+        .run_command(backup.clone())
         .expect_err("backup should *still* fail because this id does not have latest backup");
 
     // 6 - should now work because it's forced

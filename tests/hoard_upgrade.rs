@@ -1,16 +1,16 @@
 mod common;
 
+use common::tester::Tester;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use time::Duration;
-use common::tester::Tester;
 
-use hoard::checkers::Checker;
 use hoard::checkers::history::operation::util::TIME_FORMAT;
-use hoard::checkers::history::operation::{Operation, OperationImpl};
-use hoard::checkers::history::operation::v1::{OperationV1, Hoard as HoardV1, Pile as PileV1};
+use hoard::checkers::history::operation::v1::{Hoard as HoardV1, OperationV1, Pile as PileV1};
 use hoard::checkers::history::operation::v2::OperationV2;
+use hoard::checkers::history::operation::{Operation, OperationImpl};
+use hoard::checkers::Checker;
 use hoard::command::Command;
 
 fn anon_file_operations() -> Vec<OperationV1> {
@@ -143,11 +143,17 @@ fn convert_vec(v1: &[OperationV1]) -> Vec<OperationV2> {
 
 fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
     for op in ops {
-        let path = tester.data_dir()
+        let path = tester
+            .data_dir()
             .join("history")
             .join(tester.get_uuid().expect("getting uuid should succeed"))
             .join(&op.hoard_name)
-            .join(format!("{}.log", op.timestamp().format(&TIME_FORMAT).expect("formatting timestamp should succeed")));
+            .join(format!(
+                "{}.log",
+                op.timestamp()
+                    .format(&TIME_FORMAT)
+                    .expect("formatting timestamp should succeed")
+            ));
 
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("creating parent dirs should succeed");
@@ -160,19 +166,25 @@ fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
 }
 
 fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
-    let path = tester.data_dir()
+    let path = tester
+        .data_dir()
         .join("history")
         .join(tester.get_uuid().expect("getting uuid should succeed"))
         .join(hoard);
     let mut list: Vec<_> = fs::read_dir(&path)
-        .expect(&format!("reading history directory {} should not fail", path.display()))
+        .expect(&format!(
+            "reading history directory {} should not fail",
+            path.display()
+        ))
         .filter_map(|entry| {
             let entry = entry.expect("reading dir entry should not fail");
             (entry.file_name() != "last_paths.json").then(|| {
                 let file = fs::File::open(entry.path()).expect("opening file should succeed");
-                serde_json::from_reader::<_, OperationV2>(file).expect("parsing json should not fail")
+                serde_json::from_reader::<_, OperationV2>(file)
+                    .expect("parsing json should not fail")
             })
-        }).collect();
+        })
+        .collect();
     list.sort_unstable_by(|left, right| left.timestamp().cmp(&right.timestamp()));
     list
 }

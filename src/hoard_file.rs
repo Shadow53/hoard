@@ -1,10 +1,10 @@
+use crate::hoard::{HoardPath, SystemPath};
 use md5::Digest as _;
 use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
-use crate::hoard::{HoardPath, SystemPath};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
