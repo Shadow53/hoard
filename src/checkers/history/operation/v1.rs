@@ -21,16 +21,16 @@ use time::OffsetDateTime;
 /// of the latest operation log for each external system at the time of invocation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::module_name_repetitions)]
-pub(crate) struct OperationV1 {
+pub struct OperationV1 {
     /// Timestamp of last operation
-    pub(crate) timestamp: OffsetDateTime,
+    pub timestamp: OffsetDateTime,
     /// Whether this operation was a backup
-    pub(crate) is_backup: bool,
+    pub is_backup: bool,
     /// The name of the hoard for this `HoardOperation`.
-    pub(crate) hoard_name: String,
+    pub hoard_name: String,
     /// Mapping of pile files to checksums
     #[allow(dead_code)]
-    pub(crate) hoard: Hoard,
+    pub hoard: Hoard,
 }
 
 impl super::OperationImpl for OperationV1 {
@@ -107,7 +107,7 @@ impl super::OperationImpl for OperationV1 {
 ///
 /// Really just a wrapper for [`Pile`] because piles may be anonymous or named.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum Hoard {
+pub enum Hoard {
     /// Information for a single, anonymous pile.
     Anonymous(Pile),
     /// Information for some number of named piles.
@@ -116,4 +116,10 @@ pub(crate) enum Hoard {
 
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Pile(pub(super) HashMap<PathBuf, String>);
+pub struct Pile(pub(super) HashMap<PathBuf, String>);
+
+impl From<HashMap<PathBuf, String>> for Pile {
+    fn from(map: HashMap<PathBuf, String>) -> Self {
+        Pile(map)
+    }
+}

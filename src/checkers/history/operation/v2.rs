@@ -28,7 +28,7 @@ use super::Error;
 /// of the latest operation log for each external system at the time of invocation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
-pub(crate) struct OperationV2 {
+pub struct OperationV2 {
     /// Timestamp of last operation
     timestamp: OffsetDateTime,
     /// Which direction this operation went
@@ -64,7 +64,7 @@ impl OperationV2 {
     /// - `files`: contains all paths whose checksums are `None` in `file_checksums`. This is used
     ///   as an optimization technique while determining which files were created or deleted.
     #[allow(clippy::needless_pass_by_value)]
-    pub(crate) fn from_v1(
+    pub fn from_v1(
         file_checksums: &mut HashMap<(Option<String>, PathBuf), Option<Checksum>>,
         file_set: &mut HashSet<(Option<String>, PathBuf)>,
         old_v1: super::v1::OperationV1,
@@ -476,7 +476,7 @@ mod tests {
             let first_timestamp = time::OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
-            let hoard_name = String::from("anon_file");
+            let hoard_name = String::from("anon_dir");
             let ops_v1 = vec![
                 v1::OperationV1 {
                     timestamp: first_timestamp,
@@ -563,7 +563,7 @@ mod tests {
             let first_timestamp = time::OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
-            let hoard_name = String::from("anon_file");
+            let hoard_name = String::from("named");
             let ops_v1 = vec![
                 v1::OperationV1 {
                     timestamp: first_timestamp,

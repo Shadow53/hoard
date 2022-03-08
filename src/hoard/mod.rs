@@ -60,7 +60,7 @@ pub enum Error {
     Filter(#[from] FilterError),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "lowercase")]
 /// Indicates which direction files are being copied in. Used to determine which files are required
 /// to exist.

@@ -10,9 +10,9 @@ use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
 
-pub(crate) mod util;
-mod v1;
-mod v2;
+pub mod util;
+pub mod v1;
+pub mod v2;
 
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
