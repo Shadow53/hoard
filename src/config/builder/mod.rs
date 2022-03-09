@@ -595,7 +595,7 @@ mod tests {
 
             match error {
                 Error::NameConfigNotAllowed(list) => {
-                    assert_eq!(list, vec![String::from("envs"), String::from("config")])
+                    assert_eq!(list, vec![String::from("envs"), String::from("config")]);
                 }
                 _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
             }
@@ -616,7 +616,7 @@ mod tests {
 
             match error {
                 Error::NameConfigNotAllowed(list) => {
-                    assert_eq!(list, vec![String::from("hoards"), String::from("config")])
+                    assert_eq!(list, vec![String::from("hoards"), String::from("config")]);
                 }
                 _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
             }

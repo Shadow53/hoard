@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 #[cfg(windows)]
 mod windows;
 

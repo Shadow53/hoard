@@ -1,14 +1,14 @@
-use super::{HoardDiffIter, HoardFile};
+use super::{HoardDiffIter, HoardItem};
 use crate::hoard::iter::{DiffSource, HoardFileDiff};
 use crate::hoard::{Direction, Hoard};
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum OperationType {
-    Create(HoardFile),
-    Modify(HoardFile),
-    Delete(HoardFile),
-    Nothing(HoardFile),
+    Create(HoardItem),
+    Modify(HoardItem),
+    Delete(HoardItem),
+    Nothing(HoardItem),
 }
 
 pub(crate) struct OperationIter {

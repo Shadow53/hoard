@@ -1,13 +1,14 @@
 use crate::filters::{Filter, Filters};
-use crate::hoard::iter::HoardFile;
+use crate::hoard::iter::HoardItem;
 use crate::hoard::{Hoard, HoardPath, SystemPath};
 use std::iter::Peekable;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{fs, io};
+use crate::paths::{HoardPath, RelativePath, SystemPath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
-    hoard_file: HoardFile,
+    hoard_file: HoardItem,
     filters: Filters,
 }
 
@@ -50,14 +51,15 @@ impl AllFilesIter {
                 match path {
                     None => Vec::new(),
                     Some(path) => {
-                        let hoard_prefix = HoardPath(hoards_root.join(hoard_name));
+                        let hoard_prefix = HoardPath::try_from(hoards_root.join(hoard_name))
+                            .expect("HoardPath rooted in ");
                         let system_prefix = SystemPath(path);
                         vec![RootPathItem {
-                            hoard_file: HoardFile::new(
+                            hoard_file: HoardItem::new(
                                 None,
                                 hoard_prefix,
                                 system_prefix,
-                                PathBuf::new(),
+                                RelativePath::none(),
                             ),
                             filters,
                         }]
@@ -76,11 +78,11 @@ impl AllFilesIter {
                         let hoard_prefix = HoardPath(hoards_root.join(hoard_name).join(name));
                         let system_prefix = SystemPath(path.clone());
                         Ok(RootPathItem {
-                            hoard_file: HoardFile::new(
+                            hoard_file: HoardItem::new(
                                 Some(name.clone()),
                                 hoard_prefix,
                                 system_prefix,
-                                PathBuf::new(),
+                                RelativePath::none(),
                             ),
                             filters,
                         })
@@ -116,7 +118,7 @@ impl AllFilesIter {
     }
 
     #[allow(clippy::option_option)]
-    fn ensure_dir_entries(&mut self) -> Option<Option<io::Result<HoardFile>>> {
+    fn ensure_dir_entries(&mut self) -> Option<Option<io::Result<HoardItem>>> {
         // Attempt to create direntry iterator.
         // If a path to a file is encountered, return that.
         // Otherwise, continue until existing directory is found.
@@ -172,7 +174,7 @@ impl AllFilesIter {
 }
 
 impl Iterator for AllFilesIter {
-    type Item = io::Result<HoardFile>;
+    type Item = io::Result<HoardItem>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(return_value) = self.ensure_dir_entries() {
@@ -203,14 +205,16 @@ impl Iterator for AllFilesIter {
                         }
                     };
 
-                    let relative_path = entry
-                        .path()
-                        .strip_prefix(&current_root.hoard_file.system_prefix())
-                        .expect("system prefix should always match path")
-                        .to_path_buf();
+                    let relative_path = RelativePath::try_from(
+                        entry
+                            .path()
+                            .strip_prefix(&current_root.hoard_file.hoard_prefix())
+                            .expect("hoard prefix should always match path")
+                            .to_path_buf()
+                    ).expect("path created with strip_prefix should always be valid RelativePath");
 
                     let new_item = RootPathItem {
-                        hoard_file: HoardFile::new(
+                        hoard_file: HoardItem::new(
                             current_root.hoard_file.pile_name().map(str::to_string),
                             HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
                             SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
@@ -248,14 +252,16 @@ impl Iterator for AllFilesIter {
                         }
                     };
 
-                    let relative_path = entry
-                        .path()
-                        .strip_prefix(&current_root.hoard_file.hoard_prefix())
-                        .expect("hoard prefix should always match path")
-                        .to_path_buf();
+                    let relative_path = RelativePath::try_from(
+                        entry
+                            .path()
+                            .strip_prefix(&current_root.hoard_file.hoard_prefix())
+                            .expect("hoard prefix should always match path")
+                            .to_path_buf()
+                    ).expect("path created with strip_prefix should always be valid RelativePath");
 
                     let new_item = RootPathItem {
-                        hoard_file: HoardFile::new(
+                        hoard_file: HoardItem::new(
                             current_root.hoard_file.pile_name().map(str::to_string),
                             HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
                             SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),

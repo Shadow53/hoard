@@ -71,52 +71,6 @@ pub enum Direction {
     Restore,
 }
 
-#[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HoardPath(PathBuf);
-#[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SystemPath(PathBuf);
-
-impl AsRef<Path> for HoardPath {
-    fn as_ref(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Deref for HoardPath {
-    type Target = Path;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<Path> for SystemPath {
-    fn as_ref(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Deref for SystemPath {
-    type Target = Path;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<PathBuf> for HoardPath {
-    fn from(p: PathBuf) -> Self {
-        Self(p)
-    }
-}
-
-impl From<PathBuf> for SystemPath {
-    fn from(p: PathBuf) -> Self {
-        Self(p)
-    }
-}
 
 /// A single path to hoard, with configuration.
 #[derive(Clone, Debug, PartialEq)]

@@ -6,7 +6,7 @@ use std::{
     io::{Read, Seek, SeekFrom},
 };
 
-use hoard::hoard_file::{Checksum, HoardFile};
+use hoard::hoard_item::{Checksum, HoardItem};
 use tempfile::{NamedTempFile, TempDir};
 
 pub fn get_temp_file() -> NamedTempFile {

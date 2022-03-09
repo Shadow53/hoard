@@ -1,33 +1,33 @@
 use crate::common::base::{DefaultConfigTester, HOARD_ANON_FILE};
 use hoard::checkers::history::operation::{Operation, OperationImpl};
 use hoard::command::Command;
-use hoard::hoard_file::{Checksum, HoardFile};
+use hoard::hoard_item::{Checksum, HoardItem};
 
 mod common;
 
-fn last_op(file: &HoardFile) -> Operation {
+fn last_op(file: &HoardItem) -> Operation {
     Operation::latest_local(HOARD_ANON_FILE, Some((None, file.relative_path())))
         .expect("finding a recent operation should not fail")
         .expect("a recent operation should exist")
 }
 
-fn last_checksum(file: &HoardFile) -> Checksum {
+fn last_checksum(file: &HoardItem) -> Checksum {
     last_op(file)
         .checksum_for(None, file.relative_path())
         .expect("checksum should exist for file")
 }
 
-fn current_checksum(file: &HoardFile) -> Checksum {
+fn current_checksum(file: &HoardItem) -> Checksum {
     file.system_sha256()
         .expect("getting checksum should not fail")
         .expect("file should exist to checksum")
 }
 
-fn assert_matching_checksum(file: &HoardFile) {
+fn assert_matching_checksum(file: &HoardItem) {
     assert_eq!(last_checksum(file), current_checksum(file));
 }
 
-fn assert_not_matching_checksum(file: &HoardFile) {
+fn assert_not_matching_checksum(file: &HoardItem) {
     assert_ne!(last_checksum(file), current_checksum(file));
 }
 

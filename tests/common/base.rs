@@ -1,5 +1,5 @@
 use hoard::hoard::{HoardPath, SystemPath};
-use hoard::hoard_file::HoardFile;
+use hoard::hoard_item::HoardItem;
 use nix::libc::write;
 use rand::RngCore;
 use sha2::digest::generic_array::GenericArray;
@@ -154,27 +154,27 @@ impl DefaultConfigTester {
         }
     }
 
-    pub fn anon_file(&self) -> HoardFile {
+    pub fn anon_file(&self) -> HoardItem {
         let system_path = SystemPath::from(self.home_dir().join(format!(
             "{}{}",
             self.file_prefix(),
             HOARD_ANON_FILE
         )));
         let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_FILE));
-        HoardFile::new(None, hoard_path, system_path, PathBuf::new())
+        HoardItem::new(None, hoard_path, system_path, PathBuf::new())
     }
 
-    pub fn anon_dir(&self) -> HoardFile {
+    pub fn anon_dir(&self) -> HoardItem {
         let system_path = SystemPath::from(self.home_dir().join(format!(
             "{}{}",
             self.file_prefix(),
             HOARD_ANON_DIR
         )));
         let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_DIR));
-        HoardFile::new(None, hoard_path, system_path, PathBuf::new())
+        HoardItem::new(None, hoard_path, system_path, PathBuf::new())
     }
 
-    pub fn named_file(&self) -> HoardFile {
+    pub fn named_file(&self) -> HoardItem {
         let system_path = SystemPath::from(self.home_dir().join(format!(
             "{}named_{}",
             self.file_prefix(),
@@ -186,7 +186,7 @@ impl DefaultConfigTester {
                 .join(HOARD_NAMED)
                 .join(HOARD_NAMED_FILE),
         );
-        HoardFile::new(
+        HoardItem::new(
             Some(String::from(HOARD_NAMED_FILE)),
             hoard_path,
             system_path,
@@ -194,7 +194,7 @@ impl DefaultConfigTester {
         )
     }
 
-    pub fn named_dir1(&self) -> HoardFile {
+    pub fn named_dir1(&self) -> HoardItem {
         let system_path = SystemPath::from(self.home_dir().join(format!(
             "{}named_{}",
             self.file_prefix(),
@@ -206,7 +206,7 @@ impl DefaultConfigTester {
                 .join(HOARD_NAMED)
                 .join(HOARD_NAMED_DIR1),
         );
-        HoardFile::new(
+        HoardItem::new(
             Some(String::from(HOARD_NAMED_DIR1)),
             hoard_path,
             system_path,
@@ -214,7 +214,7 @@ impl DefaultConfigTester {
         )
     }
 
-    pub fn named_dir2(&self) -> HoardFile {
+    pub fn named_dir2(&self) -> HoardItem {
         let system_path = SystemPath::from(self.home_dir().join(format!(
             "{}named_{}",
             self.file_prefix(),
@@ -226,7 +226,7 @@ impl DefaultConfigTester {
                 .join(HOARD_NAMED)
                 .join(HOARD_NAMED_DIR2),
         );
-        HoardFile::new(
+        HoardItem::new(
             Some(String::from(HOARD_NAMED_DIR2)),
             hoard_path,
             system_path,
@@ -234,8 +234,8 @@ impl DefaultConfigTester {
         )
     }
 
-    fn file_in_hoard_dir(dir: &HoardFile, file: PathBuf) -> HoardFile {
-        HoardFile::new(
+    fn file_in_hoard_dir(dir: &HoardItem, file: PathBuf) -> HoardItem {
+        HoardItem::new(
             dir.pile_name().map(ToString::to_string),
             HoardPath::from(dir.hoard_prefix().to_path_buf()),
             SystemPath::from(dir.system_prefix().to_path_buf()),
@@ -243,7 +243,7 @@ impl DefaultConfigTester {
         )
     }
 
-    fn env_files_inner(&self) -> Vec<HoardFile> {
+    fn env_files_inner(&self) -> Vec<HoardItem> {
         let anon_dir = self.anon_dir();
         let named_dir1 = self.named_dir1();
         let named_dir2 = self.named_dir2();
@@ -262,7 +262,7 @@ impl DefaultConfigTester {
         ]
     }
 
-    pub fn first_env_files(&mut self) -> Vec<HoardFile> {
+    pub fn first_env_files(&mut self) -> Vec<HoardItem> {
         let old_env = self.is_first_env;
         self.is_first_env = Some(true);
         let result = self.env_files_inner();
@@ -270,7 +270,7 @@ impl DefaultConfigTester {
         result
     }
 
-    pub fn second_env_files(&mut self) -> Vec<HoardFile> {
+    pub fn second_env_files(&mut self) -> Vec<HoardItem> {
         let old_env = self.is_first_env;
         self.is_first_env = Some(false);
         let result = self.env_files_inner();

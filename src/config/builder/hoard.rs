@@ -166,7 +166,7 @@ mod tests {
 
     mod config {
         use super::*;
-        use crate::hoard_file::ChecksumType;
+        use crate::hoard_item::ChecksumType;
 
         #[test]
         fn test_layer_configs_both_none() {
@@ -278,7 +278,7 @@ mod tests {
 
     mod serde {
         use super::*;
-        use crate::hoard_file::ChecksumType;
+        use crate::hoard_item::ChecksumType;
         use maplit::btreemap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 

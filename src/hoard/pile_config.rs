@@ -1,4 +1,4 @@
-use crate::hoard_file::ChecksumType;
+use crate::hoard_item::ChecksumType;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

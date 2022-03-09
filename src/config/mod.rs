@@ -3,20 +3,11 @@
 pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
-use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 
 pub mod builder;
-
-/// Get the project directories for this project.
-#[must_use]
-pub fn get_dirs() -> ProjectDirs {
-    tracing::trace!("determining project default folders");
-    ProjectDirs::from("com", "shadow53", "hoard")
-        .expect("could not detect user home directory to place program files")
-}
 
 /// Errors that can occur while working with a [`Config`].
 #[derive(Debug, Error)]

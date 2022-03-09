@@ -73,8 +73,9 @@ pub(crate) mod diff;
 pub mod env_vars;
 pub mod filters;
 pub mod hoard;
-pub mod hoard_file;
+pub mod hoard_item;
 pub mod logging;
+pub mod paths;
 
 /// The default file stem of the configuration file (i.e. without file extension).
 pub const CONFIG_FILE_STEM: &str = "config";

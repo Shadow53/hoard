@@ -3,7 +3,7 @@ mod common;
 use common::tester::Tester;
 use hoard::checkers::history::operation::{Operation, OperationImpl};
 use hoard::command::Command;
-use hoard::hoard_file::Checksum;
+use hoard::hoard_item::Checksum;
 use md5::{Digest as _, Md5};
 use sha2::{Digest as _, Sha256};
 use std::fs;
