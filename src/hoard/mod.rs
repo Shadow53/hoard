@@ -11,9 +11,9 @@ pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
+use crate::paths::SystemPath;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]
@@ -81,7 +81,7 @@ pub struct Pile {
     ///
     /// The path is optional because it will almost always be set by processing a configuration
     /// file and it is possible that none of the environment combinations match.
-    pub path: Option<PathBuf>,
+    pub path: Option<SystemPath>,
 }
 
 /// A collection of multiple related [`Pile`]s.

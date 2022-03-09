@@ -1,10 +1,10 @@
 use crate::filters::{Filter, Filters};
 use crate::hoard::iter::HoardItem;
-use crate::hoard::{Hoard, HoardPath, SystemPath};
+use crate::hoard::Hoard;
 use std::iter::Peekable;
-use std::path::Path;
+use std::path::PathBuf;
 use std::{fs, io};
-use crate::paths::{HoardPath, RelativePath, SystemPath};
+use crate::paths::{HoardPath, RelativePath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
@@ -40,10 +40,14 @@ pub(crate) struct AllFilesIter {
 
 impl AllFilesIter {
     pub(crate) fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoard_name: &str,
         hoard: &Hoard,
     ) -> Result<Self, super::Error> {
+        let hoard_name_root = hoards_root.join(
+            &RelativePath::try_from(PathBuf::from(hoard_name))
+                .expect("hoard name is a valid RelativePath")
+        );
         let root_paths = match hoard {
             Hoard::Anonymous(pile) => {
                 let path = pile.path.clone();
@@ -51,9 +55,8 @@ impl AllFilesIter {
                 match path {
                     None => Vec::new(),
                     Some(path) => {
-                        let hoard_prefix = HoardPath::try_from(hoards_root.join(hoard_name))
-                            .expect("HoardPath rooted in ");
-                        let system_prefix = SystemPath(path);
+                        let hoard_prefix = hoard_name_root;
+                        let system_prefix = path.clone();
                         vec![RootPathItem {
                             hoard_file: HoardItem::new(
                                 None,
@@ -74,9 +77,11 @@ impl AllFilesIter {
                         Ok(filters) => filters,
                         Err(err) => return Some(Err(err)),
                     };
+                    let name_path = RelativePath::try_from(PathBuf::from(name))
+                        .expect("pile name should be a valid relative path");
                     pile.path.as_ref().map(|path| {
-                        let hoard_prefix = HoardPath(hoards_root.join(hoard_name).join(name));
-                        let system_prefix = SystemPath(path.clone());
+                        let hoard_prefix = hoard_name_root.join(&name_path);
+                        let system_prefix = path.clone();
                         Ok(RootPathItem {
                             hoard_file: HoardItem::new(
                                 Some(name.clone()),
@@ -216,8 +221,8 @@ impl Iterator for AllFilesIter {
                     let new_item = RootPathItem {
                         hoard_file: HoardItem::new(
                             current_root.hoard_file.pile_name().map(str::to_string),
-                            HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
-                            SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
+                            current_root.hoard_file.hoard_prefix().clone(),
+                            current_root.hoard_file.system_prefix().clone(),
                             relative_path,
                         ),
                         filters: current_root.filters.clone(),
@@ -263,8 +268,8 @@ impl Iterator for AllFilesIter {
                     let new_item = RootPathItem {
                         hoard_file: HoardItem::new(
                             current_root.hoard_file.pile_name().map(str::to_string),
-                            HoardPath(current_root.hoard_file.hoard_prefix().to_path_buf()),
-                            SystemPath(current_root.hoard_file.system_prefix().to_path_buf()),
+                            current_root.hoard_file.hoard_prefix().clone(),
+                            current_root.hoard_file.system_prefix().clone(),
                             relative_path,
                         ),
                         filters: current_root.filters.clone(),

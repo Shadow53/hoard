@@ -14,10 +14,10 @@ use environment::Environment;
 
 use crate::command::Command;
 use crate::CONFIG_FILE_STEM;
-use crate::HOARDS_DIR_SLUG;
 
 use super::Config;
 use crate::hoard::PileConfig;
+use crate::paths::{get_dirs, HoardPath, hoards_dir};
 
 pub mod environment;
 pub mod envtrie;
@@ -70,7 +70,7 @@ pub struct Builder {
     #[structopt(skip)]
     exclusivity: Option<Vec<Vec<String>>>,
     #[structopt(short, long)]
-    hoards_root: Option<PathBuf>,
+    hoards_root: Option<HoardPath>,
     #[structopt(short, long)]
     #[serde(skip)]
     config_file: Option<PathBuf>,
@@ -97,15 +97,15 @@ impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        super::get_dirs()
+        get_dirs()
             .config_dir()
             .join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 
     /// Returns the default location for storing hoards.
-    fn default_hoard_root() -> PathBuf {
+    fn default_hoard_root() -> HoardPath {
         tracing::debug!("getting default hoard root");
-        super::get_dirs().data_dir().join(HOARDS_DIR_SLUG)
+        hoards_dir()
     }
 
     /// Create a new `Builder`.
@@ -269,7 +269,7 @@ impl Builder {
 
     /// Set the directory that will contain all game save data.
     #[must_use]
-    pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
+    pub fn set_hoards_root(mut self, path: HoardPath) -> Self {
         // grcov: ignore-start
         tracing::trace!(
             hoards_root = ?path,
@@ -441,7 +441,7 @@ mod tests {
 
         fn get_non_default_populated_builder() -> Builder {
             Builder {
-                hoards_root: Some(PathBuf::from("/testing/saves")),
+                hoards_root: Some(HoardPath::try_from(PathBuf::from("/testing/saves")).unwrap()),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 command: Some(Command::Restore {
                     hoards: vec!["test".into()],
@@ -519,7 +519,8 @@ mod tests {
         fn builder_saves_root_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(None, builder.hoards_root, "saves_root should start as None");
-            let path = PathBuf::from("/testing/saves");
+            let path = HoardPath::try_from(PathBuf::from("/testing/saves"))
+                .expect("HoardPath value should be valid");
             builder = builder.set_hoards_root(path.clone());
             assert_eq!(
                 Some(path),

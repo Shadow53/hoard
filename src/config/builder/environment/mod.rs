@@ -185,6 +185,8 @@ mod tests {
     use crate::combinator::Inner;
 
     mod display {
+        use std::path::PathBuf;
+        use crate::paths::SystemPath;
         use super::*;
 
         #[test]
@@ -201,7 +203,7 @@ mod tests {
                 expected: None,
             };
             let exe_exists = ExeExists("test".into());
-            let path_exists = PathExists(Some("/test/path".into()));
+            let path_exists = PathExists(Some(SystemPath::try_from(PathBuf::from("/test/path")).unwrap()));
 
             let env = Environment {
                 hostname: Some(Combinator(vec![Inner::Single(hostname.clone())])),

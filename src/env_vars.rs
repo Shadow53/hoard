@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::PathBuf;
 use std::{env, fmt};
+use crate::paths::{SystemPath, Error as PathError};
 
 // Following the example of `std::env::set_var`, the only things disallowed are
 // the equals sign and the NUL character.
@@ -20,26 +21,30 @@ static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// This is a wrapper for [`std::env::VarError`] that shows what environment variable
 /// could not be found.
 #[derive(Debug)]
-pub struct Error {
-    error: env::VarError,
-    var: String,
+pub enum Error {
+    Env { error: env::VarError, var: String },
+    Path(PathError),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.error {
-            env::VarError::NotPresent => write!(f, "{}: {}", self.error, self.var),
+        match self {
+            Self::Env { error: error @ env::VarError::NotPresent, var }=> write!(f, "{}: {}", error, var),
             // grcov: ignore-start
             // I do not think it is worth testing for this error just to get coverage.
-            env::VarError::NotUnicode(_) => self.error.fmt(f),
+            Self::Env { error: error @ env::VarError::NotUnicode(_), .. } => error.fmt(f),
             // grcov: ignore-end
+            Self::Path(error) => write!(f, "{}", error),
         }
     }
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.error)
+        match &self {
+            Error::Env { error, .. } => Some(error),
+            Error::Path(error) => Some(error),
+        }
     }
 }
 
@@ -62,7 +67,7 @@ impl std::error::Error for Error {
 /// # Errors
 ///
 /// - Any [`VarError`](env::VarError) from looking up the environment variable's value.
-pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
+pub fn expand_env_in_path(path: &str) -> Result<SystemPath, Error> {
     let mut new_path = path.to_owned();
     let mut start: usize = 0;
     let mut old_start: usize;
@@ -73,7 +78,7 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
         let var = mat.as_str();
         let var = &var[2..var.len() - 1];
         tracing::trace!(var, "found environment variable {}", var,);
-        let value = env::var(var).map_err(|error| Error {
+        let value = env::var(var).map_err(|error| Error::Env {
             error,
             var: var.to_owned(),
         })?;
@@ -100,7 +105,7 @@ pub fn expand_env_in_path(path: &str) -> Result<PathBuf, Error> {
     }
 
     // Splitting into components and collecting will collapse multiple separators.
-    Ok(PathBuf::from(new_path).components().collect())
+    SystemPath::try_from(PathBuf::from(new_path).components().collect::<PathBuf>()).map_err(Error::Path)
 }
 
 #[cfg(test)]
@@ -117,7 +122,7 @@ mod tests {
 
                 let old_val = std::env::var_os($var);
                 std::env::set_var($var, $value);
-                let expected: PathBuf = $expected;
+                let expected: SystemPath = $expected;
                 let result = expand_env_in_path($input).expect("failed to expand env in path");
                 assert_eq!(result, expected);
                 if let Some(val) = old_val {
@@ -135,7 +140,7 @@ mod tests {
         input: "${TEST_HOME}/test/file",
         env: "TEST_HOME",
         value: "/home/testuser",
-        expected: PathBuf::from("/home/testuser/test/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/file")).unwrap()
     }
 
     test_env! {
@@ -143,7 +148,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}/file",
         env: "TEST_PATH",
         value: "test/subdir/subberdir",
-        expected: PathBuf::from("/home/testuser/test/subdir/subberdir/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/subdir/subberdir/file")).unwrap()
     }
 
     test_env! {
@@ -151,7 +156,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}",
         env: "TEST_PATH",
         value: "test/subdir/file",
-        expected: PathBuf::from("/home/testuser/test/subdir/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/subdir/file")).unwrap()
     }
 
     // Same length == var name + ${}
@@ -160,7 +165,7 @@ mod tests {
         input: "${TEST_HOME}/test/file",
         env: "TEST_HOME",
         value: "/home/tester",
-        expected: PathBuf::from("/home/tester/test/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/tester/test/file")).unwrap()
     }
 
     test_env! {
@@ -168,7 +173,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}/file",
         env: "TEST_PATH",
         value: "/test/folder",
-        expected: PathBuf::from("/home/testuser/test/folder/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/folder/file")).unwrap()
     }
 
     test_env! {
@@ -176,7 +181,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}",
         env: "TEST_PATH",
         value: "testing/file",
-        expected: PathBuf::from("/home/testuser/testing/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/testing/file")).unwrap()
     }
 
     test_env! {
@@ -184,7 +189,7 @@ mod tests {
         input: "${TEST_HOME}/test/file",
         env: "TEST_HOME",
         value: "/home/test",
-        expected: PathBuf::from("/home/test/test/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/test/test/file")).unwrap()
     }
 
     test_env! {
@@ -192,7 +197,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}/file",
         env: "TEST_PATH",
         value: "test/dir",
-        expected: PathBuf::from("/home/testuser/test/dir/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/dir/file")).unwrap()
     }
 
     test_env! {
@@ -200,7 +205,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}",
         env: "TEST_PATH",
         value: "a/file",
-        expected: PathBuf::from("/home/testuser/a/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/a/file")).unwrap()
     }
 
     test_env! {
@@ -208,7 +213,7 @@ mod tests {
         input: "/path/without/variables",
         env: "UNUSED",
         value: "NOTHING",
-        expected: PathBuf::from("/path/without/variables"),
+        expected: SystemPath::try_from(PathBuf::from("/path/without/variables")).unwrap(),
         require_var: false
     }
 
@@ -217,7 +222,7 @@ mod tests {
         input: "/home/${TEST_USER}/somedir/${TEST_USER}/file",
         env: "TEST_USER",
         value: "testuser",
-        expected: PathBuf::from("/home/testuser/somedir/testuser/file")
+        expected: SystemPath::try_from(PathBuf::from("/home/testuser/somedir/testuser/file")).unwrap()
     }
 
     test_env! {
@@ -225,7 +230,7 @@ mod tests {
         input: "/path/with/$INVALID/variable",
         env: "INVALID",
         value: "broken",
-        expected: PathBuf::from("/path/with/$INVALID/variable"),
+        expected: SystemPath::try_from(PathBuf::from("/path/with/$INVALID/variable")).unwrap(),
         require_var: false
     }
 
@@ -234,7 +239,7 @@ mod tests {
         input: "/path/with/%INVALID%/variable",
         env: "INVALID",
         value: "broken",
-        expected: PathBuf::from("/path/with/%INVALID%/variable"),
+        expected: SystemPath::try_from(PathBuf::from("/path/with/%INVALID%/variable")).unwrap(),
         require_var: false
     }
 
@@ -243,7 +248,7 @@ mod tests {
         input: "${TEST_HOME}",
         env: "TEST_HOME",
         value: "${HOME}",
-        expected: PathBuf::from("${HOME}")
+        expected: SystemPath::try_from(PathBuf::from("${HOME}")).unwrap()
     }
 
     test_env! {
@@ -251,14 +256,14 @@ mod tests {
         input: "${WRAPPING${TEST_VAR}VARIABLE}",
         env: "TEST_VAR",
         value: "_",
-        expected: PathBuf::from("${WRAPPING_VARIABLE}")
+        expected: SystemPath::try_from(PathBuf::from("${WRAPPING_VARIABLE}")).unwrap()
     }
 
     #[test]
     #[serial_test::serial]
     fn test_error_traits() {
         let env_error = env::var("DOESNOTEXIST").expect_err("variable should not exist");
-        let error = Error {
+        let error = Error::Env {
             error: env_error,
             var: "DOESNOTEXIST".to_string(),
         };

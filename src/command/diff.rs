@@ -1,7 +1,7 @@
 use crate::hoard::iter::{HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
 use std::collections::BTreeSet;
-use std::path::Path;
+use crate::paths::HoardPath;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -9,7 +9,7 @@ use std::os::unix::fs::PermissionsExt;
 pub(crate) fn run_diff(
     hoard: &Hoard,
     hoard_name: &str,
-    hoards_root: &Path,
+    hoards_root: &HoardPath,
     verbose: bool,
 ) -> Result<(), super::Error> {
     let _span = tracing::trace_span!("run_diff").entered();

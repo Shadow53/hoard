@@ -9,8 +9,8 @@ use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as OperationError, Operation};
 use crate::hoard::{Direction, Hoard};
 use std::collections::HashMap;
-use std::path::Path;
 use thiserror::Error;
+use crate::paths::HoardPath;
 
 /// Trait for validating [`Hoard`]s.
 ///
@@ -25,7 +25,7 @@ pub trait Checker: Sized {
     ///
     /// Any errors that may occur while creating an instance, such as I/O or consistency errors.
     fn new(
-        hoard_root: &Path,
+        hoard_root: &HoardPath,
         hoard_name: &str,
         hoard: &Hoard,
         direction: Direction,
@@ -66,7 +66,7 @@ pub(crate) struct Checkers {
 impl Checkers {
     #[allow(single_use_lifetimes)]
     pub(crate) fn new<'a, S: AsRef<str>>(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoards: impl IntoIterator<Item = (S, &'a Hoard)>,
         direction: Direction,
     ) -> Result<Self, Error> {

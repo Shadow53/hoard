@@ -6,6 +6,7 @@ use crate::hoard::{self, Hoard};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
+use crate::paths::HoardPath;
 
 pub mod builder;
 
@@ -31,7 +32,7 @@ pub struct Config {
     /// The command to run.
     pub command: Command,
     /// The root directory to backup/restore hoards from.
-    pub hoards_root: PathBuf,
+    pub hoards_root: HoardPath,
     /// Path to a configuration file.
     pub config_file: PathBuf,
     /// All of the configured hoards.
@@ -84,7 +85,7 @@ impl Config {
 
     /// The path to the configured hoards root.
     #[must_use]
-    pub fn get_hoards_root_path(&self) -> PathBuf {
+    pub fn get_hoards_root_path(&self) -> HoardPath {
         self.hoards_root.clone()
     }
 

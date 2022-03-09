@@ -5,7 +5,7 @@ use crate::checkers::Checker;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -18,7 +18,7 @@ use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
 use crate::hoard_item::Checksum;
 pub(crate) use util::cleanup_operations;
-use crate::paths::RelativePath;
+use crate::paths::{HoardPath, RelativePath};
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -148,7 +148,7 @@ impl OperationImpl for Operation {
 
 impl Operation {
     fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         name: &str,
         hoard: &Hoard,
         direction: Direction,
@@ -411,7 +411,7 @@ impl Checker for Operation {
     type Error = Error;
 
     fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         name: &str,
         hoard: &Hoard,
         direction: Direction,

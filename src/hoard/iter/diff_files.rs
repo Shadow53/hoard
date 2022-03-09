@@ -5,12 +5,12 @@ use crate::hoard::iter::HoardItem;
 use crate::hoard::Hoard;
 use std::cmp::Ordering;
 use std::fs::Permissions;
-use std::path::Path;
 use std::{fmt, fs};
 use tracing::trace_span;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use crate::paths::HoardPath;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum DiffSource {
@@ -216,7 +216,7 @@ struct ProcessedFile {
 
 impl HoardDiffIter {
     pub(crate) fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoard_name: String,
         hoard: &Hoard,
     ) -> Result<Self, super::Error> {

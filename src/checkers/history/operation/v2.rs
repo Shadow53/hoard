@@ -10,14 +10,13 @@
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
 use crate::hoard::iter::{OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard as ConfigHoard};
-use crate::hoard_file::{Checksum, ChecksumType, HoardFile};
+use crate::hoard_item::{Checksum, ChecksumType, HoardItem};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use time::OffsetDateTime;
-use crate::hoard_item::{Checksum, ChecksumType};
-use crate::paths::RelativePath;
+use crate::paths::{HoardPath, RelativePath};
 
 use super::Error;
 
@@ -43,7 +42,7 @@ pub struct OperationV2 {
 
 impl OperationV2 {
     pub(super) fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         name: &str,
         hoard: &ConfigHoard,
         direction: Direction,
@@ -233,7 +232,7 @@ impl Hoard {
         })
     }
 
-    fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardFile) -> ChecksumType {
+    fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardItem) -> ChecksumType {
         match (hoard, hoard_file.pile_name()) {
             (ConfigHoard::Anonymous(pile), None) => pile.config.checksum_type,
             (ConfigHoard::Named(piles), Some(pile_name)) => piles
@@ -249,7 +248,7 @@ impl Hoard {
     }
 
     fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoard_name: &str,
         hoard: &crate::hoard::Hoard,
         direction: Direction,
@@ -390,6 +389,7 @@ impl Pile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use serde_test::{assert_tokens, Token};
 
     #[test]

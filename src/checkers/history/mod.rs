@@ -1,10 +1,10 @@
 //! Keep records of previous operations (including on other system) to prevent inconsistencies
 //! and accidental overwrites or deletions.
 
-use crate::config::get_dirs;
 use std::path::PathBuf;
 use std::{fs, io};
 use uuid::Uuid;
+use crate::paths::get_dirs;
 
 pub mod last_paths;
 pub mod operation;

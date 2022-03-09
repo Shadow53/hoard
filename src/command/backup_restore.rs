@@ -2,8 +2,8 @@ use crate::checkers::{Checkers, Error as ConsistencyError};
 use crate::hoard::iter::{Error as IterError, OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard};
 use std::fs;
-use std::path::Path;
 use thiserror::Error;
+use crate::paths::HoardPath;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -21,7 +21,7 @@ pub enum Error {
 
 #[allow(single_use_lifetimes)]
 pub(crate) fn run_backup<'a, S: AsRef<str>>(
-    hoards_root: &Path,
+    hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (S, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
@@ -30,7 +30,7 @@ pub(crate) fn run_backup<'a, S: AsRef<str>>(
 
 #[allow(single_use_lifetimes)]
 pub(crate) fn run_restore<'a, S: AsRef<str>>(
-    hoards_root: &Path,
+    hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (S, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
@@ -39,7 +39,7 @@ pub(crate) fn run_restore<'a, S: AsRef<str>>(
 
 #[allow(single_use_lifetimes)]
 fn backup_or_restore<'a, S: AsRef<str>>(
-    hoards_root: &Path,
+    hoards_root: &HoardPath,
     direction: Direction,
     hoards: impl IntoIterator<Item = (S, &'a Hoard)> + Clone,
     force: bool,

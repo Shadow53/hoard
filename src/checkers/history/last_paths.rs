@@ -8,10 +8,11 @@ use super::super::Checker;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
+use crate::paths::{HoardPath, SystemPath};
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -60,7 +61,7 @@ fn read_last_paths_file() -> Result<fs::File, io::Error> {
 impl Checker for LastPaths {
     type Error = Error;
     fn new(
-        _hoards_root: &Path,
+        _hoards_root: &HoardPath,
         name: &str,
         hoard: &Hoard,
         _direction: Direction,
@@ -158,25 +159,25 @@ pub struct HoardPaths {
 #[serde(untagged)]
 pub enum PilePaths {
     /// A single, anonymous pile's path.
-    Anonymous(Option<PathBuf>),
+    Anonymous(Option<SystemPath>),
     /// One or more named piles and their paths.
-    Named(HashMap<String, PathBuf>),
+    Named(HashMap<String, SystemPath>),
 }
 
-impl From<PathBuf> for PilePaths {
-    fn from(other: PathBuf) -> Self {
+impl From<SystemPath> for PilePaths {
+    fn from(other: SystemPath) -> Self {
         Self::Anonymous(Some(other))
     }
 }
 
-impl From<Option<PathBuf>> for PilePaths {
-    fn from(other: Option<PathBuf>) -> Self {
+impl From<Option<SystemPath>> for PilePaths {
+    fn from(other: Option<SystemPath>) -> Self {
         Self::Anonymous(other)
     }
 }
 
-impl From<HashMap<String, PathBuf>> for PilePaths {
-    fn from(other: HashMap<String, PathBuf>) -> Self {
+impl From<HashMap<String, SystemPath>> for PilePaths {
+    fn from(other: HashMap<String, SystemPath>) -> Self {
         Self::Named(other)
     }
 }
@@ -220,7 +221,7 @@ impl HoardPaths {
     /// Returns `None` if the named pile is not found or if the hoard contains an
     /// anonymous pile.
     #[must_use]
-    pub fn named_pile(&self, name: &str) -> Option<&PathBuf> {
+    pub fn named_pile(&self, name: &str) -> Option<&SystemPath> {
         if let PilePaths::Named(named) = &self.piles {
             named.get(name)
         } else {
@@ -232,7 +233,7 @@ impl HoardPaths {
     ///
     /// Returns `None` if the hoard contains named piles.
     #[must_use]
-    pub fn anonymous_pile(&self) -> Option<&PathBuf> {
+    pub fn anonymous_pile(&self) -> Option<&SystemPath> {
         if let PilePaths::Anonymous(path) = &self.piles {
             path.as_ref()
         } else {
@@ -357,18 +358,19 @@ impl HoardPaths {
 mod tests {
     use super::*;
     use maplit::hashmap;
+    use crate::paths::SystemPath;
 
     const NAMED_PILE_1: &str = "test1";
     const NAMED_PILE_2: &str = "test2";
 
     fn anonymous_hoard_paths() -> HoardPaths {
-        HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path"))))
+        HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path")).unwrap())))
     }
 
     fn named_hoard_paths() -> HoardPaths {
         HoardPaths::from(PilePaths::Named(hashmap! {
-            NAMED_PILE_1.into() => PathBuf::from("/test/path"),
-            NAMED_PILE_2.into() => PathBuf::from("/test/other/path"),
+            NAMED_PILE_1.into() => SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+            NAMED_PILE_2.into() => SystemPath::try_from(PathBuf::from("/test/other/path")).unwrap(),
         }))
     }
 
@@ -379,21 +381,21 @@ mod tests {
     }
 
     #[test]
-    fn test_from_pathbuf() {
-        let path = PathBuf::from("/test/path");
+    fn test_from_system_path() {
+        let path = SystemPath::try_from(PathBuf::from("/test/path")).unwrap();
         let pile_paths = PilePaths::from(path.clone());
         assert_eq!(pile_paths, PilePaths::Anonymous(Some(path)));
     }
 
     #[test]
-    fn test_from_some_pathbuf() {
-        let path = PathBuf::from("/test/path");
+    fn test_from_some_system_path() {
+        let path = SystemPath::try_from(PathBuf::from("/test/path")).unwrap();
         let pile_paths = PilePaths::from(Some(path.clone()));
         assert_eq!(pile_paths, PilePaths::Anonymous(Some(path)));
     }
 
     #[test]
-    fn test_from_none_pathbuf() {
+    fn test_from_none_system_path() {
         let pile_paths = PilePaths::from(None);
         assert_eq!(pile_paths, PilePaths::Anonymous(None));
     }
@@ -401,8 +403,8 @@ mod tests {
     #[test]
     fn test_from_hashmap() {
         let map = hashmap! {
-            "first".into() => PathBuf::from("/first"),
-            "second".into() => PathBuf::from("/second"),
+            "first".into() => SystemPath::try_from(PathBuf::from("/first")).unwrap(),
+            "second".into() => SystemPath::try_from(PathBuf::from("/second")).unwrap(),
         };
         let pile_paths = PilePaths::from(map.clone());
         assert_eq!(pile_paths, PilePaths::Named(map));
@@ -465,11 +467,11 @@ mod tests {
     #[test]
     fn test_compare_anonymous_paths() {
         let anon_none = HoardPaths::from(PilePaths::Anonymous(None));
-        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path1"))));
-        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path2"))));
+        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path1")).unwrap())));
+        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path2")).unwrap())));
         // Create dupe of 1 to get different timestamp
         std::thread::sleep(std::time::Duration::from_secs(1));
-        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(PathBuf::from("/test/path1"))));
+        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path1")).unwrap())));
 
         // Test none/none and some/some are the same.
         assert!(
@@ -509,19 +511,19 @@ mod tests {
     fn test_compare_named_paths() {
         let named_empty = HoardPaths::from(PilePaths::Named(hashmap! {}));
         let named_with_1 = HoardPaths::from(PilePaths::Named(hashmap! {
-            NAMED_PILE_1.into() => PathBuf::from("/test/path1"),
+            NAMED_PILE_1.into() => SystemPath::try_from(PathBuf::from("/test/path1")).unwrap(),
         }));
         let named_with_2 = HoardPaths::from(PilePaths::Named(hashmap! {
-            NAMED_PILE_2.into() => PathBuf::from("/test/path2"),
+            NAMED_PILE_2.into() => SystemPath::try_from(PathBuf::from("/test/path2")).unwrap(),
         }));
         let named_with_both = HoardPaths::from(PilePaths::Named(hashmap! {
-            NAMED_PILE_1.into() => PathBuf::from("/test/path1"),
-            NAMED_PILE_2.into() => PathBuf::from("/test/path2"),
+            NAMED_PILE_1.into() => SystemPath::try_from(PathBuf::from("/test/path1")).unwrap(),
+            NAMED_PILE_2.into() => SystemPath::try_from(PathBuf::from("/test/path2")).unwrap(),
         }));
         // Create dupe of 1 to get different timestamp
         std::thread::sleep(std::time::Duration::from_secs(1));
         let named_with_1_again = HoardPaths::from(PilePaths::Named(hashmap! {
-            NAMED_PILE_1.into() => PathBuf::from("/test/path1"),
+            NAMED_PILE_1.into() => SystemPath::try_from(PathBuf::from("/test/path1")).unwrap(),
         }));
 
         // Test the same
@@ -596,14 +598,14 @@ mod tests {
         use crate::hoard::{Hoard, MultipleEntries, Pile, PileConfig};
         let anon_hoard = Hoard::Anonymous(Pile {
             config: PileConfig::default(),
-            path: Some(PathBuf::from("/anon/path")),
+            path: Some(SystemPath::try_from(PathBuf::from("/anon/path")).unwrap()),
         });
 
         let named_hoard = Hoard::Named(MultipleEntries {
             piles: maplit::hashmap! {
                 String::from("first") => Pile {
                     config: PileConfig::default(),
-                    path: Some(PathBuf::from("/first/path"))
+                    path: Some(SystemPath::try_from(PathBuf::from("/first/path")).unwrap())
                 },
                 String::from("missing") => Pile {
                     config: PileConfig::default(),
@@ -611,7 +613,7 @@ mod tests {
                 },
                 String::from("second") => Pile {
                     config: PileConfig::default(),
-                    path: Some(PathBuf::from("/second/path"))
+                    path: Some(SystemPath::try_from(PathBuf::from("/second/path")).unwrap())
                 }
             },
         });
@@ -621,13 +623,13 @@ mod tests {
 
         assert_eq!(
             anon_paths,
-            PilePaths::Anonymous(Some(PathBuf::from("/anon/path")))
+            PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/anon/path")).unwrap()))
         );
         assert_eq!(
             named_paths,
             PilePaths::Named(maplit::hashmap! {
-                String::from("first") => PathBuf::from("/first/path"),
-                String::from("second") => PathBuf::from("/second/path"),
+                String::from("first") => SystemPath::try_from(PathBuf::from("/first/path")).unwrap(),
+                String::from("second") => SystemPath::try_from(PathBuf::from("/second/path")).unwrap(),
             })
         );
     }

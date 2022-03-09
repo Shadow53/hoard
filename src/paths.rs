@@ -1,5 +1,6 @@
-use std::ops::{Add, Deref};
+use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
+use std::str::FromStr;
 use directories::ProjectDirs;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -18,9 +19,14 @@ pub fn get_dirs() -> &'static ProjectDirs {
     &DIRS
 }
 
-/// Returns the default root for hoard files.
-pub fn hoards_dir() -> PathBuf {
+fn inner_hoards_dir() -> PathBuf {
     get_dirs().data_dir().join("hoards")
+}
+
+/// Returns the default root for hoard files.
+pub fn hoards_dir() -> HoardPath {
+    HoardPath::try_from(inner_hoards_dir())
+        .expect("HoardPath that is the hoards directory should always be valid")
 }
 
 /// Normalize a path, removing things like `.` and `..`.
@@ -98,7 +104,8 @@ pub enum Error {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct HoardPath(PathBuf);
 
 impl AsRef<Path> for HoardPath {
@@ -119,11 +126,19 @@ impl TryFrom<PathBuf> for HoardPath {
     type Error = Error;
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
-        let hoard_root = hoards_dir();
+        let hoard_root = inner_hoards_dir();
         match value.strip_prefix(hoard_root) {
             Ok(_) => Ok(Self(value)),
             Err(_) => Err(Error::InvalidHoardPath(value)),
         }
+    }
+}
+
+impl FromStr for HoardPath {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(PathBuf::from(s))
     }
 }
 
@@ -138,7 +153,8 @@ impl HoardPath {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct SystemPath(PathBuf);
 
 impl AsRef<Path> for SystemPath {
@@ -178,7 +194,6 @@ impl SystemPath {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(transparent)]
 #[repr(transparent)]
 pub struct RelativePath(Option<PathBuf>);
 
@@ -208,7 +223,7 @@ impl TryFrom<PathBuf> for RelativePath {
         if normalized.is_relative() && !normalized.starts_with("../") {
             Ok(Self(Some(value)))
         } else {
-            return Err(Error::InvalidRelativePath(value));
+            Err(Error::InvalidRelativePath(value))
         }
     }
 }
@@ -239,13 +254,15 @@ impl Deref for RelativePath {
 }
 
 impl RelativePath {
+    #[must_use]
     pub fn to_path_buf(&self) -> PathBuf {
         match &self.0 {
             None => PathBuf::new(),
-            Some(path) => path.to_path_buf(),
+            Some(path) => path.clone(),
         }
     }
 
+    #[must_use]
     pub fn none() -> Self {
         Self(None)
     }

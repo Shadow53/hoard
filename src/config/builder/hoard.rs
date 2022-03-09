@@ -250,6 +250,7 @@ mod tests {
         use crate::hoard::Pile as RealPile;
         use maplit::btreemap;
         use std::path::PathBuf;
+        use crate::paths::SystemPath;
 
         #[test]
         #[serial_test::serial]
@@ -264,7 +265,7 @@ mod tests {
             let home = std::env::var("HOME").expect("failed to read $HOME");
             let expected = RealPile {
                 config: PileConfig::default(),
-                path: Some(PathBuf::from(format!("{}/something", home))),
+                path: Some(SystemPath::try_from(PathBuf::from(format!("{}/something", home))).unwrap()),
             };
 
             let envs = btreemap! { "foo".into() =>  true };

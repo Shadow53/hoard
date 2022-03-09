@@ -11,7 +11,7 @@ use crate::checkers::history::operation::{Checksum, OperationFileInfo};
 use crate::hoard::Direction;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use time::OffsetDateTime;
 use crate::paths::RelativePath;
 
@@ -87,7 +87,7 @@ impl super::OperationImpl for OperationV1 {
     fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item = OperationFileInfo> + 's> {
         match &self.hoard {
             Hoard::Anonymous(pile) => {
-                Box::new(pile.0.iter().map(move |(path, md5)| OperationFileInfo {
+                Box::new(pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
                     pile_name: None,
                     relative_path: RelativePath::try_from(rel_path.clone())
                         .expect("v1 Operation relative path should always be valid"),

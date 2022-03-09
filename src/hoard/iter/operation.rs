@@ -1,7 +1,7 @@
 use super::{HoardDiffIter, HoardItem};
 use crate::hoard::iter::{DiffSource, HoardFileDiff};
 use crate::hoard::{Direction, Hoard};
-use std::path::Path;
+use crate::paths::HoardPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum OperationType {
@@ -18,7 +18,7 @@ pub(crate) struct OperationIter {
 
 impl OperationIter {
     pub(crate) fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoard_name: String,
         hoard: &Hoard,
         direction: Direction,

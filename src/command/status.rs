@@ -1,9 +1,9 @@
 use crate::hoard::iter::{DiffSource, HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
-use std::path::Path;
+use crate::paths::HoardPath;
 
 pub(crate) fn run_status<'a>(
-    hoards_root: &Path,
+    hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a str, &'a Hoard)>,
 ) -> Result<(), super::Error> {
     for (hoard_name, hoard) in hoards {
