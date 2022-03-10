@@ -50,6 +50,7 @@ pub enum Error {
 ///
 /// This is *not* the Operation log file.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[allow(clippy::module_name_repetitions)]
 pub struct OperationFileInfo {
     pile_name: Option<String>,
     relative_path: RelativePath,
@@ -58,11 +59,13 @@ pub struct OperationFileInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
+#[allow(clippy::module_name_repetitions)]
 enum OperationVersion {
     V1(OperationV1),
     V2(OperationV2),
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub trait OperationImpl {
     fn direction(&self) -> Direction;
     fn contains_file(&self, pile_name: Option<&str>, rel_path: &RelativePath, only_modified: bool) -> bool;

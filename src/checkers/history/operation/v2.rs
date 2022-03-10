@@ -81,23 +81,16 @@ impl OperationV2 {
                 checksum,
                 ..
             } = file_info;
-            let pile = {
-                if !files.contains_key(&pile_name) {
-                    files.insert(pile_name.clone(), Pile::default());
-                }
-                files.get_mut(&pile_name).unwrap()
-            };
+            let pile = files.entry(pile_name.clone()).or_insert_with(Pile::new);
 
             let pile_file = (pile_name, relative_path.clone());
             let checksum = checksum.expect("v1 Operation only stored files with checksums");
-            if file_checksums.contains_key(&pile_file) {
-                // Modified, Recreated, or Unchanged
-                match file_checksums.get(&pile_file).unwrap() {
-                    None => {
-                        // Recreated
+                match file_checksums.get(&pile_file) {
+                    None | Some(None) => {
+                        // Created or recreated
                         pile.created.insert(relative_path, checksum.clone());
                     }
-                    Some(old_checksum) => {
+                    Some(Some(old_checksum)) => {
                         // Modified or Unchanged
                         if old_checksum == &checksum {
                             pile.unmodified.insert(relative_path, checksum.clone());
@@ -106,10 +99,6 @@ impl OperationV2 {
                         }
                     }
                 }
-            } else {
-                // Created
-                pile.created.insert(relative_path, checksum.clone());
-            }
             file_checksums.insert(pile_file.clone(), Some(checksum));
             these_files.insert(pile_file);
         }
@@ -117,20 +106,14 @@ impl OperationV2 {
         let deleted: HashMap<Option<String>, HashSet<RelativePath>> = file_set
             .difference(&these_files)
             .fold(HashMap::new(), |mut acc, (pile_name, rel_path)| {
-                if !acc.contains_key(pile_name) {
-                    acc.insert(pile_name.clone(), HashSet::new());
-                }
-                acc.get_mut(pile_name).unwrap().insert(rel_path.clone());
+                acc.entry(pile_name.clone()).or_insert_with(HashSet::new).insert(rel_path.clone());
                 acc
             });
 
         *file_set = these_files;
 
         for (pile_name, deleted) in deleted {
-            if !files.contains_key(&pile_name) {
-                files.insert(pile_name.clone(), Pile::default());
-            }
-            files.get_mut(&pile_name).unwrap().deleted = deleted;
+            files.entry(pile_name).or_insert_with(Pile::new).deleted = deleted;
         }
 
         let files = if is_anonymous {

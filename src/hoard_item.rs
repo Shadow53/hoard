@@ -42,6 +42,7 @@ impl Checksum {
     /// let checksum = Checksum::SHA256(String::from("50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c"));
     /// assert_eq!(checksum.typ(), ChecksumType::SHA256);
     /// ```
+    #[must_use]
     pub fn typ(&self) -> ChecksumType {
         match self {
             Self::MD5(_) => ChecksumType::MD5,
@@ -80,6 +81,7 @@ impl HoardItem {
     /// - `relative_path` is the common path relative to either prefix that this item
     ///   can be found at. For example, if `a_pile` is a directory with file `dir/some_file`,
     ///   `relative_path` is `Some(dir/some_file)`. If `a_pile` is a file, `relative_path == None`.
+    #[must_use]
     pub fn new(
         pile_name: Option<String>,
         hoard_prefix: HoardPath,
@@ -103,21 +105,25 @@ impl HoardItem {
     }
 
     /// Returns the name of the pile this item belongs to, if any.
+    #[must_use]
     pub fn pile_name(&self) -> Option<&str> {
         self.pile_name.as_deref()
     }
 
     /// Returns the relative path for this item.
+    #[must_use]
     pub fn relative_path(&self) -> &RelativePath {
         &self.relative_path
     }
 
     /// Returns the hoard-controlled path for this item's pile.
+    #[must_use]
     pub fn hoard_prefix(&self) -> &HoardPath {
         &self.hoard_prefix
     }
 
     /// Returns the system path for this item's pile.
+    #[must_use]
     pub fn system_prefix(&self) -> &SystemPath {
         &self.system_prefix
     }
@@ -126,6 +132,7 @@ impl HoardItem {
     ///
     /// If [`HoardItem::relative_path()`] is `None`, this is the same as
     /// [`HoardItem::hoard_prefix()`].
+    #[must_use]
     pub fn hoard_path(&self) -> &Path {
         &self.hoard_path
     }
@@ -134,6 +141,7 @@ impl HoardItem {
     ///
     /// If [`HoardItem::relative_path()`] is `None`, this is the same as
     /// [`HoardItem::system_prefix()`].
+    #[must_use]
     pub fn system_path(&self) -> &Path {
         &self.system_path
     }
@@ -143,6 +151,7 @@ impl HoardItem {
     /// This is `true` if:
     /// - At least one of `hoard_path` or `system_path` exists
     /// - All existing paths are a file
+    #[must_use]
     pub fn is_file(&self) -> bool {
         let sys = self.system_path();
         let hoard = self.hoard_path();
@@ -158,6 +167,7 @@ impl HoardItem {
     /// This is `true` if:
     /// - At least one of `hoard_path` or `system_path` exists
     /// - All existing paths are directories
+    #[must_use]
     pub fn is_dir(&self) -> bool {
         let sys = self.system_path();
         let hoard = self.hoard_path();
@@ -180,6 +190,8 @@ impl HoardItem {
 
     /// Returns the content, as bytes, of the system version of the file.
     ///
+    /// # Errors
+    ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     pub fn system_content(&self) -> io::Result<Option<Vec<u8>>> {
@@ -188,6 +200,8 @@ impl HoardItem {
 
     /// Returns the content, as bytes, of the Hoard version of the file.
     ///
+    /// # Errors
+    ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     pub fn hoard_content(&self) -> io::Result<Option<Vec<u8>>> {
@@ -195,6 +209,8 @@ impl HoardItem {
     }
 
     /// Returns the requested [`ChecksumType`] for the Hoard version of the file.
+    ///
+    /// # Errors
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
@@ -210,6 +226,8 @@ impl HoardItem {
 
     /// Returns the MD5 checksum for the Hoard version of the file.
     ///
+    /// # Errors
+    ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     pub fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
@@ -219,6 +237,8 @@ impl HoardItem {
 
     /// Returns the SHA256 checksum for the Hoard version of the file.
     ///
+    /// # Errors
+    ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     pub fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
@@ -227,6 +247,8 @@ impl HoardItem {
     }
 
     /// Returns the requested [`ChecksumType`] for the system version of the file.
+    ///
+    /// # Errors
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
@@ -242,6 +264,8 @@ impl HoardItem {
 
     /// Returns the MD5 checksum for the system version of the file.
     ///
+    /// # Errors
+    ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     pub fn system_md5(&self) -> io::Result<Option<Checksum>> {
@@ -250,6 +274,8 @@ impl HoardItem {
     }
 
     /// Returns the SHA256 checksum for the system version of the file.
+    ///
+    /// # Errors
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.

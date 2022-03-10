@@ -24,6 +24,7 @@ pub(crate) static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
         .expect("invalid log file regex")
 });
 
+#[must_use]
 pub fn file_is_log(path: &Path) -> bool {
     let _span = tracing::trace_span!("file_is_log", ?path).entered();
     let result = path.is_file()
@@ -192,7 +193,7 @@ fn all_operations() -> io::Result<impl Iterator<Item = Result<Operation, Error>>
 
 fn sorted_operations() -> Result<Vec<Operation>, Error> {
     let mut list: Vec<Operation> = all_operations()?.collect::<Result<_, _>>()?;
-    list.sort_unstable_by_key(|op| op.timestamp());
+    list.sort_unstable_by_key(Operation::timestamp);
     Ok(list)
 }
 
@@ -208,14 +209,14 @@ pub(crate) fn upgrade_operations() -> Result<(), Error> {
             top_file_checksum_map.insert(operation.hoard_name().to_string(), HashMap::new());
             top_file_set.insert(operation.hoard_name().to_string(), HashSet::new());
         }
-        let mut file_checksum_map = top_file_checksum_map
+        let file_checksum_map = top_file_checksum_map
             .get_mut(operation.hoard_name())
             .expect("checksum map should always exist");
-        let mut file_set = top_file_set
+        let file_set = top_file_set
             .get_mut(operation.hoard_name())
             .expect("file set should always exist");
         tracing::trace!(?operation, "converting operation");
-        let operation = operation.convert_to_latest_version(&mut file_checksum_map, &mut file_set);
+        let operation = operation.convert_to_latest_version(file_checksum_map, file_set);
         tracing::trace!(?operation, "converted operation");
         operation.commit_to_disk()?;
     }

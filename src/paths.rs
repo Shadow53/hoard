@@ -24,6 +24,7 @@ fn inner_hoards_dir() -> PathBuf {
 }
 
 /// Returns the default root for hoard files.
+#[must_use]
 pub fn hoards_dir() -> HoardPath {
     HoardPath::try_from(inner_hoards_dir())
         .expect("HoardPath that is the hoards directory should always be valid")
@@ -39,9 +40,10 @@ pub fn hoards_dir() -> HoardPath {
 /// needs to improve on.
 ///
 /// Copied from the `cargo-util` source code, with doc comment, on 2022-03-08.
+#[must_use]
 pub fn normalize_path(path: &Path) -> PathBuf {
     let mut components = path.components().peekable();
-    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().copied() {
         components.next();
         PathBuf::from(c.as_os_str())
     } else {
@@ -57,7 +59,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
             Component::CurDir => {}
             Component::ParentDir => {
                 if ret.components().last() == Some(Component::ParentDir) {
-                    ret.push(Component::ParentDir)
+                    ret.push(Component::ParentDir);
                 } else {
                     ret.pop();
                 }
@@ -143,11 +145,11 @@ impl FromStr for HoardPath {
 }
 
 impl HoardPath {
+    #[must_use]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
             rhs.0.as_ref()
-                .map(|rel_path| self.0.join(&rel_path))
-                .unwrap_or_else(|| self.0.clone())
+                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path))
         ).expect("a HoardPath rooted in an existing HoardPath is always valid")
     }
 }
@@ -184,11 +186,14 @@ impl TryFrom<PathBuf> for SystemPath {
 }
 
 impl SystemPath {
+    #[must_use]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
             rhs.0.as_ref()
-                .map(|rel_path| self.0.join(&rel_path))
-                .unwrap_or_else(|| self.0.clone())
+                .map_or_else(
+                    || self.0.clone(),
+                    |rel_path| self.0.join(&rel_path)
+                )
         ).expect("a SystemPath rooted in an existing SystemPath is always valid")
     }
 }

@@ -54,13 +54,11 @@ impl AllFilesIter {
                 let filters = Filters::new(&pile.config)?;
                 match path {
                     None => Vec::new(),
-                    Some(path) => {
-                        let hoard_prefix = hoard_name_root;
-                        let system_prefix = path.clone();
+                    Some(system_prefix) => {
                         vec![RootPathItem {
                             hoard_file: HoardItem::new(
                                 None,
-                                hoard_prefix,
+                                hoard_name_root,
                                 system_prefix,
                                 RelativePath::none(),
                             ),
