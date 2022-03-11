@@ -37,7 +37,7 @@ impl Tester {
 
         #[cfg(target_os = "macos")]
         let (home_dir, config_dir, data_dir) = {
-            let home_path = _home_tmp.path();
+            let home_path = home_tmp.path();
             ::std::env::set_var("HOME", home_path);
             (
                 home_path.to_path_buf(),
@@ -54,12 +54,12 @@ impl Tester {
 
         #[cfg(windows)]
         let (home_dir, config_dir, data_dir) = {
-            ::std::env::set_var("APPDATA", _config_tmp.path());
-            ::std::env::set_var("USERPROFILE", _home_tmp.path());
+            ::std::env::set_var("APPDATA", config_tmp.path());
+            ::std::env::set_var("USERPROFILE", home_tmp.path());
             (
-                _home_tmp.path().to_path_buf(),
-                _config_tmp.path().join("shadow53").join("hoard"),
-                _config_tmp
+                home_tmp.path().to_path_buf(),
+                config_tmp.path().join("shadow53").join("hoard"),
+                config_tmp
                     .path()
                     .join("shadow53")
                     .join("hoard")
