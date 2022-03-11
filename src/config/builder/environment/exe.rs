@@ -3,10 +3,12 @@
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::fmt::Formatter;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 use thiserror::Error;
+
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
 
 /// A conditional structure that tests if the given executable exists in the `$PATH` environment
 /// variable.
