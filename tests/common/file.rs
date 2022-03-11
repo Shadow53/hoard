@@ -1,5 +1,6 @@
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::fs::Permissions;
 use std::path::Path;
 use std::{
     fs::{File, Metadata},
@@ -80,6 +81,18 @@ pub fn assert_eq_file_contents(left: &mut File, right: &mut File) {
         .expect("failed to seek to beginning of right file (end)");
 }
 
+#[cfg(not(unix))]
+fn assert_mode(left_perm: &Permissions, right_perm: &Permissions) {}
+
+#[cfg(unix)]
+fn assert_mode(left_perm: &Permissions, right_perm: &Permissions) {
+    assert_eq!(
+        left_perm.mode(),
+        right_perm.mode(),
+        "Unix file modes differ"
+    );
+}
+
 pub fn assert_eq_file_permissions(left: &File, right: &File) {
     let (left_meta, right_meta) = get_metadata(left, right);
 
@@ -93,12 +106,5 @@ pub fn assert_eq_file_permissions(left: &File, right: &File) {
         "exactly one of the files is readonly"
     );
 
-    // Unix-specific permissions
-    if cfg!(unix) {
-        assert_eq!(
-            left_perm.mode(),
-            right_perm.mode(),
-            "Unix file modes differ"
-        );
-    }
+    assert_mode(&left_perm, &right_perm);
 }

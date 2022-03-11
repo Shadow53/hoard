@@ -1,6 +1,5 @@
 use hoard::hoard_item::HoardItem;
 use hoard::paths::{HoardPath, RelativePath, SystemPath};
-use nix::libc::write;
 use rand::RngCore;
 use sha2::digest::generic_array::GenericArray;
 use sha2::digest::OutputSizeUser;
