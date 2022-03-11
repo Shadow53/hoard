@@ -268,7 +268,6 @@ fn check_modified_file(
     );
 }
 
-#[cfg(unix)]
 fn check_modified_perms(
     tester: &Tester,
     file: &File,
