@@ -1,7 +1,7 @@
 use crate::hoard::iter::{HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
-use std::collections::BTreeSet;
 use crate::paths::HoardPath;
+use std::collections::BTreeSet;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;

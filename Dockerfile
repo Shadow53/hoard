@@ -10,4 +10,4 @@ RUN apk add build-base xdg-utils file busybox
 COPY Cargo.toml Cargo.lock config.toml.sample ./
 COPY src ./src
 RUN cargo test --no-run
-CMD cargo test
+CMD cargo test -- --test-threads=1

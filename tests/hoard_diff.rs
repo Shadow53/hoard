@@ -434,7 +434,6 @@ macro_rules! test_diff_type {
     }),*) => {
         $(paste! {
             #[test]
-            #[serial_test::serial]
             fn [<test_ $name _local>]() {
                 const LOCATION: &str = "locally";
 
@@ -463,7 +462,6 @@ macro_rules! test_diff_type {
             }
 
             #[test]
-            #[serial_test::serial]
             fn [<test_ $name _remote>]() {
                 const LOCATION: &str = "remotely";
                 let $tester = Tester::new(DIFF_TOML);
@@ -489,7 +487,6 @@ macro_rules! test_diff_type {
             }
 
             #[test]
-            #[serial_test::serial]
             fn [<test_ $name _mixed>]() {
                 const LOCATION: &str = "locally and remotely";
                 let $tester = Tester::new(DIFF_TOML);
@@ -513,7 +510,6 @@ macro_rules! test_diff_type {
             }
 
             #[test]
-            #[serial_test::serial]
             fn [<test_ $name _unexpected>]() {
                 const LOCATION: &str = "out-of-band";
                 let $tester = Tester::new(DIFF_TOML);
@@ -533,7 +529,6 @@ macro_rules! test_diff_type {
             }
 
             #[test]
-            #[serial_test::serial]
             fn [<test_ $name _unchanged>]() {
                 let $tester = Tester::new(DIFF_TOML);
 

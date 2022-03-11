@@ -1,22 +1,17 @@
+use directories::ProjectDirs;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
-use directories::ProjectDirs;
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
-
-static DIRS: Lazy<ProjectDirs> = Lazy::new(|| {
-    tracing::trace!("determining project default folders");
-    ProjectDirs::from("com", "shadow53", "hoard")
-        .expect("could not detect user home directory to place program files")
-});
 
 /// Get the project directories for this project.
 #[must_use]
 #[inline]
-pub fn get_dirs() -> &'static ProjectDirs {
-    &DIRS
+pub fn get_dirs() -> ProjectDirs {
+    tracing::trace!("determining project default folders");
+    ProjectDirs::from("com", "shadow53", "hoard")
+        .expect("could not detect user home directory to place program files")
 }
 
 fn inner_hoards_dir() -> PathBuf {
@@ -58,7 +53,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
             }
             Component::CurDir => {}
             Component::ParentDir => {
-                if ret.components().last() == Some(Component::ParentDir) {
+                if matches!(ret.components().last(), None | Some(Component::ParentDir)) {
                     ret.push(Component::ParentDir);
                 } else {
                     ret.pop();
@@ -129,9 +124,10 @@ impl TryFrom<PathBuf> for HoardPath {
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let hoard_root = inner_hoards_dir();
-        match value.strip_prefix(hoard_root) {
-            Ok(_) => Ok(Self(value)),
-            Err(_) => Err(Error::InvalidHoardPath(value)),
+        if value.strip_prefix(&hoard_root).is_ok() {
+            Ok(Self(value))
+        } else {
+            Err(Error::InvalidHoardPath(value))
         }
     }
 }
@@ -148,9 +144,11 @@ impl HoardPath {
     #[must_use]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
-            rhs.0.as_ref()
-                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path))
-        ).expect("a HoardPath rooted in an existing HoardPath is always valid")
+            rhs.0
+                .as_ref()
+                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path)),
+        )
+        .expect("a HoardPath rooted in an existing HoardPath is always valid")
     }
 }
 
@@ -178,7 +176,7 @@ impl TryFrom<PathBuf> for SystemPath {
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let hoard_root = hoards_dir();
-        match value.strip_prefix(hoard_root) {
+        match value.strip_prefix(hoard_root.as_ref()) {
             Ok(_) => Err(Error::InvalidSystemPath(value)),
             Err(_) => Ok(Self(value)),
         }
@@ -189,12 +187,11 @@ impl SystemPath {
     #[must_use]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
-            rhs.0.as_ref()
-                .map_or_else(
-                    || self.0.clone(),
-                    |rel_path| self.0.join(&rel_path)
-                )
-        ).expect("a SystemPath rooted in an existing SystemPath is always valid")
+            rhs.0
+                .as_ref()
+                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path)),
+        )
+        .expect("a SystemPath rooted in an existing SystemPath is always valid")
     }
 }
 
@@ -203,13 +200,22 @@ impl SystemPath {
 pub struct RelativePath(Option<PathBuf>);
 
 impl Serialize for RelativePath {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        self.0.clone().unwrap_or_else(PathBuf::new).serialize(serializer)
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0
+            .clone()
+            .unwrap_or_else(PathBuf::new)
+            .serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for RelativePath {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         let path = PathBuf::deserialize(deserializer)?;
         if path.to_str() == Some("") {
             Ok(Self(None))
@@ -225,7 +231,11 @@ impl TryFrom<PathBuf> for RelativePath {
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let normalized = normalize_path(&value);
 
-        if normalized.is_relative() && !normalized.starts_with("../") {
+        if normalized.to_str() == Some("") {
+            Ok(Self(None))
+        } else if normalized.is_relative()
+            && normalized.components().next() != Some(Component::ParentDir)
+        {
             Ok(Self(Some(value)))
         } else {
             Err(Error::InvalidRelativePath(value))
@@ -289,18 +299,27 @@ mod tests {
 
             let home_path = directories::UserDirs::new()
                 .expect("should be able to find user dirs")
-                .home_dir().join("file.txt");
+                .home_dir()
+                .join("file.txt");
 
-            if let Err(Error::InvalidRelativePath(path)) = RelativePath::try_from(bin_path.clone()) {
+            if let Err(Error::InvalidRelativePath(path)) = RelativePath::try_from(bin_path.clone())
+            {
                 assert_eq!(path, bin_path);
             } else {
-                panic!("absolute path {} should not have been allowed", bin_path.display());
+                panic!(
+                    "absolute path {} should not have been allowed",
+                    bin_path.display()
+                );
             }
 
-            if let Err(Error::InvalidRelativePath(path)) = RelativePath::try_from(home_path.clone()) {
+            if let Err(Error::InvalidRelativePath(path)) = RelativePath::try_from(home_path.clone())
+            {
                 assert_eq!(path, home_path);
             } else {
-                panic!("absolute path {} should not have been allowed", home_path.display());
+                panic!(
+                    "absolute path {} should not have been allowed",
+                    home_path.display()
+                );
             }
         }
 
@@ -315,7 +334,12 @@ mod tests {
 
             for path in test_paths {
                 let rel_path = RelativePath::try_from(path).expect("relative path should be valid");
-                assert_eq!(rel_path, RelativePath(None));
+                assert_eq!(
+                    rel_path,
+                    RelativePath(None),
+                    "expected RelativePath(None), got {:?}",
+                    rel_path
+                );
             }
         }
 
@@ -339,11 +363,12 @@ mod tests {
                 PathBuf::from("../"),
                 PathBuf::from("../child"),
                 PathBuf::from("child/../.."),
-                PathBuf::from("child/../other_child/../..")
+                PathBuf::from("child/../other_child/../.."),
             ];
 
             for path in test_paths {
-                RelativePath::try_from(path).expect_err("paths that access the grandparent are not valid");
+                RelativePath::try_from(path)
+                    .expect_err("paths that access the grandparent are not valid");
             }
         }
     }

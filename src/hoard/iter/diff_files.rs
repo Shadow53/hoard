@@ -8,9 +8,9 @@ use std::fs::Permissions;
 use std::{fmt, fs};
 use tracing::trace_span;
 
+use crate::paths::HoardPath;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use crate::paths::HoardPath;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum DiffSource {

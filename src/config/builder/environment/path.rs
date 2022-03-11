@@ -1,11 +1,11 @@
 //! See [`PathExists`].
 
 use crate::env_vars::expand_env_in_path;
+use crate::paths::SystemPath;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
-use crate::paths::SystemPath;
 
 struct PathExistsVisitor;
 
@@ -77,9 +77,9 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use serde_test::{assert_de_tokens, assert_tokens, Token};
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::{tempdir, NamedTempFile};
 
     #[test]
@@ -90,18 +90,22 @@ mod tests {
     #[test]
     fn test_file_does_exist() {
         let temp = NamedTempFile::new().expect("failed to create temporary file");
-        let exists: bool = PathExists(Some(SystemPath::try_from(temp.path().to_path_buf()).unwrap()))
-            .try_into()
-            .expect("failed to check if path exists");
+        let exists: bool = PathExists(Some(
+            SystemPath::try_from(temp.path().to_path_buf()).unwrap(),
+        ))
+        .try_into()
+        .expect("failed to check if path exists");
         assert!(exists);
     }
 
     #[test]
     fn test_dir_does_exist() {
         let temp = tempdir().expect("failed to create temporary directory");
-        let exists: bool = PathExists(Some(SystemPath::try_from(temp.path().to_path_buf()).unwrap()))
-            .try_into()
-            .expect("failed to check if path exists");
+        let exists: bool = PathExists(Some(
+            SystemPath::try_from(temp.path().to_path_buf()).unwrap(),
+        ))
+        .try_into()
+        .expect("failed to check if path exists");
         assert!(exists);
     }
 
@@ -109,9 +113,11 @@ mod tests {
     fn test_file_does_not_exist() {
         let temp = NamedTempFile::new().expect("failed to create temporary file");
         fs::remove_file(temp.path()).expect("failed to remove temporary file");
-        let exists: bool = PathExists(Some(SystemPath::try_from(temp.path().to_path_buf()).unwrap()))
-            .try_into()
-            .expect("failed to check if path exists");
+        let exists: bool = PathExists(Some(
+            SystemPath::try_from(temp.path().to_path_buf()).unwrap(),
+        ))
+        .try_into()
+        .expect("failed to check if path exists");
         assert!(!exists);
     }
 
@@ -119,9 +125,11 @@ mod tests {
     fn test_dir_does_not_exist() {
         let temp = tempdir().expect("failed to create temporary directory");
         fs::remove_dir(temp.path()).expect("failed to remove temporary directory");
-        let exists: bool = PathExists(Some(SystemPath::try_from(temp.path().to_path_buf()).unwrap()))
-            .try_into()
-            .expect("failed to check if path exists");
+        let exists: bool = PathExists(Some(
+            SystemPath::try_from(temp.path().to_path_buf()).unwrap(),
+        ))
+        .try_into()
+        .expect("failed to check if path exists");
         assert!(!exists);
     }
 
@@ -133,12 +141,13 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_is_expanded_in_path() {
         std::env::set_var("HOARD_TEST_ENV", "hoard-test");
         let path_with_env = "/test/path/${HOARD_TEST_ENV}/leaf";
         let path_resolved = "/test/path/hoard-test/leaf";
-        let path = PathExists(Some(SystemPath::try_from(PathBuf::from(path_resolved)).unwrap()));
+        let path = PathExists(Some(
+            SystemPath::try_from(PathBuf::from(path_resolved)).unwrap(),
+        ));
         assert_de_tokens(&path, &[Token::Str(path_with_env)]);
     }
 }

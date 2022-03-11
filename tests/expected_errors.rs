@@ -3,14 +3,15 @@ mod common;
 use std::fs;
 use std::io::Write;
 
+use crate::common::base::DefaultConfigTester;
 use common::tester::Tester;
 use hoard::command::Command;
 use hoard::config::builder::{Builder, Error as BuilderError};
+use hoard::paths::get_dirs;
 
 #[test]
-#[serial_test::serial]
 fn test_invalid_uuid() {
-    let tester = Tester::new(common::base::BASE_CONFIG);
+    let tester = DefaultConfigTester::with_log_level(tracing::Level::INFO);
     let uuid_path = tester.config_dir().join("uuid");
     let bad_content = "INVALID UUID";
     {
@@ -19,18 +20,15 @@ fn test_invalid_uuid() {
             .expect("failed to write to uuid file");
     }
 
-    tester
-        .run_command(Command::Backup { hoards: Vec::new() })
-        .expect("backup should handle bad uuid file");
-
-    tester.assert_has_output("failed to parse uuid in file");
+    tester.expect_command(Command::Backup { hoards: Vec::new() });
 
     let content = fs::read_to_string(&uuid_path).expect("failed to read uuid file");
     assert_ne!(content, bad_content);
+
+    tester.assert_has_output("failed to parse uuid in file");
 }
 
 #[test]
-#[serial_test::serial]
 fn test_invalid_config_extensions() {
     let tester = Tester::new(common::base::BASE_CONFIG);
     let expected_output = "configuration file must have file extension \"";
@@ -58,7 +56,6 @@ fn test_invalid_config_extensions() {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_missing_config_dir() {
     let tester = Tester::new(common::base::BASE_CONFIG);
     fs::remove_dir(tester.config_dir()).expect("failed to delete config dir");

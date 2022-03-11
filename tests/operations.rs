@@ -32,7 +32,6 @@ fn assert_not_matching_checksum(file: &HoardItem) {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_operations() {
     let mut tester = DefaultConfigTester::new();
     tester.use_first_env();

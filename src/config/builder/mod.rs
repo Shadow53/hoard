@@ -17,7 +17,7 @@ use crate::CONFIG_FILE_STEM;
 
 use super::Config;
 use crate::hoard::PileConfig;
-use crate::paths::{get_dirs, HoardPath, hoards_dir};
+use crate::paths::{get_dirs, hoards_dir, HoardPath};
 
 pub mod environment;
 pub mod envtrie;
@@ -185,7 +185,7 @@ impl Builder {
                 }
             })
             .ok_or_else(|| {
-                let path = PathBuf::from(CONFIG_FILE_STEM);
+                let path = Self::default_config_file();
                 Error::ReadConfig(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!(
@@ -425,6 +425,7 @@ mod tests {
 
     mod builder {
         use super::*;
+        use crate::paths::RelativePath;
 
         fn get_default_populated_builder() -> Builder {
             Builder {
@@ -441,7 +442,10 @@ mod tests {
 
         fn get_non_default_populated_builder() -> Builder {
             Builder {
-                hoards_root: Some(HoardPath::try_from(PathBuf::from("/testing/saves")).unwrap()),
+                hoards_root: Some(
+                    hoards_dir()
+                        .join(&RelativePath::try_from(PathBuf::from("testing/saves")).unwrap()),
+                ),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 command: Some(Command::Restore {
                     hoards: vec!["test".into()],
@@ -519,8 +523,8 @@ mod tests {
         fn builder_saves_root_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(None, builder.hoards_root, "saves_root should start as None");
-            let path = HoardPath::try_from(PathBuf::from("/testing/saves"))
-                .expect("HoardPath value should be valid");
+            let path =
+                hoards_dir().join(&RelativePath::try_from(PathBuf::from("testing/saves")).unwrap());
             builder = builder.set_hoards_root(path.clone());
             assert_eq!(
                 Some(path),

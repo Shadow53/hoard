@@ -8,9 +8,9 @@ pub mod history;
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as OperationError, Operation};
 use crate::hoard::{Direction, Hoard};
+use crate::paths::HoardPath;
 use std::collections::HashMap;
 use thiserror::Error;
-use crate::paths::HoardPath;
 
 /// Trait for validating [`Hoard`]s.
 ///

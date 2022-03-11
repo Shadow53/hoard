@@ -9,8 +9,7 @@ use time::Duration;
 use hoard::checkers::history::operation::util::TIME_FORMAT;
 use hoard::checkers::history::operation::v1::{Hoard as HoardV1, OperationV1, Pile as PileV1};
 use hoard::checkers::history::operation::v2::OperationV2;
-use hoard::checkers::history::operation::{OperationImpl};
-use hoard::checkers::Checker;
+use hoard::checkers::history::operation::OperationImpl;
 use hoard::command::Command;
 
 fn anon_file_operations() -> Vec<OperationV1> {
@@ -72,7 +71,7 @@ fn anon_dir_operations() -> Vec<OperationV1> {
         OperationV1 {
             timestamp: third_timestamp,
             is_backup: true,
-            hoard_name: hoard_name,
+            hoard_name,
             hoard: HoardV1::Anonymous(PileV1::from(maplit::hashmap! {
                 PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
                 PathBuf::from("file_3") => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
@@ -115,7 +114,7 @@ fn named_operations() -> Vec<OperationV1> {
         OperationV1 {
             timestamp: third_timestamp,
             is_backup: true,
-            hoard_name: hoard_name,
+            hoard_name,
             hoard: HoardV1::Named(maplit::hashmap! {
                 String::from("single_file") => PileV1::from(HashMap::new()),
                 String::from("dir") => PileV1::from(maplit::hashmap! {
@@ -172,8 +171,12 @@ fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
         .join(tester.get_uuid().expect("getting uuid should succeed"))
         .join(hoard);
     let mut list: Vec<_> = fs::read_dir(&path)
-        .unwrap_or_else(|_| panic!("reading history directory {} should not fail",
-            path.display()))
+        .unwrap_or_else(|_| {
+            panic!(
+                "reading history directory {} should not fail",
+                path.display()
+            )
+        })
         .filter_map(|entry| {
             let entry = entry.expect("reading dir entry should not fail");
             (entry.file_name() != "last_paths.json").then(|| {
@@ -188,7 +191,6 @@ fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_hoard_upgrade() {
     let tester = Tester::new("");
     tester.use_local_uuid();

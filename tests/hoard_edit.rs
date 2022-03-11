@@ -97,7 +97,6 @@ fn verify_editor_called_on(tester: &Tester, _file: &Path) {
 }
 
 #[test]
-#[serial_test::serial]
 fn verify_watchdog_works() {
     for editor in [Editor::Good, Editor::Error] {
         for interface in [InterfaceType::Graphical, InterfaceType::CommandLine] {
@@ -131,7 +130,6 @@ fn verify_watchdog_works() {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_hoard_edit_good_cli() {
     let tester = Tester::new("");
     let _guard = Editor::Good.set_as_default_cli_editor();
@@ -139,7 +137,6 @@ fn test_hoard_edit_good_cli() {
 }
 
 #[test]
-#[serial_test::serial]
 #[cfg(not(target_os = "macos"))]
 fn test_hoard_edit_good_gui() {
     let tester = Tester::new("");
@@ -148,7 +145,6 @@ fn test_hoard_edit_good_gui() {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_hoard_edit_error_cli() {
     let tester = Tester::new("");
     let _guard = Editor::Error.set_as_default_cli_editor();
@@ -156,7 +152,6 @@ fn test_hoard_edit_error_cli() {
 }
 
 #[test]
-#[serial_test::serial]
 #[cfg(not(target_os = "macos"))]
 fn test_hoard_edit_error_gui() {
     let tester = Tester::new("");

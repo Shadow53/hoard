@@ -27,7 +27,7 @@ pub enum Error {
     Hostname(#[from] std::io::Error),
     /// An error that occurred while checking if a program exists in `$PATH`.
     #[error("failed to detect if exe exists in path: {0}")]
-    ExeExists(#[from] which::Error),
+    ExeExists(#[from] <ExeExists as TryInto<bool>>::Error),
     /// A condition string is invalid. The `message` should indicate why.
     #[error("condition {condition_str} is invalid: {message}")]
     InvalidCondition {
@@ -185,9 +185,9 @@ mod tests {
     use crate::combinator::Inner;
 
     mod display {
-        use std::path::PathBuf;
-        use crate::paths::SystemPath;
         use super::*;
+        use crate::paths::SystemPath;
+        use std::path::PathBuf;
 
         #[test]
         fn test_display_with_none() {
@@ -203,7 +203,9 @@ mod tests {
                 expected: None,
             };
             let exe_exists = ExeExists("test".into());
-            let path_exists = PathExists(Some(SystemPath::try_from(PathBuf::from("/test/path")).unwrap()));
+            let path_exists = PathExists(Some(
+                SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+            ));
 
             let env = Environment {
                 hostname: Some(Combinator(vec![Inner::Single(hostname.clone())])),

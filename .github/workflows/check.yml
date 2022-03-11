@@ -23,8 +23,6 @@ jobs:
               - 'Cargo.lock'
             rust:
               - '**/*.rs'
-            pytests:
-              - 'ci-tests/**'
 
   fossa:
     name: Fossa License Check
@@ -69,9 +67,12 @@ jobs:
 
   check-stable:
     name: Check Commit
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Linux is handled by the coverage check
+        os: ["windows-latest", "macos-latest", "ubuntu-latest"]
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || needs.changes.outputs.pytests == 'true' || needs.changes.outputs.cargo == 'true' || github.event_name == 'release' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -82,43 +83,32 @@ jobs:
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
+        if: matrix.os == 'ubuntu-latest'
         with:
           toolchain: stable
           override: true
           components: llvm-tools-preview
 
-      - name: Cargo Check
-        uses: actions-rs/cargo@v1
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        if: matrix.os != 'ubuntu-latest'
         with:
-          command: check
+          toolchain: stable
+          override: true
 
       - name: Install Grcov
         uses: actions-rs/install@v0.1
+        if: matrix.os == 'ubuntu-latest'
         with:
           crate: grcov
           version: latest
           use-tool-cache: true
 
-      - name: Install Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-
-      - name: Cargo Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-        env:
-          RUSTC_BOOTSTRAP: '1'
-          CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: '-Zinstrument-coverage'
-          RUSTDOCFLAGS: '-Zinstrument-coverage'
-
       - name: Cargo Test (Grcov)
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-features --no-fail-fast
+          args: --all-features --no-fail-fast -- --test-threads=1
         env:
           RUSTC_BOOTSTRAP: '1'
           CARGO_INCREMENTAL: '0'
@@ -126,17 +116,8 @@ jobs:
           RUSTDOCFLAGS: '-Zinstrument-coverage'
           LLVM_PROFILE_FILE: 'profraw/hoard-cargo-tests-%p-%m.profraw'
 
-      - name: Install dependencies (Linux)
-        run: pip install pyyaml toml pydantic
-
-      - name: Run Integration Tests
-        run: python ci-tests/tests all
-        env:
-          # Creates a lot of output but also makes sure all logging receives coverage
-          HOARD_LOG: trace
-          LLVM_PROFILE_FILE: 'profraw/hoard-python-tests-%p-%m.profraw'
-
       - name: Run grcov
+        if: matrix.os == 'ubuntu-latest'
         run: |
           grcov profraw/*.profraw --binary-path target/debug \
             -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov \
@@ -162,52 +143,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.lcov
-
-  integration-tests:
-    name: "Integration Tests"
-    needs: [changes]
-    if: ${{ needs.check-stable.result != 'failure' && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.cargo == 'true' || needs.changes.outputs.pytests == 'true' || github.event_name == 'release') }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        # Linux is handled by the coverage check
-        os: ["windows-latest", "macos-latest"]
-    steps:
-      - uses: actions/checkout@v2
-
-      - uses: Swatinem/rust-cache@v1
-        with:
-          cache-on-failure: true
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Cargo Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-
-      - name: Install Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-
-      - name: Install tree (macos)
-        if: matrix.os == 'macos-latest'
-        run: brew install tree
-
-      - name: Install tree (windows)
-        if: matrix.os == 'windows-latest'
-        run: choco install tree
-
-      - name: Install Python dependencies
-        run: pip install pydantic pyyaml toml
-
-      - name: Run all tests
-        run: python ci-tests/tests all
 
   release:
     if: github.event_name == 'release'

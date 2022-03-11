@@ -3,10 +3,10 @@
 pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
+use crate::paths::HoardPath;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
-use crate::paths::HoardPath;
 
 pub mod builder;
 

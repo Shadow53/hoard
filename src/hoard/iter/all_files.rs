@@ -1,10 +1,10 @@
 use crate::filters::{Filter, Filters};
 use crate::hoard::iter::HoardItem;
 use crate::hoard::Hoard;
+use crate::paths::{HoardPath, RelativePath};
 use std::iter::Peekable;
 use std::path::PathBuf;
 use std::{fs, io};
-use crate::paths::{HoardPath, RelativePath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
@@ -46,7 +46,7 @@ impl AllFilesIter {
     ) -> Result<Self, super::Error> {
         let hoard_name_root = hoards_root.join(
             &RelativePath::try_from(PathBuf::from(hoard_name))
-                .expect("hoard name is a valid RelativePath")
+                .expect("hoard name is a valid RelativePath"),
         );
         let root_paths = match hoard {
             Hoard::Anonymous(pile) => {
@@ -211,10 +211,11 @@ impl Iterator for AllFilesIter {
                     let relative_path = RelativePath::try_from(
                         entry
                             .path()
-                            .strip_prefix(&current_root.hoard_file.hoard_prefix())
-                            .expect("hoard prefix should always match path")
-                            .to_path_buf()
-                    ).expect("path created with strip_prefix should always be valid RelativePath");
+                            .strip_prefix(&current_root.hoard_file.system_prefix())
+                            .expect("system prefix should always match path")
+                            .to_path_buf(),
+                    )
+                    .expect("path created with strip_prefix should always be valid RelativePath");
 
                     let new_item = RootPathItem {
                         hoard_file: HoardItem::new(
@@ -260,8 +261,9 @@ impl Iterator for AllFilesIter {
                             .path()
                             .strip_prefix(&current_root.hoard_file.hoard_prefix())
                             .expect("hoard prefix should always match path")
-                            .to_path_buf()
-                    ).expect("path created with strip_prefix should always be valid RelativePath");
+                            .to_path_buf(),
+                    )
+                    .expect("path created with strip_prefix should always be valid RelativePath");
 
                     let new_item = RootPathItem {
                         hoard_file: HoardItem::new(

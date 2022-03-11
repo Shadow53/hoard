@@ -11,12 +11,12 @@ use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
 use crate::hoard::iter::{OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard as ConfigHoard};
 use crate::hoard_item::{Checksum, ChecksumType, HoardItem};
+use crate::paths::{HoardPath, RelativePath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::Path;
 use time::OffsetDateTime;
-use crate::paths::{HoardPath, RelativePath};
 
 use super::Error;
 
@@ -85,20 +85,20 @@ impl OperationV2 {
 
             let pile_file = (pile_name, relative_path.clone());
             let checksum = checksum.expect("v1 Operation only stored files with checksums");
-                match file_checksums.get(&pile_file) {
-                    None | Some(None) => {
-                        // Created or recreated
-                        pile.created.insert(relative_path, checksum.clone());
-                    }
-                    Some(Some(old_checksum)) => {
-                        // Modified or Unchanged
-                        if old_checksum == &checksum {
-                            pile.unmodified.insert(relative_path, checksum.clone());
-                        } else {
-                            pile.modified.insert(relative_path, checksum.clone());
-                        }
+            match file_checksums.get(&pile_file) {
+                None | Some(None) => {
+                    // Created or recreated
+                    pile.created.insert(relative_path, checksum.clone());
+                }
+                Some(Some(old_checksum)) => {
+                    // Modified or Unchanged
+                    if old_checksum == &checksum {
+                        pile.unmodified.insert(relative_path, checksum.clone());
+                    } else {
+                        pile.modified.insert(relative_path, checksum.clone());
                     }
                 }
+            }
             file_checksums.insert(pile_file.clone(), Some(checksum));
             these_files.insert(pile_file);
         }
@@ -106,7 +106,9 @@ impl OperationV2 {
         let deleted: HashMap<Option<String>, HashSet<RelativePath>> = file_set
             .difference(&these_files)
             .fold(HashMap::new(), |mut acc, (pile_name, rel_path)| {
-                acc.entry(pile_name.clone()).or_insert_with(HashSet::new).insert(rel_path.clone());
+                acc.entry(pile_name.clone())
+                    .or_insert_with(HashSet::new)
+                    .insert(rel_path.clone());
                 acc
             });
 
@@ -145,7 +147,12 @@ impl OperationImpl for OperationV2 {
         self.direction
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &RelativePath, only_modified: bool) -> bool {
+    fn contains_file(
+        &self,
+        pile_name: Option<&str>,
+        rel_path: &RelativePath,
+        only_modified: bool,
+    ) -> bool {
         self.files
             .get_pile(pile_name)
             .map_or(false, |pile| pile.contains_file(rel_path, only_modified))
@@ -372,8 +379,8 @@ impl Pile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use serde_test::{assert_tokens, Token};
+    use std::path::PathBuf;
 
     #[test]
     fn test_checksum_derives() {
@@ -443,7 +450,10 @@ mod tests {
                     hoard: hoard_name.clone(),
                     files: Hoard::Anonymous({
                         let mut pile = Pile::new();
-                        pile.add_created(RelativePath::none(), Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")));
+                        pile.add_created(
+                            RelativePath::none(),
+                            Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")),
+                        );
                         pile
                     }),
                 },
@@ -453,7 +463,10 @@ mod tests {
                     hoard: hoard_name.clone(),
                     files: Hoard::Anonymous({
                         let mut pile = Pile::new();
-                        pile.add_unmodified(RelativePath::none(), Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")));
+                        pile.add_unmodified(
+                            RelativePath::none(),
+                            Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")),
+                        );
                         pile
                     }),
                 },
@@ -534,15 +547,15 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_created(
                             RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                            Checksum::MD5(String::from("797b373a9c4ec0d6de0a31a90b5bee8e"))
+                            Checksum::MD5(String::from("797b373a9c4ec0d6de0a31a90b5bee8e")),
                         );
                         pile.add_modified(
                             RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                            Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2"))
+                            Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2")),
                         );
                         pile.add_unmodified(
                             RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
-                            Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"))
+                            Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c")),
                         );
                         pile
                     }),
@@ -555,14 +568,12 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_modified(
                             RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                            Checksum::MD5(String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"))
+                            Checksum::MD5(String::from("1deb21ef3bb87be4ad71d73fff6bb8ec")),
                         );
-                        pile.add_deleted(
-                            RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
-                        );
+                        pile.add_deleted(RelativePath::try_from(PathBuf::from("file_2")).unwrap());
                         pile.add_unmodified(
-                            RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                            Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2"))
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
+                            Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2")),
                         );
                         pile
                     }),

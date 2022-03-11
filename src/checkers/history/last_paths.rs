@@ -6,13 +6,13 @@
 
 use super::super::Checker;
 use crate::hoard::{Direction, Hoard};
+use crate::paths::{HoardPath, SystemPath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
-use crate::paths::{HoardPath, SystemPath};
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -357,14 +357,16 @@ impl HoardPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maplit::hashmap;
     use crate::paths::SystemPath;
+    use maplit::hashmap;
 
     const NAMED_PILE_1: &str = "test1";
     const NAMED_PILE_2: &str = "test2";
 
     fn anonymous_hoard_paths() -> HoardPaths {
-        HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path")).unwrap())))
+        HoardPaths::from(PilePaths::Anonymous(Some(
+            SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+        )))
     }
 
     fn named_hoard_paths() -> HoardPaths {
@@ -467,11 +469,17 @@ mod tests {
     #[test]
     fn test_compare_anonymous_paths() {
         let anon_none = HoardPaths::from(PilePaths::Anonymous(None));
-        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path1")).unwrap())));
-        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path2")).unwrap())));
+        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(
+            SystemPath::try_from(PathBuf::from("/test/path1")).unwrap(),
+        )));
+        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(
+            SystemPath::try_from(PathBuf::from("/test/path2")).unwrap(),
+        )));
         // Create dupe of 1 to get different timestamp
         std::thread::sleep(std::time::Duration::from_secs(1));
-        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/test/path1")).unwrap())));
+        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(
+            SystemPath::try_from(PathBuf::from("/test/path1")).unwrap(),
+        )));
 
         // Test none/none and some/some are the same.
         assert!(
@@ -623,7 +631,9 @@ mod tests {
 
         assert_eq!(
             anon_paths,
-            PilePaths::Anonymous(Some(SystemPath::try_from(PathBuf::from("/anon/path")).unwrap()))
+            PilePaths::Anonymous(Some(
+                SystemPath::try_from(PathBuf::from("/anon/path")).unwrap()
+            ))
         );
         assert_eq!(
             named_paths,

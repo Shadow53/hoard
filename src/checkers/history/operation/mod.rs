@@ -17,8 +17,8 @@ pub mod v2;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
 use crate::hoard_item::Checksum;
-pub(crate) use util::cleanup_operations;
 use crate::paths::{HoardPath, RelativePath};
+pub(crate) use util::cleanup_operations;
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -68,7 +68,12 @@ enum OperationVersion {
 #[allow(clippy::module_name_repetitions)]
 pub trait OperationImpl {
     fn direction(&self) -> Direction;
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &RelativePath, only_modified: bool) -> bool;
+    fn contains_file(
+        &self,
+        pile_name: Option<&str>,
+        rel_path: &RelativePath,
+        only_modified: bool,
+    ) -> bool;
     fn timestamp(&self) -> OffsetDateTime;
     fn hoard_name(&self) -> &str;
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum>;
@@ -83,7 +88,12 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &RelativePath, only_modified: bool) -> bool {
+    fn contains_file(
+        &self,
+        pile_name: Option<&str>,
+        rel_path: &RelativePath,
+        only_modified: bool,
+    ) -> bool {
         match &self {
             OperationVersion::V1(one) => one.contains_file(pile_name, rel_path, only_modified),
             OperationVersion::V2(two) => two.contains_file(pile_name, rel_path, only_modified),
@@ -128,7 +138,12 @@ impl OperationImpl for Operation {
         self.0.direction()
     }
 
-    fn contains_file(&self, pile_name: Option<&str>, rel_path: &RelativePath, only_modified: bool) -> bool {
+    fn contains_file(
+        &self,
+        pile_name: Option<&str>,
+        rel_path: &RelativePath,
+        only_modified: bool,
+    ) -> bool {
         self.0.contains_file(pile_name, rel_path, only_modified)
     }
 

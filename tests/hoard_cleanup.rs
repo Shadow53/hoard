@@ -127,10 +127,10 @@ fn files_in_dir(root: &Path) -> Vec<PathBuf> {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_operation_cleanup() {
     let mut tester = DefaultConfigTester::new();
     tester.use_first_env();
+    tester.setup_files();
     for (location, direction, hoard) in &STRATEGY {
         run_operation(&tester, *location, *direction, hoard);
     }

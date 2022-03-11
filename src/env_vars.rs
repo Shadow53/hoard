@@ -2,11 +2,11 @@
 //!
 //! The only function exported from this module is [`expand_env_in_path`].
 
+use crate::paths::{Error as PathError, SystemPath};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::PathBuf;
 use std::{env, fmt};
-use crate::paths::{SystemPath, Error as PathError};
 
 // Following the example of `std::env::set_var`, the only things disallowed are
 // the equals sign and the NUL character.
@@ -29,10 +29,16 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Env { error: error @ env::VarError::NotPresent, var }=> write!(f, "{}: {}", error, var),
+            Self::Env {
+                error: error @ env::VarError::NotPresent,
+                var,
+            } => write!(f, "{}: {}", error, var),
             // grcov: ignore-start
             // I do not think it is worth testing for this error just to get coverage.
-            Self::Env { error: error @ env::VarError::NotUnicode(_), .. } => error.fmt(f),
+            Self::Env {
+                error: error @ env::VarError::NotUnicode(_),
+                ..
+            } => error.fmt(f),
             // grcov: ignore-end
             Self::Path(error) => write!(f, "{}", error),
         }
@@ -56,12 +62,14 @@ impl std::error::Error for Error {
 /// ```
 /// use hoard::env_vars::expand_env_in_path;
 /// use std::path::PathBuf;
+/// use hoard::paths::SystemPath;
 ///
 /// let template = "/some/${CUSTOM_VAR}/path";
 /// std::env::set_var("CUSTOM_VAR", "foobar");
 /// let path = expand_env_in_path(template)
 ///     .expect("failed to expand path");
-/// assert_eq!(path, PathBuf::from("/some/foobar/path"));
+/// let expected = SystemPath::try_from(PathBuf::from("/some/foobar/path")).unwrap();
+/// assert_eq!(path, expected);
 /// ```
 ///
 /// # Errors
@@ -105,7 +113,8 @@ pub fn expand_env_in_path(path: &str) -> Result<SystemPath, Error> {
     }
 
     // Splitting into components and collecting will collapse multiple separators.
-    SystemPath::try_from(PathBuf::from(new_path).components().collect::<PathBuf>()).map_err(Error::Path)
+    SystemPath::try_from(PathBuf::from(new_path).components().collect::<PathBuf>())
+        .map_err(Error::Path)
 }
 
 #[cfg(test)]
@@ -116,7 +125,6 @@ mod tests {
     macro_rules! test_env {
         (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr, require_var: $require_var:literal) => {
             #[test]
-            #[serial_test::serial]
             fn $name() {
                 assert!((!$require_var || ($input).contains(&format!("${{{}}}", $var))), "input string {} doesn't contain variable {}", $input, $var);
 
@@ -260,7 +268,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_error_traits() {
         let env_error = env::var("DOESNOTEXIST").expect_err("variable should not exist");
         let error = Error::Env {

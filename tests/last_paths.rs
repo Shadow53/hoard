@@ -10,6 +10,7 @@ use hoard::checkers::history::last_paths::{
 use hoard::checkers::Error as CheckerError;
 use hoard::command::{BackupRestoreError, Command, Error as CommandError};
 use hoard::config::Error as ConfigError;
+use hoard::paths::SystemPath;
 
 fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
     let current = LastPaths::from_default_file().expect("reading last_paths.json should not fail");
@@ -49,7 +50,6 @@ fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_last_paths() {
     let mut tester = DefaultConfigTester::with_log_level(tracing::Level::TRACE);
 
@@ -58,13 +58,13 @@ fn test_last_paths() {
         String::from(HOARD_ANON_FILE) => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
-                Some(tester.home_dir().join("first_anon_file"))
+                Some(SystemPath::try_from(tester.home_dir().join("first_anon_file")).unwrap())
             )
         },
         String::from(HOARD_ANON_DIR) => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
-                Some(tester.home_dir().join("first_anon_dir"))
+                Some(SystemPath::try_from(tester.home_dir().join("first_anon_dir")).unwrap())
             )
         },
         String::from(HOARD_NAMED) => HoardPaths {
@@ -72,11 +72,11 @@ fn test_last_paths() {
             piles: PilePaths::Named(
                 maplit::hashmap! {
                     String::from("file") =>
-                        tester.home_dir().join("first_named_file"),
+                        SystemPath::try_from(tester.home_dir().join("first_named_file")).unwrap(),
                     String::from("dir1") =>
-                        tester.home_dir().join("first_named_dir1"),
+                        SystemPath::try_from(tester.home_dir().join("first_named_dir1")).unwrap(),
                     String::from("dir2") =>
-                        tester.home_dir().join("first_named_dir2")
+                        SystemPath::try_from(tester.home_dir().join("first_named_dir2")).unwrap()
                 }
             )
         }
@@ -86,13 +86,13 @@ fn test_last_paths() {
         String::from(HOARD_ANON_FILE) => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
-                Some(tester.home_dir().join("second_anon_file"))
+                Some(SystemPath::try_from(tester.home_dir().join("second_anon_file")).unwrap())
             )
         },
         String::from(HOARD_ANON_DIR) => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
-                Some(tester.home_dir().join("second_anon_dir"))
+                Some(SystemPath::try_from(tester.home_dir().join("second_anon_dir")).unwrap())
             )
         },
         String::from(HOARD_NAMED) => HoardPaths {
@@ -100,11 +100,11 @@ fn test_last_paths() {
             piles: PilePaths::Named(
                 maplit::hashmap! {
                     String::from("file") =>
-                        tester.home_dir().join("second_named_file"),
+                        SystemPath::try_from(tester.home_dir().join("second_named_file")).unwrap(),
                     String::from("dir1") =>
-                        tester.home_dir().join("second_named_dir1"),
+                        SystemPath::try_from(tester.home_dir().join("second_named_dir1")).unwrap(),
                     String::from("dir2") =>
-                        tester.home_dir().join("second_named_dir2")
+                        SystemPath::try_from(tester.home_dir().join("second_named_dir2")).unwrap()
                 }
             )
         }

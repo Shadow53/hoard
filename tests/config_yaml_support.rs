@@ -1,12 +1,12 @@
 mod common;
 
+use crate::common::base::DefaultConfigTester;
 use common::tester::Tester;
 use hoard::config::builder::{environment::Environment, Builder};
 use std::fs;
 use std::io::Write;
 
 #[test]
-#[serial_test::serial]
 fn test_yaml_support() {
     let tester = Tester::new(common::base::BASE_CONFIG);
     let path = tester.config_dir().join("config.yaml");
@@ -24,7 +24,7 @@ fn test_yaml_support() {
     assert_eq!(&config, tester.config());
 
     let new_path = tester.config_dir().join("config.yml");
-    fs::rename(path, &new_path);
+    fs::rename(path, &new_path).expect("renaming file should succeed");
 
     let config = Builder::from_file(&new_path)
         .expect("failed to parse YAML config")
@@ -35,9 +35,8 @@ fn test_yaml_support() {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_toml_takes_precedence() {
-    let tester = Tester::new(common::base::BASE_CONFIG);
+    let tester = DefaultConfigTester::new();
     let yaml_path = tester.config_dir().join("config.yaml");
     let yml_path = tester.config_dir().join("config.yml");
     let toml_path = tester.config_dir().join("config.toml");
@@ -68,4 +67,6 @@ fn test_toml_takes_precedence() {
     let config = Builder::from_default_file().expect("failed to parse YAML config");
 
     assert_eq!(config, yaml_config);
+
+    drop(tester);
 }

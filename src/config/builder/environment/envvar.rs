@@ -50,7 +50,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[serial_test::serial]
     fn test_display_env_no_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
@@ -60,7 +59,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_display_env_with_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
@@ -70,7 +68,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_set() {
         for (var, _) in std::env::vars() {
             let is_set: bool = EnvVariable {
@@ -84,7 +81,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_set_to_value() {
         for (var, val) in std::env::vars() {
             let is_set: bool = EnvVariable {
@@ -98,7 +94,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_not_set() {
         for (var, val) in std::env::vars() {
             std::env::remove_var(&var);
@@ -114,16 +109,19 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_not_set_to_value() {
         for (var, val) in std::env::vars() {
+            let old_var = std::env::var_os(&var);
             std::env::set_var(&var, format!("{}_invalid", val));
             let is_set: bool = EnvVariable {
-                var,
+                var: var.clone(),
                 expected: Some(val),
             }
             .try_into()
             .expect("failed to check environment variable");
+            if let Some(old_var) = old_var {
+                std::env::set_var(&var, old_var);
+            }
             assert!(!is_set);
         }
     }

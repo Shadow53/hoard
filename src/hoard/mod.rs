@@ -7,13 +7,13 @@ pub(crate) mod pile_config;
 
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::Error as FilterError;
+use crate::paths::SystemPath;
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
-use crate::paths::SystemPath;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]
@@ -70,7 +70,6 @@ pub enum Direction {
     /// Restoring from hoards to system.
     Restore,
 }
-
 
 /// A single path to hoard, with configuration.
 #[derive(Clone, Debug, PartialEq)]

@@ -1,5 +1,5 @@
-use hoard::hoard::{HoardPath, SystemPath};
 use hoard::hoard_item::HoardItem;
+use hoard::paths::{HoardPath, RelativePath, SystemPath};
 use nix::libc::write;
 use rand::RngCore;
 use sha2::digest::generic_array::GenericArray;
@@ -155,90 +155,100 @@ impl DefaultConfigTester {
     }
 
     pub fn anon_file(&self) -> HoardItem {
-        let system_path = SystemPath::from(self.home_dir().join(format!(
+        let system_path = SystemPath::try_from(self.home_dir().join(format!(
             "{}{}",
             self.file_prefix(),
             HOARD_ANON_FILE
-        )));
-        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_FILE));
-        HoardItem::new(None, hoard_path, system_path, PathBuf::new())
+        )))
+        .unwrap();
+        let hoard_path =
+            HoardPath::try_from(self.data_dir().join("hoards").join(HOARD_ANON_FILE)).unwrap();
+        HoardItem::new(None, hoard_path, system_path, RelativePath::none())
     }
 
     pub fn anon_dir(&self) -> HoardItem {
-        let system_path = SystemPath::from(self.home_dir().join(format!(
+        let system_path = SystemPath::try_from(self.home_dir().join(format!(
             "{}{}",
             self.file_prefix(),
             HOARD_ANON_DIR
-        )));
-        let hoard_path = HoardPath::from(self.data_dir().join("hoards").join(HOARD_ANON_DIR));
-        HoardItem::new(None, hoard_path, system_path, PathBuf::new())
+        )))
+        .unwrap();
+        let hoard_path =
+            HoardPath::try_from(self.data_dir().join("hoards").join(HOARD_ANON_DIR)).unwrap();
+        HoardItem::new(None, hoard_path, system_path, RelativePath::none())
     }
 
     pub fn named_file(&self) -> HoardItem {
-        let system_path = SystemPath::from(self.home_dir().join(format!(
+        let system_path = SystemPath::try_from(self.home_dir().join(format!(
             "{}named_{}",
             self.file_prefix(),
             HOARD_NAMED_FILE
-        )));
-        let hoard_path = HoardPath::from(
+        )))
+        .unwrap();
+        let hoard_path = HoardPath::try_from(
             self.data_dir()
                 .join("hoards")
                 .join(HOARD_NAMED)
                 .join(HOARD_NAMED_FILE),
-        );
+        )
+        .unwrap();
         HoardItem::new(
             Some(String::from(HOARD_NAMED_FILE)),
             hoard_path,
             system_path,
-            PathBuf::new(),
+            RelativePath::none(),
         )
     }
 
     pub fn named_dir1(&self) -> HoardItem {
-        let system_path = SystemPath::from(self.home_dir().join(format!(
+        let system_path = SystemPath::try_from(self.home_dir().join(format!(
             "{}named_{}",
             self.file_prefix(),
             HOARD_NAMED_DIR1
-        )));
-        let hoard_path = HoardPath::from(
+        )))
+        .unwrap();
+        let hoard_path = HoardPath::try_from(
             self.data_dir()
                 .join("hoards")
                 .join(HOARD_NAMED)
                 .join(HOARD_NAMED_DIR1),
-        );
+        )
+        .unwrap();
         HoardItem::new(
             Some(String::from(HOARD_NAMED_DIR1)),
             hoard_path,
             system_path,
-            PathBuf::new(),
+            RelativePath::none(),
         )
     }
 
     pub fn named_dir2(&self) -> HoardItem {
-        let system_path = SystemPath::from(self.home_dir().join(format!(
+        let system_path = SystemPath::try_from(self.home_dir().join(format!(
             "{}named_{}",
             self.file_prefix(),
             HOARD_NAMED_DIR2
-        )));
-        let hoard_path = HoardPath::from(
+        )))
+        .unwrap();
+        let hoard_path = HoardPath::try_from(
             self.data_dir()
                 .join("hoards")
                 .join(HOARD_NAMED)
                 .join(HOARD_NAMED_DIR2),
-        );
+        )
+        .unwrap();
         HoardItem::new(
             Some(String::from(HOARD_NAMED_DIR2)),
             hoard_path,
             system_path,
-            PathBuf::new(),
+            RelativePath::none(),
         )
     }
 
-    fn file_in_hoard_dir(dir: &HoardItem, file: PathBuf) -> HoardItem {
+    fn file_in_hoard_dir(dir: &HoardItem, file: RelativePath) -> HoardItem {
         HoardItem::new(
             dir.pile_name().map(ToString::to_string),
-            HoardPath::from(dir.hoard_prefix().to_path_buf()),
-            SystemPath::from(dir.system_prefix().to_path_buf()),
+            dir.hoard_prefix().clone(),
+            dir.system_prefix().clone(),
             file,
         )
     }
@@ -249,16 +259,43 @@ impl DefaultConfigTester {
         let named_dir2 = self.named_dir2();
         vec![
             self.anon_file(),
-            Self::file_in_hoard_dir(&anon_dir, PathBuf::from(DIR_FILE_1)),
-            Self::file_in_hoard_dir(&anon_dir, PathBuf::from(DIR_FILE_2)),
-            Self::file_in_hoard_dir(&anon_dir, PathBuf::from(DIR_FILE_3)),
+            Self::file_in_hoard_dir(
+                &anon_dir,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_1)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &anon_dir,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_2)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &anon_dir,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_3)).unwrap(),
+            ),
             self.named_file(),
-            Self::file_in_hoard_dir(&named_dir1, PathBuf::from(DIR_FILE_1)),
-            Self::file_in_hoard_dir(&named_dir1, PathBuf::from(DIR_FILE_2)),
-            Self::file_in_hoard_dir(&named_dir1, PathBuf::from(DIR_FILE_3)),
-            Self::file_in_hoard_dir(&named_dir2, PathBuf::from(DIR_FILE_1)),
-            Self::file_in_hoard_dir(&named_dir2, PathBuf::from(DIR_FILE_2)),
-            Self::file_in_hoard_dir(&named_dir2, PathBuf::from(DIR_FILE_3)),
+            Self::file_in_hoard_dir(
+                &named_dir1,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_1)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &named_dir1,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_2)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &named_dir1,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_3)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &named_dir2,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_1)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &named_dir2,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_2)).unwrap(),
+            ),
+            Self::file_in_hoard_dir(
+                &named_dir2,
+                RelativePath::try_from(PathBuf::from(DIR_FILE_3)).unwrap(),
+            ),
         ]
     }
 

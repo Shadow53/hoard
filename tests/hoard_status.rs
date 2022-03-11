@@ -116,7 +116,6 @@ fn setup_unexpected_changes(tester: &Tester) {
 }
 
 #[test]
-#[serial_test::serial]
 fn test_hoard_status() {
     let tester = Tester::new(STATUS_TOML);
     setup_no_changes(&tester);

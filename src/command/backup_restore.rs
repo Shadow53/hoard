@@ -1,9 +1,9 @@
 use crate::checkers::{Checkers, Error as ConsistencyError};
 use crate::hoard::iter::{Error as IterError, OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard};
+use crate::paths::HoardPath;
 use std::fs;
 use thiserror::Error;
-use crate::paths::HoardPath;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
