@@ -147,7 +147,7 @@ jobs:
   release:
     if: github.event_name == 'release'
     runs-on: ${{ matrix.os }}
-    needs: [fmt, check-stable, integration-tests]
+    needs: [fmt, check-stable]
     strategy:
       matrix:
         include:

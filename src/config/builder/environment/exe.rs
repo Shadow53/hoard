@@ -42,7 +42,7 @@ fn is_executable(file: &Path) -> Result<bool, Error> {
         fs::metadata(file)
             .map(|meta| {
                 // 1 == executable bit in octal (2 == read, 4 == write)
-                meta.is_file() && meta.mode() & 0o000111 != 0
+                meta.is_file() && meta.mode() & 0o000_111 != 0
             })
             .map_err(Error::Metadata)
     } else {
