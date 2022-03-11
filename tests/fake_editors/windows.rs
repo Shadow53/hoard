@@ -1,5 +1,5 @@
 use super::Editor;
-use registry::{Data, Error as RegError, Hive, Security};
+use registry::{Data, key::Error as RegError, Hive, Security};
 use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
@@ -9,20 +9,20 @@ use tempfile::TempDir;
 const EDITOR_NAME: &str = "editor.ps1";
 
 fn set_reg_key(key: &str, val: &Data) {
-    let reg = Hive::ClassesRoot::create(key, Security::Write | Security::SetValue)
+    let reg = Hive::ClassesRoot.create(key, Security::Write | Security::SetValue)
         .expect("opening/creating registry key should not fail");
     reg.set_value(val)
         .expect("setting registry value should not fail");
 }
 
 fn get_reg_key(key: &str) -> Option<Data> {
-    match Hive::ClassesRoot::open(key, Security::Read) {
+    match Hive::ClassesRoot.open(key, Security::Read) {
         Ok(reg) => reg
             .value()
             .map(Some)
             .expect("reading registry key should not fail"),
         Err(err) => match err {
-            RegError::NotFound(_, _) => Ok(None),
+            RegError::NotFound(_, _) => None,
             _ => panic!("failed to open registry item {}: {:?}", key, err),
         },
     }
