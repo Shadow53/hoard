@@ -102,6 +102,7 @@ fn create_script_file(editor: Editor) -> EditorGuard {
     EditorGuard {
         temp_dir,
         script_file,
+        #[cfg(not(target_os = "macos"))]
         desktop_file: Option::<PathBuf>::None,
         old_path,
     }
