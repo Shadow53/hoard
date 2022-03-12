@@ -45,19 +45,19 @@ impl EditorGuard {
 
 impl Drop for EditorGuard {
     fn drop(&mut self) {
-        if let Some(value) = self.old_shell_editor_command {
+        if let Some(value) = self.old_shell_editor_command.as_ref() {
             set_reg_key(SHELL_EDITOR_COMMAND, &value);
         }
 
-        if let Some(value) = self.old_shell_open_command {
+        if let Some(value) = self.old_shell_open_command.as_ref() {
             set_reg_key(SHELL_OPEN_COMMAND, &value);
         }
 
-        if let Some(value) = self.old_txtfile_open_command {
+        if let Some(value) = self.old_txtfile_open_command.as_ref() {
             set_reg_key(TXTFILE_OPEN_COMMAND, &value);
         }
 
-        std::env::set_var("PATH", self.old_path);
+        std::env::set_var("PATH", &self.old_path);
     }
 }
 
