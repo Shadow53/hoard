@@ -11,6 +11,9 @@ use hoard::{
     config::{Builder, Config, Error},
 };
 
+#[cfg(windows)]
+use hoard::paths::get_dirs;
+
 pub struct Tester {
     config: Config,
     home_dir: PathBuf,
@@ -28,12 +31,23 @@ impl Tester {
     }
 
     pub fn with_log_level(toml_str: &str, log_level: tracing::Level) -> Self {
+        #[cfg(all(not(unix), not(windows)))]
+        panic!("this target is not supported!");
+
+        #[cfg(windows)]
+        match (std::env::var("CI"), std::env::var("GITHUB_ACTIONS")) {
+            (Ok(ci), Ok(gha)) if ci == "true" && gha == "true" => {},
+            _ => panic!(
+                "{}\n{}\n{}",
+                "Cannot override user directories on Windows for tests, and tests create and delete files.",
+                "If you see this error, this test should only be run in CI with the following environment variables set:",
+                "CI = true, GITHUB_ACTIONS = true"
+            )
+        }
+
         let home_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let config_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let data_tmp = tempfile::tempdir().expect("failed to create temporary directory");
-
-        #[cfg(all(not(unix), not(windows)))]
-        panic!("this target is not supported!");
 
         #[cfg(target_os = "macos")]
         let (home_dir, config_dir, data_dir) = {
@@ -54,16 +68,13 @@ impl Tester {
 
         #[cfg(windows)]
         let (home_dir, config_dir, data_dir) = {
-            ::std::env::set_var("APPDATA", config_tmp.path());
-            ::std::env::set_var("USERPROFILE", home_tmp.path());
             (
-                home_tmp.path().to_path_buf(),
-                config_tmp.path().join("shadow53").join("hoard"),
-                config_tmp
-                    .path()
-                    .join("shadow53")
-                    .join("hoard")
-                    .join("data"),
+                directories::UserDirs::new()
+                    .expect("could not determine user home directory")
+                    .home_dir()
+                    .to_path_buf(),
+                get_dirs().config_dir().to_path_buf(),
+                get_dirs().data_dir().to_path_buf(),
             )
         };
 
