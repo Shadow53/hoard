@@ -11,14 +11,14 @@ const EDITOR_NAME: &str = "editor.ps1";
 fn set_reg_key(key: &str, val: &Data) {
     let reg = Hive::ClassesRoot.create(key, Security::Write | Security::SetValue)
         .expect("opening/creating registry key should not fail");
-    reg.set_value(val)
+    reg.set_value("", val)
         .expect("setting registry value should not fail");
 }
 
 fn get_reg_key(key: &str) -> Option<Data> {
     match Hive::ClassesRoot.open(key, Security::Read) {
         Ok(reg) => reg
-            .value()
+            .value("")
             .map(Some)
             .expect("reading registry key should not fail"),
         Err(err) => match err {
