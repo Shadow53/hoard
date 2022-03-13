@@ -25,6 +25,25 @@ pub struct Tester {
     old_config_dir: Option<PathBuf>,
 }
 
+#[cfg(windows)]
+impl Drop for Tester {
+    fn drop(&mut self) {
+        if let Some(home_dir) = &self.old_home_dir {
+            hoard::dirs::set_known_folder(
+                hoard::dirs::FOLDERID_Profile,
+                &home_dir
+            ).expect("failed to restore user profile dir");
+        }
+
+        if let Some(config_dir) = &self.old_config_dir {
+            hoard::dirs::set_known_folder(
+                hoard::dirs::FOLDERID_RoamingAppData,
+                &config_dir
+            ).expect("failed to restore user appdata dir");
+        }
+    }
+}
+
 impl Tester {
     pub fn new(toml_str: &str) -> Self {
         Self::with_log_level(toml_str, tracing::Level::INFO)
