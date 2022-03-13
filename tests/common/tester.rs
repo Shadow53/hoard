@@ -53,18 +53,18 @@ impl Tester {
 
         #[cfg(windows)]
         let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
-            let old_home = crate::dirs::get_known_folder(
-                crate::dirs::FOLDERID_Profile,
-            );
-            let old_config = crate::dirs::get_known_folder(
-                crate::dirs::FOLDERID_RoamingAppData,
-            );
-            crate::dirs::set_known_folder(
-                crate::dirs::FOLDERID_Profile,
+            let old_home = hoard::dirs::get_known_folder(
+                hoard::dirs::FOLDERID_Profile,
+            ).ok();
+            let old_config = hoard::dirs::get_known_folder(
+                hoard::dirs::FOLDERID_RoamingAppData,
+            ).ok();
+            hoard::dirs::set_known_folder(
+                hoard::dirs::FOLDERID_Profile,
                 home_tmp.path()
             ).expect("failed to set user profile dir");
-            crate::dirs::set_known_folder(
-                crate::dirs::FOLDERID_RoamingAppData,
+            hoard::dirs::set_known_folder(
+                hoard::dirs::FOLDERID_RoamingAppData,
                 config_tmp.path()
             ).expect("failed to set user profile dir");
             let appdata =
@@ -73,8 +73,8 @@ impl Tester {
                 home_tmp.path().to_path_buf(),
                 appdata.join("config"),
                 appdata.join("data"),
-                Some(old_home),
-                Some(old_config)
+                old_home,
+                old_config
             )
         };
 

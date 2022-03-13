@@ -8,7 +8,9 @@ mod win;
 #[cfg(unix)]
 pub use unix::{config_dir, data_dir, home_dir};
 #[cfg(windows)]
-pub use win::{config_dir, data_dir, home_dir, get_known_folder, set_known_folder, FOLDERID_Profile, FOLDERID_RoamingAppData};
+pub use win::{config_dir, data_dir, home_dir, get_known_folder, set_known_folder};
+#[cfg(windows)]
+pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 
 pub const TLD: &str = "com";
 pub const COMPANY: &str = "shadow53";

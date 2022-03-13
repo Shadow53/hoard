@@ -57,7 +57,7 @@ impl Drop for EditorGuard {
             set_reg_key(TXTFILE_OPEN_COMMAND, &value);
         }
         
-        for entry in fs::read_dir(directories::UserDirs::new().unwrap().home_dir()).unwrap() {
+        for entry in fs::read_dir(hoard::dirs::home_dir()).unwrap() {
             let entry = entry.unwrap();
             let path = entry.path();
             

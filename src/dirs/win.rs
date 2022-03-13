@@ -5,10 +5,10 @@ use super::{path_from_env, COMPANY, PROJECT};
 use windows::core::{GUID, PCWSTR, PWSTR, Result as WinResult};
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::UI::Shell::{SHGetKnownFolderPath, SHSetKnownFolderPath, KF_FLAG_CREATE};
+use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 // Prefer KnownFolderID but fall back to environment variables otherwise
 // TODO: Convert KnownFolderId to FOLDERID_* GUID?
 
-pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 
 #[allow(unsafe_code)]
 fn pwstr_len(pwstr: PWSTR) -> usize {
@@ -82,7 +82,7 @@ pub fn home_dir() -> PathBuf {
 
 #[inline]
 fn appdata() -> PathBuf {
-    get_known_folder(FOLDERID_Profile).ok()
+    get_known_folder(FOLDERID_RoamingAppData).ok()
         .or_else(|| {
             path_from_env("APPDATA")
         })

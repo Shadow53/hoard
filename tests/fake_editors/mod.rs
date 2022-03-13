@@ -10,7 +10,7 @@ mod unix;
 use unix as sys;
 
 #[cfg(windows)]
-use windows as sys;
+use self::windows as sys;
 
 pub use sys::EditorGuard;
 
