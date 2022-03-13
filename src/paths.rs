@@ -288,9 +288,7 @@ mod tests {
             #[cfg(windows)]
             let bin_path = PathBuf::from("C:\\Windows\\System32\\cmd.exe");
 
-            let home_path = directories::UserDirs::new()
-                .expect("should be able to find user dirs")
-                .home_dir()
+            let home_path = crate::dirs::home_dir()
                 .join("file.txt");
 
             if let Err(Error::InvalidRelativePath(path)) = RelativePath::try_from(bin_path.clone())

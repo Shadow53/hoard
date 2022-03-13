@@ -10,6 +10,7 @@ use hoard::{
     command::Command,
     config::{Builder, Config, Error},
 };
+use hoard::dirs::{TLD, COMPANY, PROJECT};
 
 pub struct Tester {
     config: Config,
@@ -20,6 +21,8 @@ pub struct Tester {
     temp_dirs: [tempfile::TempDir; 3],
     local_uuid: uuid::Uuid,
     remote_uuid: uuid::Uuid,
+    old_home_dir: Option<PathBuf>,
+    old_config_dir: Option<PathBuf>,
 }
 
 impl Tester {
@@ -36,35 +39,56 @@ impl Tester {
         let data_tmp = tempfile::tempdir().expect("failed to create temporary directory");
 
         #[cfg(target_os = "macos")]
-        let (home_dir, config_dir, data_dir) = {
+        let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
             ::std::env::set_var("HOME", home_tmp.path());
+            let config_dir = home_tmp.path().join("Library").join("Application").join(format!("{}.{}.{}", TLD, COMPANY, PROJECT));
             (
-                hoard::dirs::home_dir(),
-                hoard::dirs::config_dir(),
-                hoard::dirs::data_dir(),
+                home_tmp.path().to_path_buf(),
+                config_dir.clone(),
+                config_dir,
+                None,
+                None,
             )
         };
 
         #[cfg(windows)]
-        let (home_dir, config_dir, data_dir) = {
-            ::std::env::set_var("USERPROFILE", home_tmp.path());
-            ::std::env::set_var("APPDATA", config_tmp.path());
+        let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
+            let old_home = crate::dirs::get_known_folder(
+                crate::dirs::FOLDERID_Profile,
+            );
+            let old_config = crate::dirs::get_known_folder(
+                crate::dirs::FOLDERID_RoamingAppData,
+            );
+            crate::dirs::set_known_folder(
+                crate::dirs::FOLDERID_Profile,
+                home_tmp.path()
+            ).expect("failed to set user profile dir");
+            crate::dirs::set_known_folder(
+                crate::dirs::FOLDERID_RoamingAppData,
+                config_tmp.path()
+            ).expect("failed to set user profile dir");
+            let appdata =
+                config_tmp.path().join(COMPANY).join(PROJECT);
             (
-                hoard::dirs::home_dir(),
-                hoard::dirs::config_dir(),
-                hoard::dirs::data_dir(),
+                home_tmp.path().to_path_buf(),
+                appdata.join("config"),
+                appdata.join("data"),
+                Some(old_home),
+                Some(old_config)
             )
         };
 
         #[cfg(all(not(target_os = "macos"), unix))]
-        let (home_dir, config_dir, data_dir) = {
+        let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
             ::std::env::set_var("HOME", home_tmp.path());
             ::std::env::set_var("XDG_CONFIG_HOME", config_tmp.path());
             ::std::env::set_var("XDG_DATA_HOME", data_tmp.path());
             (
-                hoard::dirs::home_dir(),
-                hoard::dirs::config_dir(),
-                hoard::dirs::data_dir(),
+                home_tmp.path().to_path_buf(),
+                config_tmp.path().to_path_buf(),
+                data_tmp.path().to_path_buf(),
+                None,
+                None,
             )
         };
 
@@ -88,6 +112,8 @@ impl Tester {
             temp_dirs: [home_tmp, config_tmp, data_tmp],
             local_uuid: uuid::Uuid::new_v4(),
             remote_uuid: uuid::Uuid::new_v4(),
+            old_home_dir,
+            old_config_dir
         }
     }
 
