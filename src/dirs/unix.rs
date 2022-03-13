@@ -5,11 +5,11 @@ use super::{path_from_env, PROJECT};
 use super::{TLD, COMPANY};
 
 fn xdg_config_dir() -> Option<PathBuf> {
-    path_from_env("XDG_CONFIG_HOME")
+    path_from_env("XDG_CONFIG_HOME").map(|path| path.join(PROJECT))
 }
 
 fn xdg_data_dir() -> Option<PathBuf> {
-    path_from_env("XDG_DATA_HOME")
+    path_from_env("XDG_DATA_HOME").map(|path| path.join(PROJECT))
 }
 
 #[must_use]
