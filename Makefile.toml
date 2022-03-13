@@ -11,7 +11,7 @@
 [tasks.install-stable]
     ignore_errors = true
     command = "rustup"
-    args = ["toolchain", "install", "stable", "--component", "llvm-tools-preview", "--target", "x86_64-unknown-linux-musl"]
+    args = ["toolchain", "install", "stable", "--component", "llvm-tools-preview"]
 
 [tasks.build-stable]
     install_crate = false

@@ -1,21 +1,12 @@
-use directories::ProjectDirs;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use thiserror::Error;
 
-/// Get the project directories for this project.
-#[must_use]
-#[inline]
-pub fn get_dirs() -> ProjectDirs {
-    tracing::trace!("determining project default folders");
-    ProjectDirs::from("com", "shadow53", "hoard")
-        .expect("could not detect user home directory to place program files")
-}
-
 fn inner_hoards_dir() -> PathBuf {
-    get_dirs().data_dir().join("hoards")
+    crate::dirs::data_dir()
+        .join("hoards")
 }
 
 /// Returns the default root for hoard files.

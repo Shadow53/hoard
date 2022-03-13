@@ -15,7 +15,6 @@ yaml = ["serde_yaml"]
 
 [dependencies]
 atty = "0.2"
-directories = "4.0.1"
 glob = "0.3"
 hostname = "0.3"
 itertools = "0.10"
@@ -37,6 +36,9 @@ toml = "0.5.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.33", features = ["Storage", "Win32_UI_Shell", "Win32_Foundation"] }
 
 [dev-dependencies]
 maplit = "1.0"

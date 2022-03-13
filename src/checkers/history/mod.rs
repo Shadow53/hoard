@@ -1,7 +1,6 @@
 //! Keep records of previous operations (including on other system) to prevent inconsistencies
 //! and accidental overwrites or deletions.
 
-use crate::paths::get_dirs;
 use std::path::PathBuf;
 use std::{fs, io};
 use uuid::Uuid;
@@ -14,12 +13,12 @@ const HISTORY_DIR_NAME: &str = "history";
 
 fn get_uuid_file() -> PathBuf {
     let _span = tracing::debug_span!("get_uuid_file").entered();
-    get_dirs().config_dir().join(UUID_FILE_NAME)
+    crate::dirs::config_dir().join(UUID_FILE_NAME)
 }
 
 fn get_history_root_dir() -> PathBuf {
     let _span = tracing::debug_span!("get_history_root_dir").entered();
-    get_dirs().data_dir().join(HISTORY_DIR_NAME)
+    crate::dirs::data_dir().join(HISTORY_DIR_NAME)
 }
 
 fn get_history_dir_for_id(id: Uuid) -> PathBuf {

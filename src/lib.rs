@@ -70,6 +70,7 @@ pub mod combinator;
 pub mod command;
 pub mod config;
 pub(crate) mod diff;
+pub mod dirs;
 pub mod env_vars;
 pub mod filters;
 pub mod hoard;

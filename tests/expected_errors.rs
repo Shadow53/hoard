@@ -7,7 +7,6 @@ use crate::common::base::DefaultConfigTester;
 use common::tester::Tester;
 use hoard::command::Command;
 use hoard::config::builder::{Builder, Error as BuilderError};
-use hoard::paths::get_dirs;
 
 #[test]
 fn test_invalid_uuid() {

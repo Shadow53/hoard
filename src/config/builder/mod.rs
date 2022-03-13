@@ -17,7 +17,7 @@ use crate::CONFIG_FILE_STEM;
 
 use super::Config;
 use crate::hoard::PileConfig;
-use crate::paths::{get_dirs, hoards_dir, HoardPath};
+use crate::paths::{hoards_dir, HoardPath};
 
 pub mod environment;
 pub mod envtrie;
@@ -97,8 +97,7 @@ impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        get_dirs()
-            .config_dir()
+        crate::dirs::config_dir()
             .join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 

@@ -11,9 +11,6 @@ use hoard::{
     config::{Builder, Config, Error},
 };
 
-#[cfg(windows)]
-use hoard::paths::get_dirs;
-
 pub struct Tester {
     config: Config,
     home_dir: PathBuf,
@@ -34,47 +31,28 @@ impl Tester {
         #[cfg(all(not(unix), not(windows)))]
         panic!("this target is not supported!");
 
-        #[cfg(windows)]
-        match (std::env::var("CI"), std::env::var("GITHUB_ACTIONS")) {
-            (Ok(ci), Ok(gha)) if ci == "true" && gha == "true" => {},
-            _ => panic!(
-                "{}\n{}\n{}",
-                "Cannot override user directories on Windows for tests, and tests create and delete files.",
-                "If you see this error, this test should only be run in CI with the following environment variables set:",
-                "CI = true, GITHUB_ACTIONS = true"
-            )
-        }
-
         let home_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let config_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let data_tmp = tempfile::tempdir().expect("failed to create temporary directory");
 
         #[cfg(target_os = "macos")]
         let (home_dir, config_dir, data_dir) = {
-            let home_path = home_tmp.path();
-            ::std::env::set_var("HOME", home_path);
+            ::std::env::set_var("HOME", home_tmp.path());
             (
-                home_path.to_path_buf(),
-                home_path
-                    .join("Library")
-                    .join("Application Support")
-                    .join("com.shadow53.hoard"),
-                home_path
-                    .join("Library")
-                    .join("Application Support")
-                    .join("com.shadow53.hoard"),
+                hoard::dirs::home_dir(),
+                hoard::dirs::config_dir(),
+                hoard::dirs::data_dir(),
             )
         };
 
         #[cfg(windows)]
         let (home_dir, config_dir, data_dir) = {
+            ::std::env::set_var("USERPROFILE", home_tmp.path());
+            ::std::env::set_var("APPDATA", config_tmp.path());
             (
-                directories::UserDirs::new()
-                    .expect("could not determine user home directory")
-                    .home_dir()
-                    .to_path_buf(),
-                get_dirs().config_dir().to_path_buf(),
-                get_dirs().data_dir().to_path_buf(),
+                hoard::dirs::home_dir(),
+                hoard::dirs::config_dir(),
+                hoard::dirs::data_dir(),
             )
         };
 
@@ -84,9 +62,9 @@ impl Tester {
             ::std::env::set_var("XDG_CONFIG_HOME", config_tmp.path());
             ::std::env::set_var("XDG_DATA_HOME", data_tmp.path());
             (
-                home_tmp.path().to_path_buf(),
-                config_tmp.path().join("hoard"),
-                data_tmp.path().join("hoard"),
+                hoard::dirs::home_dir(),
+                hoard::dirs::config_dir(),
+                hoard::dirs::data_dir(),
             )
         };
 
