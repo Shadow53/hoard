@@ -58,7 +58,6 @@ fn exe_in_path(name: &str) -> Result<bool, Error> {
         is_executable(&exe_path)
     } else {
         let path = std::env::var_os("PATH").ok_or(Error::NoPath)?;
-        println!("PATH = {}", path.to_str().unwrap());
         std::env::split_paths(&path)
             .map(|path| {
                 let path = path.join(name);
