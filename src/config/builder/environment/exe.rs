@@ -57,7 +57,8 @@ fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
 }
 
 #[cfg(unix)]
-fn is_executable(file: &Path) -> Result<bool, Error> {
+fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
+    let file = dir.map_or_else(|| PathBuf::from(&file), |dir| dir.join(&file));
     if file.exists() {
         fs::metadata(file)
             .map(|meta| {
