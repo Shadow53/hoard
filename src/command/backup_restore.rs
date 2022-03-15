@@ -50,6 +50,8 @@ fn backup_or_restore<'a, S: AsRef<str>>(
         checkers.check()?;
     }
 
+    // TODO: decrease runtime by using computed values from `checkers` instead of running
+    // the iterator again.
     for (name, hoard) in hoards {
         let name = name.as_ref();
         match direction {
