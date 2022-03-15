@@ -47,7 +47,7 @@ impl Tester {
         let data_tmp = tempfile::tempdir().expect("failed to create temporary directory");
 
         #[cfg(target_os = "macos")]
-        let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
+        let (home_dir, config_dir, data_dir) = {
             ::std::env::set_var("HOME", home_tmp.path());
             let config_dir = home_tmp
                 .path()
@@ -58,8 +58,6 @@ impl Tester {
                 home_tmp.path().to_path_buf(),
                 config_dir.clone(),
                 config_dir,
-                None,
-                None,
             )
         };
 
@@ -94,14 +92,6 @@ impl Tester {
         ::std::fs::create_dir_all(&config_dir).expect("failed to create test config dir");
         ::std::fs::create_dir_all(&home_dir).expect("failed to create test home dir");
         ::std::fs::create_dir_all(&data_dir).expect("failed to create test data dir");
-
-        /*
-        for path in [&config_dir, &home_dir, &data_dir] {
-            let mut perms = path.metadata().unwrap().permissions();
-            perms.set_readonly(false);
-            fs::set_permissions(path, perms).unwrap();
-        }
-        */
 
         let config = {
             ::toml::from_str::<Builder>(toml_str)
