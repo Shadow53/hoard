@@ -133,7 +133,11 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &st
                 .expect("failed to read file metadata")
                 .permissions();
             #[cfg(unix)]
-            permissions.set_mode(octet);
+            {
+                permissions.set_mode(octet);
+                fs::set_permissions(path, permissions)
+                    .expect("failed to set permissions on file");
+            }
             #[cfg(windows)]
             {
                 let readonly = !is_writable(octet);

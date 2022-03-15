@@ -87,8 +87,8 @@ impl Tester {
             ::std::env::set_var("XDG_DATA_HOME", data_tmp.path());
             (
                 home_tmp.path().to_path_buf(),
-                config_tmp.path().to_path_buf(),
-                data_tmp.path().to_path_buf()
+                config_tmp.path().join(PROJECT),
+                data_tmp.path().join(PROJECT),
             )
         };
 
