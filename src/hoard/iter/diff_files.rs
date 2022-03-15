@@ -256,17 +256,26 @@ impl HoardDiffIter {
             hoard_perms == system_perms
         };
 
-        let latest_remote = Operation::latest_remote_backup(hoard_name, Some((file.pile_name(), file.relative_path())), true)
-                .map_err(Box::new)?;
+        let latest_remote = Operation::latest_remote_backup(
+            hoard_name,
+            Some((file.pile_name(), file.relative_path())),
+            true,
+        )
+        .map_err(Box::new)?;
         let has_hoard_records =
             Operation::file_has_records(hoard_name, file.pile_name(), file.relative_path())
                 .map_err(Box::new)?;
         let local_record =
             Operation::latest_local(hoard_name, Some((file.pile_name(), file.relative_path())))
                 .map_err(Box::new)?;
-        let has_remote_changes = Operation::file_has_remote_changes(hoard_name, file.pile_name(), file.relative_path()).map_err(Box::new)?;
+        let has_remote_changes =
+            Operation::file_has_remote_changes(hoard_name, file.pile_name(), file.relative_path())
+                .map_err(Box::new)?;
         let has_local_records = local_record.is_some();
-        let deleted_remotely = latest_remote.map_or(false, |op| op.checksum_for(file.pile_name(), file.relative_path()).is_none());
+        let deleted_remotely = latest_remote.map_or(false, |op| {
+            op.checksum_for(file.pile_name(), file.relative_path())
+                .is_none()
+        });
 
         let has_local_content_changes = if let Some(operation) = local_record {
             tracing::trace!(
@@ -353,7 +362,7 @@ impl Iterator for HoardDiffIter {
                 return Some(Ok(HoardFileDiff::Deleted {
                     file,
                     diff_source: DiffSource::Unknown,
-                }))
+                }));
             }
 
             let diff_source = if has_remote_changes {
