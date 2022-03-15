@@ -97,7 +97,11 @@ mod tests {
     #[test]
     fn test_env_variable_is_not_set() {
         let var = String::from("HOARD_ENV_NOT_SET");
-        assert!(std::env::var_os(&var).is_none(), "env var {} should not be set", var);
+        assert!(
+            std::env::var_os(&var).is_none(),
+            "env var {} should not be set",
+            var
+        );
         let is_set: bool = EnvVariable {
             var,
             expected: None,
@@ -109,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_env_variable_is_not_set_to_value() {
-        let var= String::from("HOARD_ENV_WRONG_VALUE");
+        let var = String::from("HOARD_ENV_WRONG_VALUE");
         std::env::set_var(&var, "unexpected value");
         let is_set: bool = EnvVariable {
             var,

@@ -1,6 +1,6 @@
+use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::fs::Permissions;
 use std::path::Path;
 use std::{
     fs::{File, Metadata},

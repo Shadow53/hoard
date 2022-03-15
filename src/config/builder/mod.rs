@@ -97,8 +97,7 @@ impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        crate::dirs::config_dir()
-            .join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
+        crate::dirs::config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 
     /// Returns the default location for storing hoards.

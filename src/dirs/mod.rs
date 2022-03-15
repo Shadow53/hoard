@@ -8,7 +8,7 @@ mod win;
 #[cfg(unix)]
 pub use unix::{config_dir, data_dir, home_dir};
 #[cfg(windows)]
-pub use win::{config_dir, data_dir, home_dir, get_known_folder, set_known_folder};
+pub use win::{config_dir, data_dir, get_known_folder, home_dir, set_known_folder};
 #[cfg(windows)]
 pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 
@@ -20,5 +20,3 @@ pub const PROJECT: &str = "hoard";
 fn path_from_env(var: &str) -> Option<PathBuf> {
     std::env::var_os(var).map(PathBuf::from)
 }
-
-

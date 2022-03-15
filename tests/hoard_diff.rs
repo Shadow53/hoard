@@ -135,14 +135,18 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &st
             #[cfg(unix)]
             {
                 permissions.set_mode(octet);
-                fs::set_permissions(path, permissions)
-                    .expect("failed to set permissions on file");
+                fs::set_permissions(path, permissions).expect("failed to set permissions on file");
             }
             #[cfg(windows)]
             {
                 let readonly = !is_writable(octet);
                 if permissions.readonly() != readonly {
-                    println!("attempting to set {} permissions to {} from readonly = {}", path.display(), !is_writable(octet), permissions.readonly());
+                    println!(
+                        "attempting to set {} permissions to {} from readonly = {}",
+                        path.display(),
+                        !is_writable(octet),
+                        permissions.readonly()
+                    );
                     permissions.set_readonly(readonly);
                     fs::set_permissions(path, permissions)
                         .expect("failed to set permissions on file");

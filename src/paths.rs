@@ -5,8 +5,7 @@ use std::str::FromStr;
 use thiserror::Error;
 
 fn inner_hoards_dir() -> PathBuf {
-    crate::dirs::data_dir()
-        .join("hoards")
+    crate::dirs::data_dir().join("hoards")
 }
 
 /// Returns the default root for hoard files.
@@ -288,8 +287,7 @@ mod tests {
             #[cfg(windows)]
             let bin_path = PathBuf::from("C:\\Windows\\System32\\cmd.exe");
 
-            let home_path = crate::dirs::home_dir()
-                .join("file.txt");
+            let home_path = crate::dirs::home_dir().join("file.txt");
 
             if let Err(Error::InvalidRelativePath(path)) = RelativePath::try_from(bin_path.clone())
             {

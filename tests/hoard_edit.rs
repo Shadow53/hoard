@@ -67,9 +67,7 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
     }
 
     #[cfg(windows)]
-    if interface == InterfaceType::CommandLine {
-
-    }
+    if interface == InterfaceType::CommandLine {}
 
     let result = tester.run_command(HoardCommand::Edit);
     if should_fail {

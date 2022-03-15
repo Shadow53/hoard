@@ -1,19 +1,20 @@
+use super::{path_from_env, COMPANY, PROJECT};
 use std::ffi::OsString;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
-use super::{path_from_env, COMPANY, PROJECT};
-use windows::core::{GUID, PCWSTR, PWSTR, Result as WinResult};
+use windows::core::{Result as WinResult, GUID, PCWSTR, PWSTR};
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Globalization::u_strlen;
-use windows::Win32::UI::Shell::{SHGetKnownFolderPath, SHSetKnownFolderPath, KF_FLAG_CREATE};
 use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
+use windows::Win32::UI::Shell::{SHGetKnownFolderPath, SHSetKnownFolderPath, KF_FLAG_CREATE};
 // Prefer KnownFolderID but fall back to environment variables otherwise
 // TODO: Convert KnownFolderId to FOLDERID_* GUID?
 
 #[allow(unsafe_code)]
 fn pwstr_len(pwstr: PWSTR) -> usize {
     unsafe {
-        u_strlen(pwstr.0).try_into()
+        u_strlen(pwstr.0)
+            .try_into()
             .expect("a positive i32 should always fit in a usize")
     }
 }
@@ -32,13 +33,14 @@ fn pwstr_len(pwstr: PWSTR) -> usize {
 #[allow(unsafe_code)]
 pub fn get_known_folder(folder_id: GUID) -> WinResult<PathBuf> {
     unsafe {
-        let flag = KF_FLAG_CREATE.0.try_into()
+        let flag = KF_FLAG_CREATE
+            .0
+            .try_into()
             .expect("flag value should always be a non-negative integer");
-        SHGetKnownFolderPath(&folder_id, flag, HANDLE(0))
-            .map(|pwstr| {
-                let slice = std::slice::from_raw_parts(pwstr.0, pwstr_len(pwstr));
-                PathBuf::from(OsString::from_wide(slice))
-            })
+        SHGetKnownFolderPath(&folder_id, flag, HANDLE(0)).map(|pwstr| {
+            let slice = std::slice::from_raw_parts(pwstr.0, pwstr_len(pwstr));
+            PathBuf::from(OsString::from_wide(slice))
+        })
     }
 }
 
@@ -64,23 +66,20 @@ pub fn set_known_folder(folder_id: GUID, new_path: &Path) -> WinResult<()> {
 
 #[must_use]
 pub fn home_dir() -> PathBuf {
-    get_known_folder(FOLDERID_Profile).ok()
-        .or_else(|| {
-            path_from_env("USERPROFILE")
-        })
+    get_known_folder(FOLDERID_Profile)
+        .ok()
+        .or_else(|| path_from_env("USERPROFILE"))
         .expect("could not determine user home directory")
 }
 
 #[inline]
 fn appdata() -> PathBuf {
-    get_known_folder(FOLDERID_RoamingAppData).ok()
-        .or_else(|| {
-            path_from_env("APPDATA")
-        })
-        .unwrap_or_else(|| {
-            home_dir().join("AppData")
-        })
-        .join(COMPANY).join(PROJECT)
+    get_known_folder(FOLDERID_RoamingAppData)
+        .ok()
+        .or_else(|| path_from_env("APPDATA"))
+        .unwrap_or_else(|| home_dir().join("AppData"))
+        .join(COMPANY)
+        .join(PROJECT)
 }
 
 #[must_use]

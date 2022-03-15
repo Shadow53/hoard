@@ -6,11 +6,11 @@ use std::{
 };
 
 use super::test_subscriber::MemorySubscriber;
+use hoard::dirs::{COMPANY, PROJECT, TLD};
 use hoard::{
     command::Command,
     config::{Builder, Config, Error},
 };
-use hoard::dirs::{TLD, COMPANY, PROJECT};
 
 pub struct Tester {
     config: Config,
@@ -28,10 +28,8 @@ pub struct Tester {
 #[cfg(windows)]
 impl Drop for Tester {
     fn drop(&mut self) {
-        hoard::dirs::set_known_folder(
-            hoard::dirs::FOLDERID_RoamingAppData,
-            &self.old_appdata
-        ).expect("restoring APPDATA should not fail")
+        hoard::dirs::set_known_folder(hoard::dirs::FOLDERID_RoamingAppData, &self.old_appdata)
+            .expect("restoring APPDATA should not fail")
     }
 }
 
@@ -44,7 +42,6 @@ impl Tester {
         #[cfg(all(not(unix), not(windows)))]
         panic!("this target is not supported!");
 
-
         let home_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let config_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let data_tmp = tempfile::tempdir().expect("failed to create temporary directory");
@@ -52,7 +49,11 @@ impl Tester {
         #[cfg(target_os = "macos")]
         let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
             ::std::env::set_var("HOME", home_tmp.path());
-            let config_dir = home_tmp.path().join("Library").join("Application").join(format!("{}.{}.{}", TLD, COMPANY, PROJECT));
+            let config_dir = home_tmp
+                .path()
+                .join("Library")
+                .join("Application")
+                .join(format!("{}.{}.{}", TLD, COMPANY, PROJECT));
             (
                 home_tmp.path().to_path_buf(),
                 config_dir.clone(),
@@ -68,10 +69,8 @@ impl Tester {
         #[cfg(windows)]
         let (home_dir, config_dir, data_dir) = {
             ::std::env::set_var("HOARD_TMP", home_tmp.path());
-            hoard::dirs::set_known_folder(
-                hoard::dirs::FOLDERID_RoamingAppData,
-                config_tmp.path(),
-            ).expect("failed to set APPDATA");
+            hoard::dirs::set_known_folder(hoard::dirs::FOLDERID_RoamingAppData, config_tmp.path())
+                .expect("failed to set APPDATA");
             let appdata = config_tmp.path().join(COMPANY).join(PROJECT);
             (
                 home_tmp.path().to_path_buf(),

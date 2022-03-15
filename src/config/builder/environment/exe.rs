@@ -30,7 +30,7 @@ pub enum Error {
 #[cfg(windows)]
 fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
     const EXTS: [&str; 5] = ["", ".exe", ".com", ".bat", ".cmd"];
-    
+
     for ext in EXTS {
         let file_name = format!("{}{}", file, ext);
         let files = [
@@ -78,9 +78,7 @@ fn exe_in_path(name: &str) -> Result<bool, Error> {
     } else {
         let path = std::env::var_os("PATH").ok_or(Error::NoPath)?;
         std::env::split_paths(&path)
-            .map(|path| {
-                is_executable(Some(&path), name)
-            })
+            .map(|path| is_executable(Some(&path), name))
             .find(|result| matches!(result, Ok(true) | Err(_)))
             .unwrap_or(Ok(false))
     }

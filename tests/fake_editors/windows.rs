@@ -1,5 +1,5 @@
 use super::Editor;
-use registry::{Data, key::Error as RegError, Hive, Security};
+use registry::{key::Error as RegError, Data, Hive, Security};
 use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
@@ -10,10 +10,13 @@ const EDITOR_NAME: &str = "editor.ps1";
 const EDITOR_ID: &str = "hoard.test.editor";
 
 fn set_reg_key(key: &str, name: &str, val: &Data) {
-    let reg = Hive::CurrentUser.open(key, Security::AllAccess).or_else(|err| match err {
-        RegError::NotFound(_, _) => Hive::CurrentUser.create(key, Security::AllAccess),
-        _ => Err(err),
-    }).expect("opening/creating registry key should not fail");
+    let reg = Hive::CurrentUser
+        .open(key, Security::AllAccess)
+        .or_else(|err| match err {
+            RegError::NotFound(_, _) => Hive::CurrentUser.create(key, Security::AllAccess),
+            _ => Err(err),
+        })
+        .expect("opening/creating registry key should not fail");
     reg.set_value(name, val)
         .expect("setting registry value should not fail");
 }
@@ -35,10 +38,10 @@ fn get_reg_key(key: &str, name: &str) -> Option<Data> {
 fn set_default_editor(file_type: &str, command: &str) {
     let key = format!("Software\\Classes\\.{}", file_type);
     set_reg_key(&key, "", &Data::String(EDITOR_ID.try_into().unwrap()));
-    
+
     let key = format!("{}\\OpenWithProgIds", key);
     set_reg_key(&key, &EDITOR_ID, &Data::String("".try_into().unwrap()));
-    
+
     let key = format!("Software\\Classes\\{}\\shell\\open\\command", EDITOR_ID);
     let data = Data::String(command.try_into().unwrap());
     set_reg_key(&key, "", &data);

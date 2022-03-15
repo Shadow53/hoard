@@ -166,7 +166,6 @@ pub enum PilePaths {
 
 impl From<SystemPath> for PilePaths {
     fn from(other: SystemPath) -> Self {
-        
         Self::Anonymous(Some(other))
     }
 }
