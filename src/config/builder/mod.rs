@@ -163,14 +163,35 @@ impl Builder {
     /// - Any errors from attempting to parse the file.
     /// - A custom not found error if no default file is found.
     pub fn from_default_file() -> Result<Self, Error> {
+        let error_closure = || {
+            let path = Self::default_config_file();
+            Error::ReadConfig(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "could not find any of {name}.toml, {name}.yaml, or {name}.yml in {dir}",
+                    name = path
+                        .file_stem()
+                        .expect("default config should always have a file name")
+                        .to_string_lossy(),
+                    dir = path
+                        .parent()
+                        .expect("default config should always have a parent")
+                        .to_string_lossy()
+                ),
+            ))
+        };
+
+        let parent = Self::default_config_file()
+            .parent()
+            .expect("default config file should always have a file name")
+            .canonicalize()
+            .map_err(Error::ReadConfig)?;
+
         SUPPORTED_CONFIG_EXTS
             .iter()
             .find_map(|suffix| {
                 let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
-                let path = Self::default_config_file()
-                    .parent()
-                    .expect("default config file should always have a file name")
-                    .join(path);
+                let path = parent.join(path);
                 match Self::from_file(&path) {
                     Err(Error::ReadConfig(err)) => {
                         if let io::ErrorKind::NotFound = err.kind() {
@@ -183,23 +204,7 @@ impl Builder {
                     Err(err) => Some(Err(err)),
                 }
             })
-            .ok_or_else(|| {
-                let path = Self::default_config_file();
-                Error::ReadConfig(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!(
-                        "could not find any of {name}.toml, {name}.yaml, or {name}.yml in {dir}",
-                        name = path
-                            .file_stem()
-                            .expect("default config should always have a file name")
-                            .to_string_lossy(),
-                        dir = path
-                            .parent()
-                            .expect("default config should always have a parent")
-                            .to_string_lossy()
-                    ),
-                ))
-            })?
+            .ok_or_else(error_closure)?
     }
 
     /// Helper method to process command-line arguments and the config file specified on CLI

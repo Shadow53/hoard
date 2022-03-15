@@ -18,20 +18,20 @@ exclusivity = [[ "unix", "windows" ]]
     env = [{ var = "HOME" }]
 [envs.windows]
     os = ["windows"]
-    env = [{ var = "USERPROFILE" }]
+    env = [{ var = "HOARD_TMP" }]
 
 [hoards]
 [hoards.md5]
     config = { hash_algorithm = "md5" }
     "unix" = "${HOME}/testing.txt"
-    "windows" = "${USERPROFILE}/testing.txt"
+    "windows" = "${HOARD_TMP}/testing.txt"
 [hoards.sha256]
     config = { hash_algorithm = "sha256" }
     "unix" = "${HOME}/testing.txt"
-    "windows" = "${USERPROFILE}/testing.txt"
+    "windows" = "${HOARD_TMP}/testing.txt"
 [hoards.default]
     "unix" = "${HOME}/testing.txt"
-    "windows" = "${USERPROFILE}/testing.txt"
+    "windows" = "${HOARD_TMP}/testing.txt"
 "#;
 
 #[test]

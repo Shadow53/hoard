@@ -21,26 +21,17 @@ pub struct Tester {
     temp_dirs: [tempfile::TempDir; 3],
     local_uuid: uuid::Uuid,
     remote_uuid: uuid::Uuid,
-    old_home_dir: Option<PathBuf>,
-    old_config_dir: Option<PathBuf>,
+    #[cfg(windows)]
+    old_appdata: PathBuf,
 }
 
 #[cfg(windows)]
 impl Drop for Tester {
     fn drop(&mut self) {
-        if let Some(home_dir) = &self.old_home_dir {
-            hoard::dirs::set_known_folder(
-                hoard::dirs::FOLDERID_Profile,
-                &home_dir
-            ).expect("failed to restore user profile dir");
-        }
-
-        if let Some(config_dir) = &self.old_config_dir {
-            hoard::dirs::set_known_folder(
-                hoard::dirs::FOLDERID_RoamingAppData,
-                &config_dir
-            ).expect("failed to restore user appdata dir");
-        }
+        hoard::dirs::set_known_folder(
+            hoard::dirs::FOLDERID_RoamingAppData,
+            &self.old_appdata
+        ).expect("restoring APPDATA should not fail")
     }
 }
 
@@ -52,6 +43,7 @@ impl Tester {
     pub fn with_log_level(toml_str: &str, log_level: tracing::Level) -> Self {
         #[cfg(all(not(unix), not(windows)))]
         panic!("this target is not supported!");
+
 
         let home_tmp = tempfile::tempdir().expect("failed to create temporary directory");
         let config_tmp = tempfile::tempdir().expect("failed to create temporary directory");
@@ -71,49 +63,46 @@ impl Tester {
         };
 
         #[cfg(windows)]
-        let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
-            let old_home = hoard::dirs::get_known_folder(
-                hoard::dirs::FOLDERID_Profile,
-            ).ok();
-            let old_config = hoard::dirs::get_known_folder(
-                hoard::dirs::FOLDERID_RoamingAppData,
-            ).ok();
-            hoard::dirs::set_known_folder(
-                hoard::dirs::FOLDERID_Profile,
-                home_tmp.path()
-            ).expect("failed to set user profile dir");
+        let old_appdata = hoard::dirs::get_known_folder(hoard::dirs::FOLDERID_RoamingAppData)
+            .expect("getting APPDATA dir should not fail");
+        #[cfg(windows)]
+        let (home_dir, config_dir, data_dir) = {
+            ::std::env::set_var("HOARD_TMP", home_tmp.path());
             hoard::dirs::set_known_folder(
                 hoard::dirs::FOLDERID_RoamingAppData,
-                config_tmp.path()
-            ).expect("failed to set user profile dir");
-            let appdata =
-                config_tmp.path().join(COMPANY).join(PROJECT);
+                config_tmp.path(),
+            ).expect("failed to set APPDATA");
+            let appdata = config_tmp.path().join(COMPANY).join(PROJECT);
             (
                 home_tmp.path().to_path_buf(),
                 appdata.join("config"),
                 appdata.join("data"),
-                old_home,
-                old_config
             )
         };
 
         #[cfg(all(not(target_os = "macos"), unix))]
-        let (home_dir, config_dir, data_dir, old_home_dir, old_config_dir) = {
+        let (home_dir, config_dir, data_dir) = {
             ::std::env::set_var("HOME", home_tmp.path());
             ::std::env::set_var("XDG_CONFIG_HOME", config_tmp.path());
             ::std::env::set_var("XDG_DATA_HOME", data_tmp.path());
             (
                 home_tmp.path().to_path_buf(),
                 config_tmp.path().to_path_buf(),
-                data_tmp.path().to_path_buf(),
-                None,
-                None,
+                data_tmp.path().to_path_buf()
             )
         };
 
         ::std::fs::create_dir_all(&config_dir).expect("failed to create test config dir");
         ::std::fs::create_dir_all(&home_dir).expect("failed to create test home dir");
         ::std::fs::create_dir_all(&data_dir).expect("failed to create test data dir");
+
+        /*
+        for path in [&config_dir, &home_dir, &data_dir] {
+            let mut perms = path.metadata().unwrap().permissions();
+            perms.set_readonly(false);
+            fs::set_permissions(path, perms).unwrap();
+        }
+        */
 
         let config = {
             ::toml::from_str::<Builder>(toml_str)
@@ -131,8 +120,8 @@ impl Tester {
             temp_dirs: [home_tmp, config_tmp, data_tmp],
             local_uuid: uuid::Uuid::new_v4(),
             remote_uuid: uuid::Uuid::new_v4(),
-            old_home_dir,
-            old_config_dir
+            #[cfg(windows)]
+            old_appdata,
         }
     }
 

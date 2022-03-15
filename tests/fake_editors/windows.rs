@@ -7,18 +7,21 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 const EDITOR_NAME: &str = "editor.ps1";
+const EDITOR_ID: &str = "hoard.test.editor";
 
-fn set_reg_key(key: &str, val: &Data) {
-    let reg = Hive::ClassesRoot.create(key, Security::Write | Security::SetValue)
-        .expect("opening/creating registry key should not fail");
-    reg.set_value("command", val)
+fn set_reg_key(key: &str, name: &str, val: &Data) {
+    let reg = Hive::CurrentUser.open(key, Security::AllAccess).or_else(|err| match err {
+        RegError::NotFound(_, _) => Hive::CurrentUser.create(key, Security::AllAccess),
+        _ => Err(err),
+    }).expect("opening/creating registry key should not fail");
+    reg.set_value(name, val)
         .expect("setting registry value should not fail");
 }
 
-fn get_reg_key(key: &str) -> Option<Data> {
-    match Hive::ClassesRoot.open(key, Security::Read) {
+fn get_reg_key(key: &str, name: &str) -> Option<Data> {
+    match Hive::CurrentUser.open(key, Security::Read) {
         Ok(reg) => reg
-            .value("command")
+            .value(name)
             .map(Some)
             .expect("reading registry key should not fail"),
         Err(err) => match err {
@@ -28,13 +31,29 @@ fn get_reg_key(key: &str) -> Option<Data> {
     }
 }
 
+/// Returns previous default editor
+fn set_default_editor(file_type: &str, command: &str) {
+    let key = format!("Software\\Classes\\.{}", file_type);
+    set_reg_key(&key, "", &Data::String(EDITOR_ID.try_into().unwrap()));
+    
+    let key = format!("{}\\OpenWithProgIds", key);
+    set_reg_key(&key, &EDITOR_ID, &Data::String("".try_into().unwrap()));
+    
+    let key = format!("Software\\Classes\\{}\\shell\\open\\command", EDITOR_ID);
+    let data = Data::String(command.try_into().unwrap());
+    set_reg_key(&key, "", &data);
+}
+
+fn remove_default_editor() {
+    let key = format!("Software\\Classes\\{}", EDITOR_ID);
+    Hive::CurrentUser.delete(key, true).unwrap();
+}
+
 pub struct EditorGuard {
     temp_dir: TempDir,
     script_file: PathBuf,
     old_path: OsString,
-    old_shell_editor_command: Option<Data>,
-    old_shell_open_command: Option<Data>,
-    old_txtfile_open_command: Option<Data>,
+    modified_registry: bool,
 }
 
 impl EditorGuard {
@@ -45,31 +64,9 @@ impl EditorGuard {
 
 impl Drop for EditorGuard {
     fn drop(&mut self) {
-        if let Some(value) = self.old_shell_editor_command.as_ref() {
-            set_reg_key(SHELL_EDITOR_COMMAND, &value);
+        if self.modified_registry {
+            remove_default_editor();
         }
-
-        if let Some(value) = self.old_shell_open_command.as_ref() {
-            set_reg_key(SHELL_OPEN_COMMAND, &value);
-        }
-
-        if let Some(value) = self.old_txtfile_open_command.as_ref() {
-            set_reg_key(TXTFILE_OPEN_COMMAND, &value);
-        }
-        
-        for entry in fs::read_dir(hoard::dirs::home_dir()).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            
-            if !entry.file_name().to_str().unwrap().starts_with(".") {
-                if path.is_file() {
-                    fs::remove_file(entry.path()).unwrap();
-                } else if path.is_dir() {
-                    fs::remove_dir_all(entry.path()).unwrap();
-                }
-            }
-        }
-
         std::env::set_var("PATH", &self.old_path);
     }
 }
@@ -89,35 +86,26 @@ fn create_script_file(editor: Editor) -> EditorGuard {
         temp_dir,
         script_file,
         old_path,
-        old_shell_open_command: Option::<Data>::None,
-        old_shell_editor_command: Option::<Data>::None,
-        old_txtfile_open_command: Option::<Data>::None,
+        modified_registry: false,
     }
 }
 
-const SHELL_EDITOR_COMMAND: &str = "Unknown\\shell\\editor";
-const SHELL_OPEN_COMMAND: &str = "Unknown\\shell\\Open";
-const TXTFILE_OPEN_COMMAND: &str = "txtfile\\shell\\Open";
+const SHELL_EDITOR_COMMAND: &str = "Unknown\\shell\\editor\\command";
+const SHELL_OPEN_COMMAND: &str = "Unknown\\shell\\Open\\command";
+const TXTFILE_OPEN_COMMAND: &str = "txtfile\\shell\\Open\\command";
 
 pub fn set_default_gui_editor(editor: Editor) -> EditorGuard {
     let mut guard = create_script_file(editor);
-    let reg_value = Data::String(
-        format!(
-            "powershell.exe -Path {} \"%1\"",
-            guard.script_path().display()
-        )
-        .try_into()
-        .expect("converting ASCII string to U16 string should not fail"),
+    let command = format!(
+        "powershell.exe -Path {} \"%1\"",
+        guard.script_path().display()
     );
 
-    guard.old_shell_editor_command = get_reg_key(SHELL_EDITOR_COMMAND);
-    guard.old_shell_open_command = get_reg_key(SHELL_OPEN_COMMAND);
-    guard.old_txtfile_open_command = get_reg_key(TXTFILE_OPEN_COMMAND);
+    for file_type in ["toml", "yaml", "yml"] {
+        set_default_editor(file_type, &command);
+    }
 
-    set_reg_key(SHELL_EDITOR_COMMAND, &reg_value);
-    set_reg_key(SHELL_OPEN_COMMAND, &reg_value);
-    set_reg_key(TXTFILE_OPEN_COMMAND, &reg_value);
-
+    guard.modified_registry = true;
     guard
 }
 

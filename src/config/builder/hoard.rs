@@ -256,12 +256,20 @@ mod tests {
         fn env_vars_are_expanded() {
             let pile = Pile {
                 config: None,
+                #[cfg(unix)]
                 items: btreemap! {
                     "foo".into() => "${HOME}/something".into()
                 },
+                #[cfg(windows)]
+                items: btreemap! {
+                    "foo".into() => "${USERPROFILE}/something".into()
+                },
             };
 
+            #[cfg(unix)]
             let home = std::env::var("HOME").expect("failed to read $HOME");
+            #[cfg(windows)]
+            let home = std::env::var("USERPROFILE").expect("failed to read $USERPROFILE");
             let expected = RealPile {
                 config: PileConfig::default(),
                 path: Some(

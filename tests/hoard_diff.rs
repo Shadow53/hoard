@@ -28,24 +28,24 @@ exclusivity = [
 [hoards]
 [hoards.anon_txt]
     "unix"    = "${HOME}/anon.txt"
-    "windows" = "${USERPROFILE}/anon.txt"
+    "windows" = "${HOARD_TMP}/anon.txt"
 
 [hoards.anon_bin]
     "unix"    = "${HOME}/anon.bin"
-    "windows" = "${USERPROFILE}/anon.bin"
+    "windows" = "${HOARD_TMP}/anon.bin"
 
 [hoards.named]
 [hoards.named.text]
     "unix"    = "${HOME}/named.txt"
-    "windows" = "${USERPROFILE}/named.txt"
+    "windows" = "${HOARD_TMP}/named.txt"
 [hoards.named.binary]
     "unix"    = "${HOME}/named.bin"
-    "windows" = "${USERPROFILE}/named.bin"
+    "windows" = "${HOARD_TMP}/named.bin"
 
 [hoards.anon_dir]
     config = { ignore = ["*ignore*"] }
     "unix"    = "${HOME}/testdir"
-    "windows" = "${USERPROFILE}/testdir"
+    "windows" = "${HOARD_TMP}/testdir"
 "#;
 
 fn no_op(_tester: &Tester, _path: &Path, _content: Option<Content>, _is_text: bool, _hoard: &str) {}
@@ -98,7 +98,7 @@ fn setup_recreate(
 }
 
 fn is_writable(octet: u32) -> bool {
-    octet & 0o000400 != 0
+    octet & 0o000200 != 0
 }
 
 fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &str) {
@@ -135,10 +135,15 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &st
             #[cfg(unix)]
             permissions.set_mode(octet);
             #[cfg(windows)]
-            permissions.set_readonly(!is_writable(octet));
-
-            file.set_permissions(permissions)
-                .expect("failed to set permissions on file");
+            {
+                let readonly = !is_writable(octet);
+                if permissions.readonly() != readonly {
+                    println!("attempting to set {} permissions to {} from readonly = {}", path.display(), !is_writable(octet), permissions.readonly());
+                    permissions.set_readonly(readonly);
+                    fs::set_permissions(path, permissions)
+                        .expect("failed to set permissions on file");
+                }
+            }
         }
     }
 }

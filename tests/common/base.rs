@@ -43,7 +43,7 @@ exclusivity = [
 [envs.windows]
     os = ["windows"]
 [[envs.windows.env]]
-    var = "USERPROFILE"
+    var = "HOARD_TMP"
 [envs.unix]
     os = ["linux", "macos"]
 [[envs.unix.env]]
@@ -56,33 +56,33 @@ exclusivity = [
 [hoards.anon_dir]
     "unix|first"  = "${HOME}/first_anon_dir"
     "unix|second" = "${HOME}/second_anon_dir"
-    "windows|first"  = "${USERPROFILE}/first_anon_dir"
-    "windows|second" = "${USERPROFILE}/second_anon_dir"
+    "windows|first"  = "${HOARD_TMP}/first_anon_dir"
+    "windows|second" = "${HOARD_TMP}/second_anon_dir"
 [hoards.anon_file]
     "unix|first"  = "${HOME}/first_anon_file"
     "unix|second" = "${HOME}/second_anon_file"
-    "windows|first"  = "${USERPROFILE}/first_anon_file"
-    "windows|second" = "${USERPROFILE}/second_anon_file"
+    "windows|first"  = "${HOARD_TMP}/first_anon_file"
+    "windows|second" = "${HOARD_TMP}/second_anon_file"
 [hoards.named]
     [hoards.named.config]
         ignore = ["*hoard*"]
     [hoards.named.file]
         "unix|first"  = "${HOME}/first_named_file"
         "unix|second" = "${HOME}/second_named_file"
-        "windows|first"  = "${USERPROFILE}/first_named_file"
-        "windows|second" = "${USERPROFILE}/second_named_file"
+        "windows|first"  = "${HOARD_TMP}/first_named_file"
+        "windows|second" = "${HOARD_TMP}/second_named_file"
     [hoards.named.dir1]
         "unix|first"  = "${HOME}/first_named_dir1"
         "unix|second" = "${HOME}/second_named_dir1"
-        "windows|first"  = "${USERPROFILE}/first_named_dir1"
-        "windows|second" = "${USERPROFILE}/second_named_dir1"
+        "windows|first"  = "${HOARD_TMP}/first_named_dir1"
+        "windows|second" = "${HOARD_TMP}/second_named_dir1"
     [hoards.named.dir1.config]
         ignore = ["*pile*", ".hidden"]
     [hoards.named.dir2]
         "unix|first"  = "${HOME}/first_named_dir2"
         "unix|second" = "${HOME}/second_named_dir2"
-        "windows|first"  = "${USERPROFILE}/first_named_dir2"
-        "windows|second" = "${USERPROFILE}/second_named_dir2"
+        "windows|first"  = "${HOARD_TMP}/first_named_dir2"
+        "windows|second" = "${HOARD_TMP}/second_named_dir2"
     [hoards.named.dir2.config]
         ignore = ["**/.hidden"]
 "#;

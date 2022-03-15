@@ -23,7 +23,7 @@ exclusivity = [
 [envs.windows]
     os = ["windows"]
 [[envs.windows.env]]
-    var = "USERPROFILE"
+    var = "HOARD_TMP"
 [envs.unix]
     os = ["linux", "macos"]
 [[envs.unix.env]]
@@ -32,19 +32,19 @@ exclusivity = [
 [hoards]
 [hoards.no_changes]
     "unix"    = "${HOME}/unchanged.txt"
-    "windows" = "${USERPROFILE}/unchanged.txt"
+    "windows" = "${HOARD_TMP}/unchanged.txt"
 [hoards.local_changes]
     "unix"    = "${HOME}/local.txt"
-    "windows" = "${USERPROFILE}/local.txt"
+    "windows" = "${HOARD_TMP}/local.txt"
 [hoards.remote_changes]
     "unix"    = "${HOME}/remote.txt"
-    "windows" = "${USERPROFILE}/remote.txt"
+    "windows" = "${HOARD_TMP}/remote.txt"
 [hoards.mixed_changes]
     "unix"    = "${HOME}/mixed.txt"
-    "windows" = "${USERPROFILE}/mixed.txt"
+    "windows" = "${HOARD_TMP}/mixed.txt"
 [hoards.unexpected_changes]
     "unix"    = "${HOME}/unexpected.txt"
-    "windows" = "${USERPROFILE}/unexpected.txt"
+    "windows" = "${HOARD_TMP}/unexpected.txt"
 "#;
 
 fn setup_no_changes(tester: &Tester) {
