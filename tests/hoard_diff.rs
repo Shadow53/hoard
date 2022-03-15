@@ -344,7 +344,7 @@ fn check_deleted_file(
     system_content: Option<Content>,
 ) {
     let system_deleted = system_content.is_none();
-    let hoard_deleted = hoard_content.is_none();
+    let hoard_deleted = hoard_content.is_none() && file.hoard_path.is_some();
 
     if system_deleted {
         assert!(
@@ -362,12 +362,14 @@ fn check_deleted_file(
         );
     }
 
+    // If file does not exist in either place, file will not appear in the iterator.
+    let invert = file.ignored || location == "locally and remotely";
     assert_diff_contains(
         tester,
         hoard,
         format!("{}: deleted {}\n", file.path.display(), location),
         is_partial,
-        file.ignored,
+        invert,
         false,
     );
 
@@ -376,7 +378,7 @@ fn check_deleted_file(
         hoard,
         format!("{}: deleted {}\n", file.path.display(), location),
         is_partial,
-        file.ignored,
+        invert,
         true,
     );
 }
@@ -600,20 +602,20 @@ macro_rules! test_diffs {
                 setup: setup_permissions,
                 modify: modify_file,
                 check: check_modified_perms
+            },
+            {
+                name: deleted,
+                tester: $tester,
+                hoard_files: $files,
+                contents: {
+                    default: Some(Content::Data(DEFAULT_CONTENT.clone())),
+                    changed_a: None,
+                    changed_b: None
+                },
+                setup: setup_modify,
+                modify: modify_file,
+                check: check_deleted_file
             }
-            //{
-            //    name: deleted,
-            //    tester: $tester,
-            //    hoard_files: $files,
-            //    contents: {
-            //        default: Some(Content::Data(DEFAULT_CONTENT.clone())),
-            //        changed_a: None,
-            //        changed_b: None
-            //    },
-            //    setup: setup_modify,
-            //    modify: modify_file,
-            //    check: check_deleted_file
-            //},
             //{
             //    name: recreate,
             //    tester: $tester,
