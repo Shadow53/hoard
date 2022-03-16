@@ -1,3 +1,4 @@
+#![cfg(not(any(windows, target_os = "macos")))]
 mod common;
 mod fake_editors;
 
@@ -136,7 +137,6 @@ fn verify_watchdog_works() {
 // Probably because it expects a graphical environment.
 
 #[test]
-#[cfg(not(windows))]
 fn test_hoard_edit_good_cli() {
     let tester = Tester::new("");
     let _guard = Editor::Good.set_as_default_cli_editor();
@@ -144,8 +144,6 @@ fn test_hoard_edit_good_cli() {
 }
 
 #[test]
-#[cfg(not(target_os = "macos"))]
-#[cfg(not(windows))]
 fn test_hoard_edit_good_gui() {
     let tester = Tester::new("");
     let _guard = Editor::Good.set_as_default_gui_editor();
@@ -153,7 +151,6 @@ fn test_hoard_edit_good_gui() {
 }
 
 #[test]
-#[cfg(not(windows))]
 fn test_hoard_edit_error_cli() {
     let tester = Tester::new("");
     let _guard = Editor::Error.set_as_default_cli_editor();
@@ -161,8 +158,6 @@ fn test_hoard_edit_error_cli() {
 }
 
 #[test]
-#[cfg(not(target_os = "macos"))]
-#[cfg(not(windows))]
 fn test_hoard_edit_error_gui() {
     let tester = Tester::new("");
     let _guard = Editor::Error.set_as_default_gui_editor();
