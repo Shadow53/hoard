@@ -11,6 +11,11 @@ pub use win::{get_known_folder, set_known_folder};
 #[cfg(windows)]
 pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 
+#[cfg(unix)]
+use unix as sys;
+#[cfg(windows)]
+use win as sys;
+
 /// The TLD portion of the application identifier.
 pub const TLD: &str = "com";
 /// The Company portion of the application identifier.
@@ -30,52 +35,31 @@ fn path_from_env(var: &str) -> Option<PathBuf> {
 #[must_use]
 #[inline]
 pub fn home_dir() -> PathBuf {
-    #[cfg(unix)]
-    {
-        unix::home_dir()
-    }
-    #[cfg(windows)]
-    {
-        win::home_dir()
-    }
+    sys::home_dir()
 }
 
 /// Returns Hoard's configuration directory for the current user.
 ///
-/// - Windows: `{appdata}/config` where `{appdata}` is the "known folder" `FOLDERID_RoamingAppData` or
-///   the value of `%APPDATA%`.
+/// - Windows: `{appdata}/shadow53/hoard/config` where `{appdata}` is the "known folder"
+///   `FOLDERID_RoamingAppData` or the value of `%APPDATA%`.
 /// - macOS: `${XDG_CONFIG_HOME}/hoard`, if `XDG_CONFIG_HOME` is set, otherwise
 ///   `$HOME/Library/Application Support/com.shadow53.hoard`.
 /// - Linux/BSD: `${XFG_CONFIG_HOME}/hoard`, if `XDG_CONFIG_HOME` is set, otherwise `$HOME/.config/hoard`.
 #[must_use]
 #[inline]
 pub fn config_dir() -> PathBuf {
-    #[cfg(unix)]
-    {
-        unix::config_dir()
-    }
-    #[cfg(windows)]
-    {
-        win::config_dir()
-    }
+    sys::config_dir()
 }
 
 /// Returns Hoard's data directory for the current user.
 ///
-/// - Windows: `{appdata}/data` where `{appdata}` is the "known folder" `FOLDERID_RoamingAppData` or
-///   the value of `%APPDATA%`.
+/// - Windows: `{appdata}/shadow53/hoard/data` where `{appdata}` is the "known folder"
+///   `FOLDERID_RoamingAppData` or the value of `%APPDATA%`.
 /// - macOS: `${XDG_DATA_HOME}/hoard`, if `XDG_DATA_HOME` is set, otherwise
 ///   `$HOME/Library/Application Support/com.shadow53.hoard`.
 /// - Linux/BSD: `${XFG_DATA_HOME}/hoard`, if `XDG_DATA_HOME` is set, otherwise `$HOME/.local/share/hoard`.
 #[must_use]
 #[inline]
 pub fn data_dir() -> PathBuf {
-    #[cfg(unix)]
-    {
-        unix::data_dir()
-    }
-    #[cfg(windows)]
-    {
-        win::data_dir()
-    }
+    sys::data_dir()
 }

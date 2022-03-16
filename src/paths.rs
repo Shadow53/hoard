@@ -14,7 +14,7 @@ use thiserror::Error;
 /// Returns the default root for hoard files.
 #[must_use]
 pub fn hoards_dir() -> HoardPath {
-    HoardPath::try_from(crate::dirs::data_dir())
+    HoardPath::try_from(crate::dirs::data_dir().join("hoards"))
         .expect("HoardPath that is the hoards directory should always be valid")
 }
 

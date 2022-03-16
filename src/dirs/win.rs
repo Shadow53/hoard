@@ -77,7 +77,7 @@ fn appdata() -> PathBuf {
     get_known_folder(FOLDERID_RoamingAppData)
         .ok()
         .or_else(|| path_from_env("APPDATA"))
-        .unwrap_or_else(|| home_dir().join("AppData"))
+        .unwrap_or_else(|| home_dir().join("AppData").join("Roaming"))
         .join(COMPANY)
         .join(PROJECT)
 }
