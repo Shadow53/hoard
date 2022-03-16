@@ -18,11 +18,19 @@ static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
 
 /// An error that may occur during expansion.
 ///
-/// This is a wrapper for [`std::env::VarError`] that shows what environment variable
-/// could not be found.
 #[derive(Debug)]
 pub enum Error {
-    Env { error: env::VarError, var: String },
+    /// Environment variable was not set.
+    ///
+    /// This is a wrapper for [`std::env::VarError`] that shows what environment variable
+    /// could not be found.
+    Env {
+        /// The error that occurred.
+        error: env::VarError,
+        /// The variable that caused the error.
+        var: String
+    },
+    /// The error returned while creating a [`SystemPath`] using [`expand_env_in_path`].
     Path(PathError),
 }
 

@@ -283,6 +283,9 @@ impl Builder {
         self
     }
 
+    /// Set the environments map for this `Builder`.
+    ///
+    /// The map associates an environment name with the [`Environment`] definition.
     #[must_use]
     pub fn set_environments(mut self, environments: BTreeMap<String, Environment>) -> Self {
         // grcov: ignore-start

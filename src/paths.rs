@@ -1,17 +1,20 @@
+//! Contains wrapper types for [`PathBuf`] to help ensure correct logic.
+//!
+//! - [`HoardPath`]
+//! - [`SystemPath`]
+//! - [`RelativePath`]
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
+use serde::de::Error as _;
 use thiserror::Error;
-
-fn inner_hoards_dir() -> PathBuf {
-    crate::dirs::data_dir().join("hoards")
-}
 
 /// Returns the default root for hoard files.
 #[must_use]
 pub fn hoards_dir() -> HoardPath {
-    HoardPath::try_from(inner_hoards_dir())
+    HoardPath::try_from(crate::dirs::data_dir())
         .expect("HoardPath that is the hoards directory should always be valid")
 }
 
@@ -90,6 +93,14 @@ pub enum Error {
     InvalidRelativePath(PathBuf),
 }
 
+/// A wrapper for [`PathBuf`] indicating a path within the Hoard.
+///
+/// That is, any file -- or directory containing files -- that is something backed up to the Hoard
+/// or a metadata file stored alongside the Hoard (e.g. history logs for last paths/operations
+/// checks). In short, anything stored within the Hoard data directory.
+///
+/// This does *not* include items in the config directory, including the configuration file.
+/// This makes it so even the config file can be managed by Hoard.
 #[repr(transparent)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -113,7 +124,7 @@ impl TryFrom<PathBuf> for HoardPath {
     type Error = Error;
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
-        let hoard_root = inner_hoards_dir();
+        let hoard_root = crate::dirs::data_dir();
         if value.strip_prefix(&hoard_root).is_ok() {
             Ok(Self(value))
         } else {
@@ -131,6 +142,12 @@ impl FromStr for HoardPath {
 }
 
 impl HoardPath {
+    /// Joins this [`HoardPath`] with the given [`RelativePath`].
+    ///
+    /// This function does not validate whether any paths exist or whether they are files or
+    /// directories. That is, it is possible to take a [`HoardPath`] representing a file and
+    /// use it as the prefix directory for a [`RelativePath`]. It is up to the caller to make
+    /// sure the resulting path is valid for use.
     #[must_use]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
@@ -142,6 +159,9 @@ impl HoardPath {
     }
 }
 
+/// A wrapper for [`PathBuf`] indicating a path that is not a [`HoardPath`].
+///
+/// That is, any file that is not stored in the Hoard data directory. See [`HoardPath`] for more.
 #[repr(transparent)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -174,6 +194,12 @@ impl TryFrom<PathBuf> for SystemPath {
 }
 
 impl SystemPath {
+    /// Joins this [`SystemPath`] with the given [`RelativePath`].
+    ///
+    /// This function does not validate whether any paths exist or whether they are files or
+    /// directories. That is, it is possible to take a [`SystemPath`] representing a file and
+    /// use it as the prefix directory for a [`RelativePath`]. It is up to the caller to make
+    /// sure the resulting path is valid for use.
     #[must_use]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
@@ -185,6 +211,15 @@ impl SystemPath {
     }
 }
 
+/// A wrapper for [`PathBuf`] that represents a relative path that is a child of the
+/// "current" directory.
+///
+/// To construct an instance of `RelativePath`, use [`RelativePath::try_from()`].
+/// This will perform the necessary checks to ensure that the path:
+///
+/// - Is a relative path (i.e. not absolute)
+/// - Does not escape the "parent" (i.e., the normalized version of the path does not
+///   start with `../`)
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct RelativePath(Option<PathBuf>);
@@ -207,11 +242,7 @@ impl<'de> Deserialize<'de> for RelativePath {
         D: Deserializer<'de>,
     {
         let path = PathBuf::deserialize(deserializer)?;
-        if path.to_str() == Some("") {
-            Ok(Self(None))
-        } else {
-            Ok(Self(Some(path)))
-        }
+        Self::try_from(path).map_err(D::Error::custom)
     }
 }
 
@@ -260,6 +291,7 @@ impl Deref for RelativePath {
 
 impl RelativePath {
     #[must_use]
+    /// Clones a [`PathBuf`] from this [`RelativePath`].
     pub fn to_path_buf(&self) -> PathBuf {
         match &self.0 {
             None => PathBuf::new(),
@@ -268,6 +300,9 @@ impl RelativePath {
     }
 
     #[must_use]
+    /// Returns an instance of [`RelativePath`] that represents no change.
+    ///
+    /// That is, `some_hoard_path.join(relative_path) == some_hoard_path`.
     pub fn none() -> Self {
         Self(None)
     }

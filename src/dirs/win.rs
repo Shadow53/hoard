@@ -65,7 +65,7 @@ pub fn set_known_folder(folder_id: GUID, new_path: &Path) -> WinResult<()> {
 }
 
 #[must_use]
-pub fn home_dir() -> PathBuf {
+pub(super) fn home_dir() -> PathBuf {
     get_known_folder(FOLDERID_Profile)
         .ok()
         .or_else(|| path_from_env("USERPROFILE"))
@@ -83,12 +83,12 @@ fn appdata() -> PathBuf {
 }
 
 #[must_use]
-pub fn config_dir() -> PathBuf {
+pub(super) fn config_dir() -> PathBuf {
     appdata().join("config")
 }
 
 #[must_use]
-pub fn data_dir() -> PathBuf {
+pub(super) fn data_dir() -> PathBuf {
     appdata().join("data")
 }
 

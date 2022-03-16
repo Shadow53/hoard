@@ -13,16 +13,47 @@ use std::os::unix::fs::MetadataExt;
 /// A conditional structure that tests if the given executable exists in the `$PATH` environment
 /// variable.
 ///
-/// See the documentation for [`which`] for more information on how detection works.
+/// # Absolute Paths
+///
+/// If the string provided is an absolute path, that exact path will be tested that:
+///
+/// - it exists
+/// - it is a file
+/// - the file is executable (on non-Windows systems)
+///
+/// # File Names
+///
+/// On non-Windows, "nix" systems, all `$PATH` paths will be searched for an executable file with
+/// the exact name given, including case.
+///
+/// On Windows, all `%PATH%` paths will be searched for an executable with the exact name OR with
+/// that given name and one of the common Windows executable file extensions. As an example,
+/// `ExeExists("cmd")` will check `%PATH%` for:
+///
+/// - `cmd`
+/// - `CMD`
+/// - `cmd.exe`
+/// - `CMD.EXE`
+/// - And so on, for extensions `.exe`, `.com`, `.bat`, and `.cmd`
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 #[allow(clippy::module_name_repetitions)]
 pub struct ExeExists(pub String);
 
+/// Errors that may occur while checking for an executable's existence.
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("failed to read metadata for path: {0}")]
-    Metadata(std::io::Error),
+    /// Found a possible candidate in `$PATH` but could not read its metadata.
+    #[error("failed to read metadata for {path}: {error}")]
+    Metadata {
+        /// The path that caused failure.
+        path: PathBuf,
+        /// The error that occurred.
+        #[source]
+        error: std::io::Error,
+    },
+
+    /// A file name was provided, but `$PATH` was not set.
     #[error("cannot determine if executable in PATH: PATH is not set")]
     NoPath,
 }
@@ -42,9 +73,9 @@ fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
         for file in files {
             let file = dir.map_or_else(|| PathBuf::from(&file), |dir| dir.join(&file));
             if file.exists() {
-                let is_file = fs::metadata(file)
+                let is_file = fs::metadata(&file)
                     .map(|meta| meta.is_file())
-                    .map_err(Error::Metadata)?;
+                    .map_err(|error| Error::Metadata { path: file, error })?;
 
                 if is_file {
                     return Ok(true);
@@ -60,12 +91,12 @@ fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
 fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
     let file = dir.map_or_else(|| PathBuf::from(&file), |dir| dir.join(&file));
     if file.exists() {
-        fs::metadata(file)
+        fs::metadata(&file)
             .map(|meta| {
                 // 1 == executable bit in octal (2 == read, 4 == write)
                 meta.is_file() && meta.mode() & 0o000_111 != 0
             })
-            .map_err(Error::Metadata)
+            .map_err(|error| Error::Metadata{ path: file, error })
     } else {
         Ok(false)
     }

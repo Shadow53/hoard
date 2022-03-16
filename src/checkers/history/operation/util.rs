@@ -1,3 +1,5 @@
+//! Helpful functions to use while working with [`Operation`](super::Operation) log files.
+
 use super::{Error, Operation};
 use crate::checkers::history::get_history_root_dir;
 use crate::checkers::history::operation::OperationImpl;
@@ -12,6 +14,8 @@ use std::{fs, io};
 use time::format_description::FormatItem;
 use uuid::Uuid;
 
+/// The format that should be used when converting an [`Operation`](super::Operation)'s timestamp
+/// into a file name.
 pub static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
     time::format_description::parse(
         "[year]_[month]_[day]-[hour repr:24]_[minute]_[second].[subsecond digits:6]",
@@ -19,11 +23,17 @@ pub static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
     .unwrap()
 });
 
+/// A regular expression that can be used to determine that a file name represents an
+/// [`Operation`](super::Operation) log file.
+///
+/// Rather than using this directly, see [`file_is_log`].
 pub(crate) static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new("^[0-9]{4}(_[0-9]{2}){2}-([0-9]{2}_){2}([0-9]{2})\\.[0-9]{6}\\.log$")
         .expect("invalid log file regex")
 });
 
+/// Inspects the file name portion of the `path` to determine if it matches the format used
+/// for [`Operation`](super::Operation) log files.
 #[must_use]
 pub fn file_is_log(path: &Path) -> bool {
     let _span = tracing::trace_span!("file_is_log", ?path).entered();

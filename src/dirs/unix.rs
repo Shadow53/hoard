@@ -13,7 +13,7 @@ fn xdg_data_dir() -> Option<PathBuf> {
 }
 
 #[must_use]
-pub fn home_dir() -> PathBuf {
+pub(super) fn home_dir() -> PathBuf {
     path_from_env("HOME").expect("could not determine user home directory")
 }
 
@@ -27,24 +27,24 @@ fn mac_config_dir() -> PathBuf {
 
 #[cfg(target_os = "macos")]
 #[must_use]
-pub fn config_dir() -> PathBuf {
+pub(super) fn config_dir() -> PathBuf {
     xdg_config_dir().unwrap_or_else(mac_config_dir)
 }
 
 #[cfg(target_os = "macos")]
 #[must_use]
-pub fn data_dir() -> PathBuf {
+pub(super) fn data_dir() -> PathBuf {
     xdg_data_dir().unwrap_or_else(mac_config_dir)
 }
 
 #[cfg(not(target_os = "macos"))]
 #[must_use]
-pub fn config_dir() -> PathBuf {
+pub(super) fn config_dir() -> PathBuf {
     xdg_config_dir().unwrap_or_else(|| home_dir().join(".config").join(PROJECT))
 }
 
 #[cfg(not(target_os = "macos"))]
 #[must_use]
-pub fn data_dir() -> PathBuf {
+pub(super) fn data_dir() -> PathBuf {
     xdg_data_dir().unwrap_or_else(|| home_dir().join(".local").join("share").join(PROJECT))
 }

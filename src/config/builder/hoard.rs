@@ -34,7 +34,14 @@ pub enum Error {
 /// A single pile in the hoard.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pile {
+    /// Configuration specific to this pile.
+    ///
+    /// Will be merged with higher-level configuration. If no configuration is specified
+    /// (i.e., merging results in `None`), a default configuration will be used.
     pub config: Option<PileConfig>,
+    /// Mapping of environment strings to a string path that may contain environment variables.
+    ///
+    /// See [`expand_env_in_path`] for more on path format.
     #[serde(flatten)]
     pub items: BTreeMap<String, String>,
 }
@@ -69,7 +76,11 @@ impl Pile {
 /// A set of multiple related piles (i.e. in a single hoard).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MultipleEntries {
+    /// Any custom configuration that applies to all contained files.
+    ///
+    /// If `None`, a default configuration will be used during processing.
     pub config: Option<PileConfig>,
+    /// A mapping of pile name to not-yet-processed [`Pile`]s.
     #[serde(flatten)]
     pub items: BTreeMap<String, Pile>,
 }

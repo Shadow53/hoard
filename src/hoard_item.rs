@@ -12,7 +12,9 @@ use std::{fmt, fs, io};
 #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChecksumType {
+    /// MD5 checksum -- provided for backwards compatibility with older versions of Hoard.
     MD5,
+    /// SHA256 checksum -- currently the default.
     SHA256,
 }
 
@@ -24,13 +26,19 @@ impl Default for ChecksumType {
 
 /// A file's checksum as a human-readable string.
 ///
+/// If you have a choice of which variant to construct,
+/// prefer using [`HoardItem::system_checksum`] or [`HoardItem::hoard_checksum`] with the
+/// return value of [`ChecksumType::default()`]
+///
 /// # TODO
 ///
 /// - Ensure that the contained values can never be invalid for the associated checksum type.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Checksum {
+    /// An MD5 checksum -- provided for backwards compatibility with older versions of Hoard.
     MD5(String),
+    /// A SHA256 checksum -- currently the default.
     SHA256(String),
 }
 

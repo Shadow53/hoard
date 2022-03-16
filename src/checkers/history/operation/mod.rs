@@ -65,18 +65,27 @@ enum OperationVersion {
     V2(OperationV2),
 }
 
+/// Functions that must be implemented by all operation log versions.
 #[allow(clippy::module_name_repetitions)]
 pub trait OperationImpl {
+    /// Which [`Direction`] the operation went.
     fn direction(&self) -> Direction;
+    /// Whether the operation log contains the given file by pile name and relative path.
     fn contains_file(
         &self,
         pile_name: Option<&str>,
         rel_path: &RelativePath,
         only_modified: bool,
     ) -> bool;
+    /// The timestamp for the logged operation.
     fn timestamp(&self) -> OffsetDateTime;
+    /// The associated hoard name for this operation.
     fn hoard_name(&self) -> &str;
+    /// The checksum associated with the given file, or `None` if the file does not exist or was
+    /// deleted.
     fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum>;
+    /// An iterator over all files that exist within this operation log, not including any that
+    /// were deleted.
     fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a>;
 }
 
@@ -129,6 +138,9 @@ impl OperationImpl for OperationVersion {
     }
 }
 
+/// A wrapper struct for any supported operation log version.
+///
+/// This struct should be preferred over any specific log version.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
 pub struct Operation(OperationVersion);
@@ -239,6 +251,15 @@ impl Operation {
         }
     }
 
+    /// Given a summary of previous operations, convert this [`Operation`] to the latest version.
+    ///
+    /// # Parameters
+    ///
+    /// - `file_checksums`: A mapping of file (as (`pile_name`, `relative_path`) tuple) to the
+    ///   file's checksum prior to this operation. If the file was deleted at some point, checksum
+    ///   should be `None` rather than deleting the file from the map.
+    /// - `file_set`: A set of files that exist in the hoard prior to this operation. If a file was
+    ///   deleted at some point, it should be removed from this set.
     pub(crate) fn convert_to_latest_version(
         self,
         file_checksums: &mut HashMap<(Option<String>, RelativePath), Option<Checksum>>,
@@ -364,8 +385,8 @@ impl Operation {
 
     /// Returns whether the given `file` has unapplied remote changes.
     ///
-    /// `file` must be a path relative to the root of one of the Hoard's Piles, or `None` if
-    /// the Pile represents a file.
+    /// `file` must be a path relative to the root of one of the Hoard's Piles, or
+    /// `RelativePath::none()` if the Pile represents a file.
     ///
     /// # Errors
     ///

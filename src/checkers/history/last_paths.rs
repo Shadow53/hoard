@@ -150,7 +150,9 @@ impl LastPaths {
 /// hoard.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HoardPaths {
+    /// The timestamp of the most recent operation on this [`Hoard`].
     pub timestamp: OffsetDateTime,
+    /// A mapping of piles to the most recent path used.
     pub piles: PilePaths,
 }
 
