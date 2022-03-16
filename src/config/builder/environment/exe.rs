@@ -96,7 +96,7 @@ fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
                 // 1 == executable bit in octal (2 == read, 4 == write)
                 meta.is_file() && meta.mode() & 0o000_111 != 0
             })
-            .map_err(|error| Error::Metadata{ path: file, error })
+            .map_err(|error| Error::Metadata { path: file, error })
     } else {
         Ok(false)
     }

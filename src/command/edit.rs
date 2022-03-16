@@ -1,5 +1,9 @@
 use atty::Stream;
-use std::{fs, path::{Path, PathBuf}, process::ExitStatus};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::ExitStatus,
+};
 use thiserror::Error;
 
 /// Errors that may occur while running the edit command.
@@ -17,7 +21,7 @@ pub enum Error {
     IO(#[from] std::io::Error),
     /// A directory was provided as the configuration file path.
     #[error("expected a configuration file, found a directory: {0}")]
-    IsDirectory(PathBuf)
+    IsDirectory(PathBuf),
 }
 
 const DEFAULT_CONFIG: &str = include_str!("../../config.toml.sample");
@@ -43,7 +47,8 @@ pub(crate) fn run_edit(path: &Path) -> Result<(), super::Error> {
 
     let tmp_dir = tempfile::tempdir().map_err(Error::IO)?;
     let tmp_file = tmp_dir.path().join(
-        path.file_name().ok_or_else(|| Error::IsDirectory(path.to_path_buf()))?
+        path.file_name()
+            .ok_or_else(|| Error::IsDirectory(path.to_path_buf()))?,
     );
 
     if path.exists() {

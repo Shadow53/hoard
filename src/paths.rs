@@ -4,11 +4,11 @@
 //! - [`SystemPath`]
 //! - [`RelativePath`]
 
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
-use serde::de::Error as _;
 use thiserror::Error;
 
 /// Returns the default root for hoard files.

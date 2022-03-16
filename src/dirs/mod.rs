@@ -31,9 +31,13 @@ fn path_from_env(var: &str) -> Option<PathBuf> {
 #[inline]
 pub fn home_dir() -> PathBuf {
     #[cfg(unix)]
-    { unix::home_dir() }
+    {
+        unix::home_dir()
+    }
     #[cfg(windows)]
-    { win::home_dir() }
+    {
+        win::home_dir()
+    }
 }
 
 /// Returns Hoard's configuration directory for the current user.
@@ -47,9 +51,13 @@ pub fn home_dir() -> PathBuf {
 #[inline]
 pub fn config_dir() -> PathBuf {
     #[cfg(unix)]
-    { unix::config_dir() }
+    {
+        unix::config_dir()
+    }
     #[cfg(windows)]
-    { win::config_dir() }
+    {
+        win::config_dir()
+    }
 }
 
 /// Returns Hoard's data directory for the current user.
@@ -63,7 +71,11 @@ pub fn config_dir() -> PathBuf {
 #[inline]
 pub fn data_dir() -> PathBuf {
     #[cfg(unix)]
-    { unix::data_dir() }
+    {
+        unix::data_dir()
+    }
     #[cfg(windows)]
-    { win::data_dir() }
+    {
+        win::data_dir()
+    }
 }

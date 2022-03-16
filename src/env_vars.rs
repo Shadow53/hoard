@@ -28,7 +28,7 @@ pub enum Error {
         /// The error that occurred.
         error: env::VarError,
         /// The variable that caused the error.
-        var: String
+        var: String,
     },
     /// The error returned while creating a [`SystemPath`] using [`expand_env_in_path`].
     Path(PathError),
