@@ -5,8 +5,6 @@ use hoard::checkers::history::operation::{Operation, OperationImpl};
 use hoard::command::Command;
 use hoard::hoard_item::Checksum;
 use hoard::paths::RelativePath;
-use md5::{Digest as _, Md5};
-use sha2::{Digest as _, Sha256};
 use std::fs;
 
 const CONFIG: &str = r#"
@@ -45,8 +43,11 @@ fn test_operation_checksums() {
     tester.expect_command(Command::Backup { hoards: Vec::new() });
 
     let data = fs::read(&file_path).expect("reading data from test file should succeed");
-    let md5 = Checksum::MD5(format!("{:x}", Md5::digest(&data)));
-    let sha256 = Checksum::SHA256(format!("{:x}", Sha256::digest(&data)));
+    let md5 = Checksum::MD5(format!("{:x}", <md5::Md5 as md5::Digest>::digest(&data)));
+    let sha256 = Checksum::SHA256(format!(
+        "{:x}",
+        <sha2::Sha256 as sha2::Digest>::digest(&data)
+    ));
 
     let md5_op = Operation::latest_local("md5", Some((None, &rel_file)))
         .expect("should not fail to load operation for md5 hoard")
