@@ -34,7 +34,7 @@ fn test_yaml_support() {
     assert_eq!(&config, tester.config());
 }
 
-//#[test]
+#[test]
 fn test_toml_takes_precedence() {
     let tester = DefaultConfigTester::new();
     let yaml_path = tester.config_dir().join("config.yaml");
