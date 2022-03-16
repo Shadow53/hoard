@@ -52,7 +52,7 @@ impl Tester {
             let config_dir = home_tmp
                 .path()
                 .join("Library")
-                .join("Application")
+                .join("Application Support")
                 .join(format!("{}.{}.{}", TLD, COMPANY, PROJECT));
             (
                 home_tmp.path().to_path_buf(),
