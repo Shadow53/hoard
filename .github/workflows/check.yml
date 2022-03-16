@@ -13,7 +13,7 @@ jobs:
       cargo: ${{ steps.filter.outputs.cargo }}
       pytests: ${{ steps.filter.outputs.pytests }}}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -31,7 +31,7 @@ jobs:
     if: needs.changes.outputs.cargo == 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - uses: fossa-contrib/fossa-action@v1
         with:
@@ -46,7 +46,7 @@ jobs:
     if: needs.changes.outputs.rust == 'true' || github.event_name == 'release'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
         with:
@@ -75,7 +75,7 @@ jobs:
     needs: changes
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
         with:
@@ -206,7 +206,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
         with:
