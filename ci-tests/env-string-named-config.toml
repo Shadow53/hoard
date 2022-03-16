@@ -1,5 +1,0 @@
-[envs.config]
-    env = [{ var = "CI" }]
-
-[hoards.a_hoard]
-    "config" = "/tmp"

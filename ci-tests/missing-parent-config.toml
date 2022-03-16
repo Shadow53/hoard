@@ -1,5 +1,0 @@
-[envs.ci]
-    env = [{ var = "CI" }]
-
-[hoards.missing]
-    "ci" = "/does/not/exist"

@@ -1,0 +1,4 @@
+param ( [Parameter(Mandatory=$true)][string]$target )
+Write-Error "opened $target in fake editor"
+Exit 1
+

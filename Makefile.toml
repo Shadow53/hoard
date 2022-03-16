@@ -1,6 +1,6 @@
 [tasks.clean-all]
     script = """
-    cargo clean
+    #cargo clean
     rm -rf profraw
     """
 
@@ -11,7 +11,7 @@
 [tasks.install-stable]
     ignore_errors = true
     command = "rustup"
-    args = ["toolchain", "install", "stable", "--component", "llvm-tools-preview", "--target", "x86_64-unknown-linux-musl"]
+    args = ["toolchain", "install", "stable", "--component", "llvm-tools-preview"]
 
 [tasks.build-stable]
     install_crate = false
@@ -23,34 +23,39 @@
         RUSTFLAGS="-Zinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
-[tasks.test-stable]
+[tasks.test-nextest]
+    dependencies = ["clean-all", "install-stable", "create-profraw-dir"]
+    command = "cargo"
+    args = ["nextest", "run"]
+    [tasks.test-nextest.env]
+        RUSTC_BOOTSTRAP="1"
+        RUSTFLAGS="-Zinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
+        LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
+
+[tasks.test-single-thread]
     install_crate = false
     dependencies = ["clean-all", "install-stable", "create-profraw-dir"]
     command = "cargo"
-    args = ["+stable", "test", "--target", "x86_64-unknown-linux-musl"]
-    [tasks.test-stable.env]
+    args = ["+stable", "test", "--", "--test-threads=1"]
+    [tasks.test-single-thread.env]
         RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage"
+        RUSTFLAGS="-Zinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
-[tasks.all-tests]
-    dependencies = ["clean-all", "test-stable", "create-profraw-dir"]
+[tasks.docker-tests]
+    dependencies = ["clean-all", "create-profraw-dir"]
     script = """
-    sudo docker image build . -t hoard-tests
+    sudo docker image build . -t hoard-tests --no-cache
     echo "Running tests"
     sudo docker container run --rm -v $(pwd)/profraw:/hoard-tests/profraw:Z hoard-tests
     echo "Ran tests"
     """
-    [tasks.integration-tests.env]
-        RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage"
-        LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
 [tasks.grcov]
-    dependencies = ["clean-all", "all-tests"]
+    dependencies = ["clean-all", "test-nextest"]
     # Using `script` is necessary to get the glob expansion
     script = """
-    grcov profraw/*.profraw --binary-path ./target/x86_64-unknown-linux-musl/debug \
+    grcov profraw/*.profraw --binary-path ./target/debug \
         -s . -t html --branch --ignore-not-existing -o ./target/debug/coverage --ignore src/main.rs \
         --excl-br-line "($EXCLUDE_DERIVE|$EXCLUDE_PANICS|$EXCLUDE_TRACING|$EXCLUDE_PROPAGATE_ERROR|$EXCLUDE_MANUAL|$EXCLUDE_LONE_CLOSING_BRACE)" \
         --excl-line "($EXCLUDE_DERIVE|$EXCLUDE_PANICS|$EXCLUDE_TRACING|$EXCLUDE_PROPAGATE_ERROR|$EXCLUDE_MANUAL|$EXCLUDE_LONE_CLOSING_BRACE)" \

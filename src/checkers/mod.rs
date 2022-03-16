@@ -8,8 +8,8 @@ pub mod history;
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as OperationError, Operation};
 use crate::hoard::{Direction, Hoard};
+use crate::paths::HoardPath;
 use std::collections::HashMap;
-use std::path::Path;
 use thiserror::Error;
 
 /// Trait for validating [`Hoard`]s.
@@ -25,7 +25,7 @@ pub trait Checker: Sized {
     ///
     /// Any errors that may occur while creating an instance, such as I/O or consistency errors.
     fn new(
-        hoard_root: &Path,
+        hoard_root: &HoardPath,
         hoard_name: &str,
         hoard: &Hoard,
         direction: Direction,
@@ -57,6 +57,7 @@ pub enum Error {
     Operation(#[from] OperationError),
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Checkers {
     last_paths: HashMap<String, LastPaths>,
     operations: HashMap<String, Operation>,
@@ -65,15 +66,17 @@ pub(crate) struct Checkers {
 impl Checkers {
     #[allow(single_use_lifetimes)]
     pub(crate) fn new<'a, S: AsRef<str>>(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoards: impl IntoIterator<Item = (S, &'a Hoard)>,
         direction: Direction,
     ) -> Result<Self, Error> {
+        let _span = tracing::debug_span!("create_checkers", ?hoards_root).entered();
         let mut last_paths = HashMap::new();
         let mut operations = HashMap::new();
 
         for (name, hoard) in hoards {
             let name = name.as_ref();
+            tracing::debug!(%name, ?hoard, "processing hoard");
             let lp = LastPaths::new(hoards_root, name, hoard, direction)?;
             let op = Operation::new(hoards_root, name, hoard, direction)?;
             last_paths.insert(name.to_string(), lp);
@@ -87,7 +90,7 @@ impl Checkers {
     }
 
     pub(crate) fn check(&mut self) -> Result<(), Error> {
-        let _span = tracing::info_span!("running_checks").entered();
+        let _span = tracing::debug_span!("running_checks").entered();
         for last_path in &mut self.last_paths.values_mut() {
             last_path.check()?;
         }

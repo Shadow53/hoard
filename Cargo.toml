@@ -2,7 +2,7 @@
 name = "hoard"
 version = "0.4.0"
 authors = ["Michael Bryant <shadow53@shadow53.com>"]
-edition = "2018"
+edition = "2021"
 license = "BSD-3-Clause"
 description = "Hoard backups of files across your filesystem into one location."
 homepage = "https://github.com/Shadow53/hoard"
@@ -15,7 +15,6 @@ yaml = ["serde_yaml"]
 
 [dependencies]
 atty = "0.2"
-directories = "4.0.1"
 glob = "0.3"
 hostname = "0.3"
 itertools = "0.10"
@@ -30,17 +29,26 @@ serde_yaml = { version = "0.8", optional = true }
 sha2 = "0.10"
 similar = { version = "2.1", default-features = false, features = ["text"] }
 structopt = "0.3.26"
+tempfile = "3.3"
 thiserror = "1.0.30"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
 toml = "0.5.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
-which = "4.2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.33", features = ["Storage", "Win32_UI_Shell", "Win32_Foundation", "Win32_Globalization"] }
 
 [dev-dependencies]
 maplit = "1.0"
+paste = "1.0"
 rand = "0.8"
-serial_test = "0.5"
 serde_test = "1.0"
-tempfile = "3.3"
+
+[target.'cfg(windows)'.dev-dependencies]
+registry = "1.2"
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = "0.23"
+pty_closure = "0.1"

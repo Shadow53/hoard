@@ -1,11 +1,10 @@
 //! The [`Builder`] struct serves as an intermediate step between raw configuration and the
 //! [`Config`] type that is used by `hoard`.
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -15,16 +14,17 @@ use environment::Environment;
 
 use crate::command::Command;
 use crate::CONFIG_FILE_STEM;
-use crate::HOARDS_DIR_SLUG;
 
 use super::Config;
 use crate::hoard::PileConfig;
+use crate::paths::{hoards_dir, HoardPath};
 
 pub mod environment;
 pub mod envtrie;
 pub mod hoard;
 
 const CONFIG_KEY: &str = "config";
+const HOARDS_KEY: &str = "hoards";
 const DEFAULT_CONFIG_EXT: &str = "toml";
 /// The items are listed in descending order of precedence
 const SUPPORTED_CONFIG_EXTS: [&str; 3] = ["toml", "yaml", "yml"];
@@ -58,70 +58,6 @@ pub enum Error {
     InvalidExtension(PathBuf),
 }
 
-#[derive(Debug)]
-enum Value {
-    Toml(toml::Value),
-    Yaml(serde_yaml::Value),
-}
-
-impl Value {
-    fn is_map(&self) -> bool {
-        matches!(
-            self,
-            Value::Toml(toml::Value::Table(_)) | Value::Yaml(serde_yaml::Value::Mapping(_))
-        )
-    }
-
-    fn has_key(&self, key: &str) -> bool {
-        match self {
-            Value::Toml(toml::Value::Table(table)) => table.contains_key(key),
-            Value::Yaml(serde_yaml::Value::Mapping(map)) => {
-                map.contains_key(&serde_yaml::Value::String(key.to_owned()))
-            }
-            _ => false,
-        }
-    }
-
-    fn get(&self, key: &str) -> Option<Value> {
-        match self {
-            Value::Toml(toml::Value::Table(table)) => table.get(key).cloned().map(Value::Toml),
-            Value::Yaml(serde_yaml::Value::Mapping(map)) => map
-                .get(&serde_yaml::Value::String(key.to_owned()))
-                .cloned()
-                .map(Value::Yaml),
-            _ => None,
-        }
-    }
-
-    fn iter_map(&self) -> Box<dyn Iterator<Item = (String, Value)> + '_> {
-        match self {
-            Value::Toml(toml::Value::Table(table)) => Box::new(
-                table
-                    .iter()
-                    .map(|(key, val)| (key.clone(), Value::Toml(val.clone()))),
-            ),
-            Value::Yaml(serde_yaml::Value::Mapping(map)) => {
-                Box::new(map.iter().filter_map(|(key, val)| {
-                    key.as_str()
-                        .map(|key| (key.to_owned(), Value::Yaml(val.clone())))
-                }))
-            }
-            _ => Box::new(None.into_iter()),
-        }
-    }
-
-    #[allow(single_use_lifetimes)]
-    fn deserialize<D>(self) -> Result<D, Error>
-    where
-        D: DeserializeOwned,
-    {
-        match self {
-            Value::Toml(t) => t.try_into().map_err(Error::DeserializeTOML),
-            Value::Yaml(y) => serde_yaml::from_value(y).map_err(Error::DeserializeYAML),
-        }
-    }
-}
-
 /// Intermediate data structure to build a [`Config`](crate::config::Config).
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, StructOpt)]
 #[structopt(rename_all = "kebab")]
@@ -130,11 +66,11 @@ impl Value {
 pub struct Builder {
     #[structopt(skip)]
     #[serde(rename = "envs")]
-    environments: Option<HashMap<String, Environment>>,
+    environments: Option<BTreeMap<String, Environment>>,
     #[structopt(skip)]
     exclusivity: Option<Vec<Vec<String>>>,
     #[structopt(short, long)]
-    hoards_root: Option<PathBuf>,
+    hoards_root: Option<HoardPath>,
     #[structopt(short, long)]
     #[serde(skip)]
     config_file: Option<PathBuf>,
@@ -145,7 +81,7 @@ pub struct Builder {
     #[structopt(short, long)]
     force: bool,
     #[structopt(skip)]
-    hoards: Option<HashMap<String, Hoard>>,
+    hoards: Option<BTreeMap<String, Hoard>>,
     #[structopt(skip)]
     #[serde(rename = "config")]
     global_config: Option<PileConfig>,
@@ -161,15 +97,13 @@ impl Builder {
     /// Returns the default path for the configuration file.
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        super::get_dirs()
-            .config_dir()
-            .join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
+        crate::dirs::config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 
     /// Returns the default location for storing hoards.
-    fn default_hoard_root() -> PathBuf {
+    fn default_hoard_root() -> HoardPath {
         tracing::debug!("getting default hoard root");
-        super::get_dirs().data_dir().join(HOARDS_DIR_SLUG)
+        hoards_dir()
     }
 
     /// Create a new `Builder`.
@@ -197,86 +131,79 @@ impl Builder {
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
-        tracing::debug!("reading configuration from \"{}\"", path.to_string_lossy());
+        let _span = tracing::debug_span!("config_from_file", ?path).entered();
+        tracing::debug!("reading configuration");
         let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
         // Necessary because Deserialize on enums erases any errors returned by each variant.
-        let value = match path.extension().and_then(std::ffi::OsStr::to_str) {
-            None => return Err(Error::InvalidExtension(path.to_owned())),
+        let result = match path.extension().and_then(std::ffi::OsStr::to_str) {
+            None => Err(Error::InvalidExtension(path.to_owned())),
             Some(ext) => match ext {
-                "toml" | "TOML" => toml::from_str(&s)
-                    .map(Value::Toml)
-                    .map_err(Error::DeserializeTOML)?,
-                "yaml" | "yml" | "YAML" | "YML" => serde_yaml::from_str(&s)
-                    .map(Value::Yaml)
-                    .map_err(Error::DeserializeYAML)?,
-                _ => return Err(Error::InvalidExtension(path.to_owned())),
+                "toml" | "TOML" => toml::from_str(&s).map_err(Error::DeserializeTOML),
+                "yaml" | "yml" | "YAML" | "YML" => {
+                    serde_yaml::from_str(&s).map_err(Error::DeserializeYAML)
+                }
+                _ => Err(Error::InvalidExtension(path.to_owned())),
             },
         };
-        Self::validate_config_map(&value)?;
-        value.deserialize()
-    }
 
-    fn ensure_config_not_exists(context: &[String], map: &Value) -> Result<(), Error> {
-        if map.has_key(CONFIG_KEY) {
-            let mut context = context.to_vec();
-            context.push(CONFIG_KEY.into());
-            return Err(Error::NameConfigNotAllowed(context));
+        if let Err(err) = &result {
+            tracing::error!("failed to read config from file: {}", err);
         }
 
-        Ok(())
+        result
     }
 
-    fn ensure_config_is_valid(context: &[String], config: Value) -> Result<(), Error> {
-        if config.deserialize::<PileConfig>().is_err() {
-            let mut context = context.to_vec();
-            context.push(CONFIG_KEY.into());
-            return Err(Error::ConfigWrongType(context));
-        }
+    /// Reads configuration from the default configuration file.
+    ///
+    /// Prefers a TOML file, if found, falling back to YAML if present.
+    ///
+    /// # Errors
+    ///
+    /// - Any errors from attempting to parse the file.
+    /// - A custom not found error if no default file is found.
+    pub fn from_default_file() -> Result<Self, Error> {
+        let error_closure = || {
+            let path = Self::default_config_file();
+            Error::ReadConfig(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "could not find any of {name}.toml, {name}.yaml, or {name}.yml in {dir}",
+                    name = path
+                        .file_stem()
+                        .expect("default config should always have a file name")
+                        .to_string_lossy(),
+                    dir = path
+                        .parent()
+                        .expect("default config should always have a parent")
+                        .to_string_lossy()
+                ),
+            ))
+        };
 
-        Ok(())
-    }
+        let parent = Self::default_config_file()
+            .parent()
+            .expect("default config file should always have a file name")
+            .canonicalize()
+            .map_err(Error::ReadConfig)?;
 
-    /// Currently only checks that the name "config" isn't being used in unexpected ways.
-    fn validate_config_map(config: &Value) -> Result<(), Error> {
-        tracing::trace!("validating that there a no invalid items named \"config\"");
-        let _span = tracing::trace_span!("validate_config_map").entered();
-        if config.is_map() {
-            config
-                .get("envs")
-                .map(|envs| Self::ensure_config_not_exists(&["envs".into()], &envs))
-                .transpose()?;
-
-            config
-                .get("hoards")
-                .map(|hoards| -> Result<(), Error> {
-                    let mut context = vec!["hoards".into()];
-                    Self::ensure_config_not_exists(&context, &hoards)?;
-
-                    for (key, hoard) in hoards.iter_map() {
-                        if hoard.is_map() {
-                            context.push(key);
-                            if let Some(config) = hoard.get(CONFIG_KEY) {
-                                Self::ensure_config_is_valid(&context, config)?;
-                            }
-                            for (key, pile) in hoard.iter_map() {
-                                context.push(key);
-                                if pile.is_map() {
-                                    if let Some(config) = pile.get(CONFIG_KEY) {
-                                        Self::ensure_config_is_valid(&context, config)?;
-                                    }
-                                }
-                                context.pop();
-                            }
-                            context.pop();
+        SUPPORTED_CONFIG_EXTS
+            .iter()
+            .find_map(|suffix| {
+                let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
+                let path = parent.join(path);
+                match Self::from_file(&path) {
+                    Err(Error::ReadConfig(err)) => {
+                        if let io::ErrorKind::NotFound = err.kind() {
+                            None
+                        } else {
+                            Some(Err(Error::ReadConfig(err)))
                         }
                     }
-
-                    Ok(())
-                })
-                .transpose()?;
-        }
-
-        Ok(())
+                    Ok(config) => Some(Ok(config)),
+                    Err(err) => Some(Err(err)),
+                }
+            })
+            .ok_or_else(error_closure)?
     }
 
     /// Helper method to process command-line arguments and the config file specified on CLI
@@ -290,48 +217,19 @@ impl Builder {
         let from_args = Self::from_args();
 
         tracing::trace!("attempting to get configuration file from cli arguments or use default");
-        let from_file = from_args
-            .config_file
-            .as_ref()
-            .map_or_else(|| {
-                SUPPORTED_CONFIG_EXTS.iter()
-                    .find_map(|suffix| {
-                        let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
-                        let path = Self::default_config_file()
-                            .parent()
-                            .expect("default config file should always have a file name")
-                            .join(path);
-                        match Self::from_file(&path) {
-                            Err(Error::ReadConfig(err)) => if let io::ErrorKind::NotFound = err.kind() {
-                                None
-                            } else {
-                                Some(Err(Error::ReadConfig(err)))
-                            },
-                            Ok(config) => Some(Ok(config)),
-                            Err(err) => Some(Err(err)),
-                        }
-                    })
-                    .ok_or_else(|| {
-                        let path = PathBuf::from(CONFIG_FILE_STEM);
-                        Error::ReadConfig(io::Error::new(
-                            io::ErrorKind::NotFound,
-                            format!(
-                                "could not find any of {name}.toml, {name}.yaml, or {name}.yml in {dir}",
-                                name = path.file_stem().expect("default config should always have a file name").to_string_lossy(),
-                                dir = path.parent().expect("default config should always have a parent").to_string_lossy()
-                            )
-                        ))
-                    })?
-            },
-            |config_file| {
-                tracing::trace!(
-                    ?config_file,
-                    "configuration file is \"{}\"",
-                    config_file.to_string_lossy()
-                );
+        let from_file =
+            from_args
+                .config_file
+                .as_ref()
+                .map_or_else(Self::from_default_file, |config_file| {
+                    tracing::trace!(
+                        ?config_file,
+                        "configuration file is \"{}\"",
+                        config_file.to_string_lossy()
+                    );
 
-                Self::from_file(config_file)
-            })?;
+                    Self::from_file(config_file)
+                })?;
 
         tracing::debug!("merging configuration file and cli arguments");
         Ok(from_file.layer(from_args))
@@ -364,17 +262,17 @@ impl Builder {
         self
     }
 
-    ///// Set the hoards map.
-    //#[must_use]
-    //pub fn set_hoards(mut self, hoards: HashMap<String, Hoard>) -> Self {
-    //    tracing::trace!(?hoards, "setting hoards");
-    //    self.hoards = Some(hoards);
-    //    self
-    //}
+    /// Set the hoards map.
+    #[must_use]
+    pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
+        tracing::trace!(?hoards, "setting hoards");
+        self.hoards = Some(hoards);
+        self
+    }
 
     /// Set the directory that will contain all game save data.
     #[must_use]
-    pub fn set_hoards_root(mut self, path: PathBuf) -> Self {
+    pub fn set_hoards_root(mut self, path: HoardPath) -> Self {
         // grcov: ignore-start
         tracing::trace!(
             hoards_root = ?path,
@@ -382,6 +280,18 @@ impl Builder {
         );
         // grcov: ignore-end
         self.hoards_root = Some(path);
+        self
+    }
+
+    /// Set the environments map for this `Builder`.
+    ///
+    /// The map associates an environment name with the [`Environment`] definition.
+    #[must_use]
+    pub fn set_environments(mut self, environments: BTreeMap<String, Environment>) -> Self {
+        // grcov: ignore-start
+        tracing::trace!(?environments, "setting environments");
+        // grcov: ignore-end
+        self.environments = Some(environments);
         self
     }
 
@@ -423,24 +333,32 @@ impl Builder {
     /// # Errors
     ///
     /// Any error that occurs while evaluating the environments.
-    fn evaluated_environments(
-        &self,
-    ) -> Result<HashMap<String, bool>, <Environment as TryInto<bool>>::Error> {
+    fn evaluated_environments(&self) -> Result<BTreeMap<String, bool>, Error> {
         let _span = tracing::trace_span!("eval_env").entered();
         if let Some(envs) = &self.environments {
+            if envs.contains_key(CONFIG_KEY) {
+                return Err(Error::NameConfigNotAllowed(vec![
+                    String::from("envs"),
+                    CONFIG_KEY.to_string(),
+                ]));
+            }
+
             for (key, env) in envs {
                 tracing::trace!(%key, %env);
             }
         }
 
-        self.environments.as_ref().map_or_else(
-            || Ok(HashMap::new()),
-            |map| {
-                map.iter()
-                    .map(|(key, env)| Ok((key.clone(), env.clone().try_into()?)))
-                    .collect()
-            },
-        )
+        self.environments
+            .as_ref()
+            .map_or_else(
+                || Ok(BTreeMap::new()),
+                |map| {
+                    map.iter()
+                        .map(|(key, env)| Ok((key.clone(), env.clone().try_into()?)))
+                        .collect()
+                },
+            )
+            .map_err(Error::Environment)
     }
 
     /// Build this [`Builder`] into a [`Config`].
@@ -452,7 +370,7 @@ impl Builder {
         tracing::debug!("building configuration from builder");
         let environments = self.evaluated_environments()?;
         tracing::debug!(?environments);
-        let exclusivity = self.exclusivity.unwrap_or_else(Vec::new);
+        let exclusivity = self.exclusivity.unwrap_or_default();
         tracing::debug!(?exclusivity);
         let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
         tracing::debug!(?hoards_root);
@@ -473,11 +391,26 @@ impl Builder {
         tracing::debug!("processing hoards...");
         let hoards = self
             .hoards
-            .unwrap_or_else(HashMap::new)
+            .unwrap_or_default()
             .into_iter()
             .map(|(name, hoard)| {
                 let _span = tracing::debug_span!("processing_hoard", %name).entered();
-                Ok((name, hoard.process_with(&environments, &exclusivity)?))
+
+                if name == CONFIG_KEY {
+                    Err(Error::NameConfigNotAllowed(vec![
+                        HOARDS_KEY.to_string(),
+                        CONFIG_KEY.to_string(),
+                    ]))
+                } else {
+                    match hoard.process_with(&environments, &exclusivity) {
+                        Err(Error::NameConfigNotAllowed(old_list)) => {
+                            let mut list = vec![HOARDS_KEY.to_string(), name];
+                            list.extend(old_list);
+                            Err(Error::NameConfigNotAllowed(list))
+                        }
+                        result => result.map(|hoard| (name, hoard)),
+                    }
+                }
             })
             .collect::<Result<_, Error>>()?;
         tracing::debug!("processed hoards");
@@ -498,6 +431,7 @@ mod tests {
 
     mod builder {
         use super::*;
+        use crate::paths::RelativePath;
 
         fn get_default_populated_builder() -> Builder {
             Builder {
@@ -514,7 +448,10 @@ mod tests {
 
         fn get_non_default_populated_builder() -> Builder {
             Builder {
-                hoards_root: Some(PathBuf::from("/testing/saves")),
+                hoards_root: Some(
+                    hoards_dir()
+                        .join(&RelativePath::try_from(PathBuf::from("testing/saves")).unwrap()),
+                ),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 command: Some(Command::Restore {
                     hoards: vec!["test".into()],
@@ -592,7 +529,8 @@ mod tests {
         fn builder_saves_root_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(None, builder.hoards_root, "saves_root should start as None");
-            let path = PathBuf::from("/testing/saves");
+            let path =
+                hoards_dir().join(&RelativePath::try_from(PathBuf::from("testing/saves")).unwrap());
             builder = builder.set_hoards_root(path.clone());
             assert_eq!(
                 Some(path),
@@ -649,62 +587,79 @@ mod tests {
         }
     }
 
-    mod test_value {
-        // This provides coverage for the base cases where something is not a map
-        // The integration tests provide coverage for the map cases.
+    mod test_invalid_items_named_config {
+        use super::super::hoard::{MultipleEntries, Pile};
         use super::*;
 
-        fn yaml_value() -> Value {
-            Value::Yaml(serde_yaml::Value::String("string value".into()))
-        }
-
-        fn toml_value() -> Value {
-            Value::Toml(toml::Value::Array(vec![
-                toml::Value::Integer(0),
-                toml::Value::Integer(1),
-                toml::Value::Integer(2),
-            ]))
-        }
-
         #[test]
-        fn test_value_is_map() {
-            assert!(!yaml_value().is_map());
-            assert!(!toml_value().is_map());
-        }
+        fn test_env_named_config() {
+            let builder = Builder {
+                environments: Some(
+                    maplit::btreemap! { String::from("config") => Environment::default() },
+                ),
+                ..Builder::default()
+            };
 
-        #[test]
-        fn test_value_get() {
-            assert!(yaml_value().get("0").is_none());
-            assert!(toml_value().get("0").is_none());
-        }
-
-        #[test]
-        fn test_value_has_key() {
-            assert!(!yaml_value().has_key("0"));
-            assert!(!toml_value().has_key("0"));
-        }
-
-        #[test]
-        fn test_value_iter_map() {
-            assert_eq!(
-                0,
-                yaml_value()
-                    .iter_map()
-                    .chain(toml_value().iter_map())
-                    .count()
+            let error = builder.build().expect_err(
+                "expected building to fail because an environment called \"config\" was defined",
             );
+
+            match error {
+                Error::NameConfigNotAllowed(list) => {
+                    assert_eq!(list, vec![String::from("envs"), String::from("config")]);
+                }
+                _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
+            }
         }
 
         #[test]
-        fn test_value_deserialize() {
-            assert_eq!(
-                String::from("string value"),
-                yaml_value().deserialize::<String>().unwrap()
+        fn test_hoard_named_config() {
+            let builder = Builder {
+                hoards: Some(maplit::btreemap! {
+                    String::from("config") => Hoard::Single(Pile { config: None, items: BTreeMap::new() })
+                }),
+                ..Builder::default()
+            };
+
+            let error = builder.build().expect_err(
+                "expected building to fail because a hoard called \"config\" was defined",
             );
-            assert_eq!(
-                vec![0, 1, 2],
-                toml_value().deserialize::<Vec<i32>>().unwrap()
+
+            match error {
+                Error::NameConfigNotAllowed(list) => {
+                    assert_eq!(list, vec![String::from("hoards"), String::from("config")]);
+                }
+                _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
+            }
+        }
+
+        #[test]
+        fn test_pile_named_config() {
+            let builder = Builder {
+                hoards: Some(maplit::btreemap! {
+                    String::from("invalid_pile") => Hoard::Multiple(MultipleEntries {
+                        config: None,
+                        items: maplit::btreemap! { String::from("config") => Pile { config: None, items: BTreeMap::new() }}
+                    })
+                }),
+                ..Builder::default()
+            };
+
+            let error = builder.build().expect_err(
+                "expected building to fail because a hoard called \"config\" was defined",
             );
+
+            match error {
+                Error::NameConfigNotAllowed(list) => assert_eq!(
+                    list,
+                    vec![
+                        String::from("hoards"),
+                        String::from("invalid_pile"),
+                        String::from("config")
+                    ]
+                ),
+                _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
+            }
         }
     }
 }

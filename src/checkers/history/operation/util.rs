@@ -1,3 +1,5 @@
+//! Helpful functions to use while working with [`Operation`](super::Operation) log files.
+
 use super::{Error, Operation};
 use crate::checkers::history::get_history_root_dir;
 use crate::checkers::history::operation::OperationImpl;
@@ -12,19 +14,28 @@ use std::{fs, io};
 use time::format_description::FormatItem;
 use uuid::Uuid;
 
-pub(crate) static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
+/// The format that should be used when converting an [`Operation`](super::Operation)'s timestamp
+/// into a file name.
+pub static TIME_FORMAT: Lazy<Vec<FormatItem<'static>>> = Lazy::new(|| {
     time::format_description::parse(
         "[year]_[month]_[day]-[hour repr:24]_[minute]_[second].[subsecond digits:6]",
     )
     .unwrap()
 });
 
+/// A regular expression that can be used to determine that a file name represents an
+/// [`Operation`](super::Operation) log file.
+///
+/// Rather than using this directly, see [`file_is_log`].
 pub(crate) static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new("^[0-9]{4}(_[0-9]{2}){2}-([0-9]{2}_){2}([0-9]{2})\\.[0-9]{6}\\.log$")
         .expect("invalid log file regex")
 });
 
-pub(crate) fn file_is_log(path: &Path) -> bool {
+/// Inspects the file name portion of the `path` to determine if it matches the format used
+/// for [`Operation`](super::Operation) log files.
+#[must_use]
+pub fn file_is_log(path: &Path) -> bool {
     let _span = tracing::trace_span!("file_is_log", ?path).entered();
     let result = path.is_file()
         && match path.file_name() {
@@ -186,20 +197,36 @@ fn all_operations() -> io::Result<impl Iterator<Item = Result<Operation, Error>>
             Ok(Err(err)) => Err(err),
             Ok(Ok(result)) => Ok(result),
         });
+
     Ok(iter)
 }
 
-pub(crate) fn upgrade_operations() -> Result<(), Error> {
-    let mut file_checksum_map = HashMap::new();
-    let mut file_set = HashSet::new();
+fn sorted_operations() -> Result<Vec<Operation>, Error> {
+    let mut list: Vec<Operation> = all_operations()?.collect::<Result<_, _>>()?;
+    list.sort_unstable_by_key(Operation::timestamp);
+    Ok(list)
+}
 
-    let all_ops: Vec<_> = all_operations()?.collect::<Result<_, _>>()?;
+pub(crate) fn upgrade_operations() -> Result<(), Error> {
+    let mut top_file_checksum_map = HashMap::new();
+    let mut top_file_set = HashMap::new();
+
+    let all_ops: Vec<_> = sorted_operations()?;
     tracing::trace!("found operations: {:?}", all_ops);
 
     for operation in all_ops {
-        //let operation = operation?;
+        if !top_file_checksum_map.contains_key(operation.hoard_name()) {
+            top_file_checksum_map.insert(operation.hoard_name().to_string(), HashMap::new());
+            top_file_set.insert(operation.hoard_name().to_string(), HashSet::new());
+        }
+        let file_checksum_map = top_file_checksum_map
+            .get_mut(operation.hoard_name())
+            .expect("checksum map should always exist");
+        let file_set = top_file_set
+            .get_mut(operation.hoard_name())
+            .expect("file set should always exist");
         tracing::trace!(?operation, "converting operation");
-        let operation = operation.convert_to_latest_version(&mut file_checksum_map, &mut file_set);
+        let operation = operation.convert_to_latest_version(file_checksum_map, file_set);
         tracing::trace!(?operation, "converted operation");
         operation.commit_to_disk()?;
     }

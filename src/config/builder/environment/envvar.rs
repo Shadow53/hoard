@@ -50,7 +50,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[serial_test::serial]
     fn test_display_env_no_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
@@ -60,7 +59,6 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_display_env_with_value() {
         let env = EnvVariable {
             var: "TESTING_VAR".to_string(),
@@ -70,61 +68,59 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_set() {
-        for (var, _) in std::env::vars() {
-            let is_set: bool = EnvVariable {
-                var,
-                expected: None,
-            }
-            .try_into()
-            .expect("failed to check environment variable");
-            assert!(is_set);
+        let var = String::from("HOARD_ENV_IS_SET");
+        std::env::set_var(&var, "true");
+        let is_set: bool = EnvVariable {
+            var,
+            expected: None,
         }
+        .try_into()
+        .expect("failed to check environment variable");
+        assert!(is_set);
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_set_to_value() {
-        for (var, val) in std::env::vars() {
-            let is_set: bool = EnvVariable {
-                var,
-                expected: Some(val),
-            }
-            .try_into()
-            .expect("failed to check environment variable");
-            assert!(is_set);
+        let var = String::from("HOARD_ENV_IS_SET_TO");
+        let value = String::from("set to this");
+        std::env::set_var(&var, &value);
+        let is_set: bool = EnvVariable {
+            var,
+            expected: Some(value),
         }
+        .try_into()
+        .expect("failed to check environment variable");
+        assert!(is_set);
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_not_set() {
-        for (var, val) in std::env::vars() {
-            std::env::remove_var(&var);
-            let is_set: bool = EnvVariable {
-                var: var.clone(),
-                expected: None,
-            }
-            .try_into()
-            .expect("failed to check environment variable");
-            std::env::set_var(&var, val);
-            assert!(!is_set);
+        let var = String::from("HOARD_ENV_NOT_SET");
+        assert!(
+            std::env::var_os(&var).is_none(),
+            "env var {} should not be set",
+            var
+        );
+        let is_set: bool = EnvVariable {
+            var,
+            expected: None,
         }
+        .try_into()
+        .expect("failed to check environment variable");
+        assert!(!is_set);
     }
 
     #[test]
-    #[serial_test::serial]
     fn test_env_variable_is_not_set_to_value() {
-        for (var, val) in std::env::vars() {
-            std::env::set_var(&var, format!("{}_invalid", val));
-            let is_set: bool = EnvVariable {
-                var,
-                expected: Some(val),
-            }
-            .try_into()
-            .expect("failed to check environment variable");
-            assert!(!is_set);
+        let var = String::from("HOARD_ENV_WRONG_VALUE");
+        std::env::set_var(&var, "unexpected value");
+        let is_set: bool = EnvVariable {
+            var,
+            expected: Some(String::from("wrong value")),
         }
+        .try_into()
+        .expect("failed to check environment variable");
+        assert!(!is_set);
     }
 }

@@ -54,7 +54,7 @@ impl Filter for IgnoreFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hoard_file::ChecksumType;
+    use crate::hoard_item::ChecksumType;
 
     #[test]
     fn test_filter_derives() {

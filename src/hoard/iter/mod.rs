@@ -7,7 +7,7 @@ mod diff_files;
 mod operation;
 
 //pub(crate) use all_files::AllFilesIter;
-pub(crate) use crate::hoard_file::HoardFile;
+pub(crate) use crate::hoard_item::HoardItem;
 pub(crate) use diff_files::{DiffSource, HoardDiffIter, HoardFileDiff};
 use macros::propagate_error;
 pub(crate) use operation::{OperationIter, OperationType};

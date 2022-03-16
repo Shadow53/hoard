@@ -3,20 +3,12 @@
 pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
-use directories::ProjectDirs;
+use crate::paths::HoardPath;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 
 pub mod builder;
-
-/// Get the project directories for this project.
-#[must_use]
-pub fn get_dirs() -> ProjectDirs {
-    tracing::trace!("determining project default folders");
-    ProjectDirs::from("com", "shadow53", "hoard")
-        .expect("could not detect user home directory to place program files")
-}
 
 /// Errors that can occur while working with a [`Config`].
 #[derive(Debug, Error)]
@@ -40,13 +32,13 @@ pub struct Config {
     /// The command to run.
     pub command: Command,
     /// The root directory to backup/restore hoards from.
-    hoards_root: PathBuf,
+    pub hoards_root: HoardPath,
     /// Path to a configuration file.
-    config_file: PathBuf,
+    pub config_file: PathBuf,
     /// All of the configured hoards.
-    hoards: HashMap<String, Hoard>,
+    pub hoards: HashMap<String, Hoard>,
     /// Whether to force the operation to continue despite possible inconsistencies.
-    force: bool,
+    pub force: bool,
 }
 
 impl Default for Config {
@@ -93,7 +85,7 @@ impl Config {
 
     /// The path to the configured hoards root.
     #[must_use]
-    pub fn get_hoards_root_path(&self) -> PathBuf {
+    pub fn get_hoards_root_path(&self) -> HoardPath {
         self.hoards_root.clone()
     }
 

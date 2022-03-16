@@ -1,14 +1,14 @@
 use crate::checkers::history::operation::{Operation, OperationImpl};
 use crate::diff::{diff_files, Diff};
 use crate::hoard::iter::all_files::AllFilesIter;
-use crate::hoard::iter::HoardFile;
+use crate::hoard::iter::HoardItem;
 use crate::hoard::Hoard;
 use std::cmp::Ordering;
 use std::fs::Permissions;
-use std::path::Path;
 use std::{fmt, fs};
 use tracing::trace_span;
 
+use crate::paths::HoardPath;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
@@ -34,35 +34,35 @@ impl fmt::Display for DiffSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum HoardFileDiff {
     BinaryModified {
-        file: HoardFile,
+        file: HoardItem,
         diff_source: DiffSource,
     },
     TextModified {
-        file: HoardFile,
+        file: HoardItem,
         unified_diff: String,
         diff_source: DiffSource,
     },
     PermissionsModified {
-        file: HoardFile,
+        file: HoardItem,
         hoard_perms: Permissions,
         system_perms: Permissions,
         diff_source: DiffSource,
     },
     Created {
-        file: HoardFile,
+        file: HoardItem,
         unified_diff: Option<String>,
         diff_source: DiffSource,
     },
     Recreated {
-        file: HoardFile,
+        file: HoardItem,
         unified_diff: Option<String>,
         diff_source: DiffSource,
     },
     Deleted {
-        file: HoardFile,
+        file: HoardItem,
         diff_source: DiffSource,
     },
-    Unchanged(HoardFile),
+    Unchanged(HoardItem),
 }
 
 #[cfg(unix)]
@@ -207,6 +207,7 @@ pub(crate) struct HoardDiffIter {
 
 #[allow(clippy::struct_excessive_bools)]
 struct ProcessedFile {
+    deleted_remotely: bool,
     has_same_permissions: bool,
     has_remote_changes: bool,
     has_hoard_records: bool,
@@ -216,7 +217,7 @@ struct ProcessedFile {
 
 impl HoardDiffIter {
     pub(crate) fn new(
-        hoards_root: &Path,
+        hoards_root: &HoardPath,
         hoard_name: String,
         hoard: &Hoard,
     ) -> Result<Self, super::Error> {
@@ -235,7 +236,7 @@ impl HoardDiffIter {
         self.filter(|diff| !matches!(diff, Ok(HoardFileDiff::Unchanged(_))))
     }
 
-    fn process_file(hoard_name: &str, file: &HoardFile) -> Result<ProcessedFile, super::Error> {
+    fn process_file(hoard_name: &str, file: &HoardItem) -> Result<ProcessedFile, super::Error> {
         let _span = tracing::trace_span!("process_file", ?file).entered();
         let has_same_permissions = {
             let hoard_perms = fs::File::open(file.hoard_path())
@@ -254,16 +255,27 @@ impl HoardDiffIter {
                 .map(fs::Metadata::permissions);
             hoard_perms == system_perms
         };
-        let has_remote_changes =
-            Operation::file_has_remote_changes(hoard_name, file.pile_name(), file.relative_path())
-                .map_err(Box::new)?;
+
+        let latest_remote = Operation::latest_remote_backup(
+            hoard_name,
+            Some((file.pile_name(), file.relative_path())),
+            true,
+        )
+        .map_err(Box::new)?;
         let has_hoard_records =
             Operation::file_has_records(hoard_name, file.pile_name(), file.relative_path())
                 .map_err(Box::new)?;
         let local_record =
             Operation::latest_local(hoard_name, Some((file.pile_name(), file.relative_path())))
                 .map_err(Box::new)?;
+        let has_remote_changes =
+            Operation::file_has_remote_changes(hoard_name, file.pile_name(), file.relative_path())
+                .map_err(Box::new)?;
         let has_local_records = local_record.is_some();
+        let deleted_remotely = latest_remote.map_or(false, |op| {
+            op.checksum_for(file.pile_name(), file.relative_path())
+                .is_none()
+        });
 
         let has_local_content_changes = if let Some(operation) = local_record {
             tracing::trace!(
@@ -276,13 +288,12 @@ impl HoardDiffIter {
 
             if let Some(checksum) = checksum {
                 tracing::trace!(
-                    "{} ({}) previously had checksum {} on this system",
+                    "{} previously had checksum {} on this system",
                     file.system_path().display(),
-                    file.relative_path().display(),
                     checksum
                 );
                 file.system_checksum(checksum.typ())?
-                    .map_or(false, |new_hash| {
+                    .map_or(true, |new_hash| {
                         tracing::trace!(
                             "{} currently has checksum {}",
                             file.system_path().display(),
@@ -300,6 +311,7 @@ impl HoardDiffIter {
         };
 
         Ok(ProcessedFile {
+            deleted_remotely,
             has_same_permissions,
             has_remote_changes,
             has_hoard_records,
@@ -336,12 +348,22 @@ impl Iterator for HoardDiffIter {
             let file_data = super::propagate_error!(Self::process_file(&self.hoard_name, &file));
 
             let ProcessedFile {
+                deleted_remotely,
                 has_same_permissions,
                 has_remote_changes,
                 has_hoard_records,
                 has_local_records,
                 has_local_content_changes,
             } = file_data;
+
+            // Short-circuit: if deleted from hoard without being deleted remotely,
+            // is deleted from unknown source.
+            if has_hoard_records && !deleted_remotely && !file.hoard_path().exists() {
+                return Some(Ok(HoardFileDiff::Deleted {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }));
+            }
 
             let diff_source = if has_remote_changes {
                 if has_local_content_changes || !has_same_permissions {
