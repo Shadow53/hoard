@@ -1,9 +1,7 @@
 //! Types for working with files that are managed by Hoard.
 
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use md5::Digest as _;
 use serde::{Deserialize, Serialize};
-use sha2::Digest as _;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::{fmt, fs, io};
@@ -293,13 +291,13 @@ impl HoardItem {
     }
 
     fn md5(content: &[u8]) -> Checksum {
-        let digest = md5::Md5::digest(content);
+        let digest = <md5::Md5 as md5::Digest>::digest(content);
         let hash = format!("{:x}", digest);
         Checksum::MD5(hash)
     }
 
     fn sha256(content: &[u8]) -> Checksum {
-        let digest = sha2::Sha256::digest(content);
+        let digest = <sha2::Sha256 as sha2::Digest>::digest(content);
         let hash = format!("{:x}", digest);
         Checksum::SHA256(hash)
     }
