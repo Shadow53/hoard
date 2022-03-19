@@ -1,6 +1,7 @@
 use super::{HoardDiffIter, HoardItem};
 use crate::hoard::iter::{DiffSource, HoardFileDiff};
 use crate::hoard::{Direction, Hoard};
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +20,7 @@ pub(crate) struct OperationIter {
 impl OperationIter {
     pub(crate) fn new(
         hoards_root: &HoardPath,
-        hoard_name: String,
+        hoard_name: HoardName,
         hoard: &Hoard,
         direction: Direction,
     ) -> Result<Self, super::Error> {

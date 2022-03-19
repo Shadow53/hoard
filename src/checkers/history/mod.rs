@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use std::{fs, io};
 use uuid::Uuid;
+use crate::paths::{HoardPath, RelativePath};
 
 pub mod last_paths;
 pub mod operation;
@@ -16,17 +17,18 @@ fn get_uuid_file() -> PathBuf {
     crate::dirs::config_dir().join(UUID_FILE_NAME)
 }
 
-fn get_history_root_dir() -> PathBuf {
+fn get_history_root_dir() -> HoardPath {
     let _span = tracing::debug_span!("get_history_root_dir").entered();
-    crate::dirs::data_dir().join(HISTORY_DIR_NAME)
+    HoardPath::try_from(crate::dirs::data_dir().join(HISTORY_DIR_NAME))
+        .expect("directory rooted in the data dir is always a valid hoard path")
 }
 
-fn get_history_dir_for_id(id: Uuid) -> PathBuf {
+fn get_history_dir_for_id(id: Uuid) -> HoardPath {
     let _span = tracing::debug_span!("get_history_dir_for_id", %id).entered();
-    get_history_root_dir().join(id.to_string())
+    get_history_root_dir().join(&RelativePath::try_from(PathBuf::from(id.to_string())).expect("uuid is always a valid relative path"))
 }
 
-fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<PathBuf>, io::Error> {
+fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {
     let _span = tracing::debug_span!("get_history_dir_not_for_id", %id).entered();
     let root = get_history_root_dir();
     if !root.exists() {
@@ -46,7 +48,10 @@ fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<PathBuf>, io::Error> {
                             // id.
                             Uuid::parse_str(file_str)
                                 .ok()
-                                .and_then(|other_id| (&other_id != id).then(|| Ok(path.clone())))
+                                .and_then(|other_id| (&other_id != id).then(|| Ok({
+                                    HoardPath::try_from(path.clone())
+                                        .expect("dir entries based in a HoardPath are always valid HoardPaths")
+                                })))
                         })
                     })
                 }

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
 use std::path::Path;
 use std::{fmt, fs, io};
+use crate::newtypes::PileName;
 
 /// The types of checksums supported by Hoard.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
@@ -69,7 +70,7 @@ impl fmt::Display for Checksum {
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HoardItem {
-    pile_name: Option<String>,
+    pile_name: PileName,
     hoard_prefix: HoardPath,
     system_prefix: SystemPath,
     hoard_path: HoardPath,
@@ -89,7 +90,7 @@ impl HoardItem {
     ///   `relative_path` is `Some(dir/some_file)`. If `a_pile` is a file, `relative_path == None`.
     #[must_use]
     pub fn new(
-        pile_name: Option<String>,
+        pile_name: PileName,
         hoard_prefix: HoardPath,
         system_prefix: SystemPath,
         relative_path: RelativePath,
@@ -112,8 +113,8 @@ impl HoardItem {
 
     /// Returns the name of the pile this item belongs to, if any.
     #[must_use]
-    pub fn pile_name(&self) -> Option<&str> {
-        self.pile_name.as_deref()
+    pub fn pile_name(&self) -> &PileName {
+        &self.pile_name
     }
 
     /// Returns the relative path for this item.
@@ -139,7 +140,7 @@ impl HoardItem {
     /// If [`HoardItem::relative_path()`] is `None`, this is the same as
     /// [`HoardItem::hoard_prefix()`].
     #[must_use]
-    pub fn hoard_path(&self) -> &Path {
+    pub fn hoard_path(&self) -> &HoardPath {
         &self.hoard_path
     }
 
@@ -148,7 +149,7 @@ impl HoardItem {
     /// If [`HoardItem::relative_path()`] is `None`, this is the same as
     /// [`HoardItem::system_prefix()`].
     #[must_use]
-    pub fn system_path(&self) -> &Path {
+    pub fn system_path(&self) -> &SystemPath {
         &self.system_path
     }
 

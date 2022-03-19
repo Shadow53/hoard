@@ -12,8 +12,8 @@ use crate::hoard::Direction;
 use crate::paths::RelativePath;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use time::OffsetDateTime;
+use crate::newtypes::{HoardName, PileName};
 
 /// A single operation log.
 ///
@@ -28,7 +28,7 @@ pub struct OperationV1 {
     /// Whether this operation was a backup
     pub is_backup: bool,
     /// The name of the hoard for this `HoardOperation`.
-    pub hoard_name: String,
+    pub hoard_name: HoardName,
     /// Mapping of pile files to checksums
     #[allow(dead_code)]
     pub hoard: Hoard,
@@ -45,16 +45,15 @@ impl super::OperationImpl for OperationV1 {
 
     fn contains_file(
         &self,
-        pile_name: Option<&str>,
+        pile_name: &PileName,
         rel_path: &RelativePath,
         _only_modified: bool,
     ) -> bool {
-        let rel_path = rel_path.to_path_buf();
-        match (pile_name, &self.hoard) {
-            (None, Hoard::Anonymous(pile)) => pile.0.contains_key(&rel_path),
-            (Some(name), Hoard::Named(piles)) => piles
-                .get(name)
-                .map_or(false, |pile| pile.0.contains_key(&rel_path)),
+        match (pile_name.is_anonymous(), &self.hoard) {
+            (true, Hoard::Anonymous(pile)) => pile.0.contains_key(rel_path),
+            (false, Hoard::Named(piles)) => piles
+                .get(pile_name)
+                .map_or(false, |pile| pile.0.contains_key(rel_path)),
             _ => false,
         }
     }
@@ -63,20 +62,19 @@ impl super::OperationImpl for OperationV1 {
         self.timestamp
     }
 
-    fn hoard_name(&self) -> &str {
+    fn hoard_name(&self) -> &HoardName {
         &self.hoard_name
     }
 
-    fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum> {
-        let rel_path = rel_path.to_path_buf();
-        match (pile_name, &self.hoard) {
-            (None, Hoard::Anonymous(pile)) => pile
+    fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
+        match (pile_name.is_anonymous(), &self.hoard) {
+            (true, Hoard::Anonymous(pile)) => pile
                 .0
-                .get(&rel_path)
+                .get(rel_path)
                 .map(|md5| Checksum::MD5(md5.to_string())),
-            (Some(name), Hoard::Named(piles)) => piles.get(name).and_then(|pile| {
+            (false, Hoard::Named(piles)) => piles.get(pile_name).and_then(|pile| {
                 pile.0
-                    .get(&rel_path)
+                    .get(rel_path)
                     .map(|md5| Checksum::MD5(md5.to_string()))
             }),
             _ => None,
@@ -88,18 +86,16 @@ impl super::OperationImpl for OperationV1 {
         match &self.hoard {
             Hoard::Anonymous(pile) => Box::new(pile.0.iter().map(move |(rel_path, md5)| {
                 OperationFileInfo {
-                    pile_name: None,
-                    relative_path: RelativePath::try_from(rel_path.clone())
-                        .expect("v1 Operation relative path should always be valid"),
+                    pile_name: PileName::anonymous(),
+                    relative_path: rel_path.clone(),
                     checksum: Some(Checksum::MD5(md5.clone())),
                 }
             })),
             Hoard::Named(piles) => Box::new({
                 piles.iter().flat_map(move |(pile_name, pile)| {
                     pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
-                        pile_name: Some(pile_name.clone()),
-                        relative_path: RelativePath::try_from(rel_path.clone())
-                            .expect("v1 Operation relative path should always be valid"),
+                        pile_name: pile_name.clone(),
+                        relative_path: rel_path.clone(),
                         checksum: Some(Checksum::MD5(md5.clone())),
                     })
                 })
@@ -116,15 +112,15 @@ pub enum Hoard {
     /// Information for a single, anonymous pile.
     Anonymous(Pile),
     /// Information for some number of named piles.
-    Named(HashMap<String, Pile>),
+    Named(HashMap<PileName, Pile>),
 }
 
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Pile(pub(super) HashMap<PathBuf, String>);
+pub struct Pile(pub(super) HashMap<RelativePath, String>);
 
-impl From<HashMap<PathBuf, String>> for Pile {
-    fn from(map: HashMap<PathBuf, String>) -> Self {
+impl From<HashMap<RelativePath, String>> for Pile {
+    fn from(map: HashMap<RelativePath, String>) -> Self {
         Pile(map)
     }
 }

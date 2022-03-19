@@ -216,8 +216,8 @@ pub(crate) fn upgrade_operations() -> Result<(), Error> {
 
     for operation in all_ops {
         if !top_file_checksum_map.contains_key(operation.hoard_name()) {
-            top_file_checksum_map.insert(operation.hoard_name().to_string(), HashMap::new());
-            top_file_set.insert(operation.hoard_name().to_string(), HashSet::new());
+            top_file_checksum_map.insert(operation.hoard_name().clone(), HashMap::new());
+            top_file_set.insert(operation.hoard_name().clone(), HashSet::new());
         }
         let file_checksum_map = top_file_checksum_map
             .get_mut(operation.hoard_name())

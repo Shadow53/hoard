@@ -1,11 +1,11 @@
 //! See [`PathExists`].
 
-use crate::env_vars::expand_env_in_path;
 use crate::paths::SystemPath;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
+use crate::env_vars::PathWithEnv;
 
 struct PathExistsVisitor;
 
@@ -28,7 +28,7 @@ impl<'de> de::Visitor<'de> for PathExistsVisitor {
         E: de::Error,
     {
         tracing::trace!("parsing path_exists item {}", s);
-        let inner = expand_env_in_path(s).ok();
+        let inner = PathWithEnv::from(s).process().ok();
         Ok(PathExists(inner))
     }
 }

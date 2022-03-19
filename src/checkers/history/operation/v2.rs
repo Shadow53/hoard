@@ -15,8 +15,8 @@ use crate::paths::{HoardPath, RelativePath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::path::Path;
 use time::OffsetDateTime;
+use crate::newtypes::{HoardName, PileName};
 
 use super::Error;
 
@@ -35,7 +35,7 @@ pub struct OperationV2 {
     /// Which direction this operation went
     direction: Direction,
     /// The name of the hoard for this `HoardOperation`.
-    hoard: String,
+    hoard: HoardName,
     /// Mapping of pile files to checksums
     files: Hoard,
 }
@@ -43,14 +43,14 @@ pub struct OperationV2 {
 impl OperationV2 {
     pub(super) fn new(
         hoards_root: &HoardPath,
-        name: &str,
+        name: &HoardName,
         hoard: &ConfigHoard,
         direction: Direction,
     ) -> Result<Self, Error> {
         Ok(Self {
             timestamp: OffsetDateTime::now_utc(),
             direction,
-            hoard: name.into(),
+            hoard: name.clone(),
             files: Hoard::new(hoards_root, name, hoard, direction)?,
         })
     }
@@ -66,8 +66,8 @@ impl OperationV2 {
     ///   as an optimization technique while determining which files were created or deleted.
     #[allow(clippy::needless_pass_by_value)]
     pub fn from_v1(
-        file_checksums: &mut HashMap<(Option<String>, RelativePath), Option<Checksum>>,
-        file_set: &mut HashSet<(Option<String>, RelativePath)>,
+        file_checksums: &mut HashMap<(PileName, RelativePath), Option<Checksum>>,
+        file_set: &mut HashSet<(PileName, RelativePath)>,
         old_v1: super::v1::OperationV1,
     ) -> Self {
         let mut these_files = HashSet::new();
@@ -103,7 +103,7 @@ impl OperationV2 {
             these_files.insert(pile_file);
         }
 
-        let deleted: HashMap<Option<String>, HashSet<RelativePath>> = file_set
+        let deleted: HashMap<PileName, HashSet<RelativePath>> = file_set
             .difference(&these_files)
             .fold(HashMap::new(), |mut acc, (pile_name, rel_path)| {
                 acc.entry(pile_name.clone())
@@ -119,7 +119,7 @@ impl OperationV2 {
         }
 
         let files = if is_anonymous {
-            Hoard::Anonymous(files.remove(&None).unwrap_or_else(|| {
+            Hoard::Anonymous(files.remove(&PileName::anonymous()).unwrap_or_else(|| {
                 let mut pile = Pile::new();
                 pile.add_deleted(RelativePath::none());
                 pile
@@ -128,7 +128,6 @@ impl OperationV2 {
             Hoard::Named(
                 files
                     .into_iter()
-                    .filter_map(|(name, pile)| name.map(|name| (name, pile)))
                     .collect(),
             )
         };
@@ -136,7 +135,7 @@ impl OperationV2 {
         Self {
             timestamp: old_v1.timestamp(),
             direction: old_v1.direction(),
-            hoard: old_v1.hoard_name().to_string(),
+            hoard: old_v1.hoard_name().clone(),
             files,
         }
     }
@@ -149,7 +148,7 @@ impl OperationImpl for OperationV2 {
 
     fn contains_file(
         &self,
-        pile_name: Option<&str>,
+        pile_name: &PileName,
         rel_path: &RelativePath,
         only_modified: bool,
     ) -> bool {
@@ -162,11 +161,11 @@ impl OperationImpl for OperationV2 {
         self.timestamp
     }
 
-    fn hoard_name(&self) -> &str {
+    fn hoard_name(&self) -> &HoardName {
         &self.hoard
     }
 
-    fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum> {
+    fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
         self.files
             .get_pile(pile_name)
             .and_then(|pile| pile.checksum_for(rel_path))
@@ -176,7 +175,7 @@ impl OperationImpl for OperationV2 {
         match &self.files {
             Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(
                 move |(path, checksum)| OperationFileInfo {
-                    pile_name: None,
+                    pile_name: PileName::anonymous(),
                     relative_path: path.clone(),
                     checksum,
                 },
@@ -184,7 +183,7 @@ impl OperationImpl for OperationV2 {
             Hoard::Named(piles) => Box::new(piles.iter().flat_map(move |(pile_name, pile)| {
                 pile.all_files_with_checksums()
                     .map(move |(path, checksum)| OperationFileInfo {
-                        pile_name: Some(pile_name.to_string()),
+                        pile_name: pile_name.clone(),
                         relative_path: path.clone(),
                         checksum,
                     })
@@ -198,36 +197,35 @@ impl OperationImpl for OperationV2 {
 #[allow(variant_size_differences)]
 enum Hoard {
     Anonymous(Pile),
-    Named(HashMap<String, Pile>),
+    Named(HashMap<PileName, Pile>),
 }
 
 impl Hoard {
     fn get_or_create_pile<'a>(
-        map: &'a mut HashMap<String, Pile>,
-        pile_name: Option<&str>,
+        map: &'a mut HashMap<PileName, Pile>,
+        pile_name: &PileName,
     ) -> &'a mut Pile {
-        let pile_name = pile_name.unwrap_or("");
         if !map.contains_key(pile_name) {
-            map.insert(pile_name.to_string(), Pile::default());
+            map.insert(pile_name.clone(), Pile::default());
         }
         map.get_mut(pile_name).unwrap()
     }
 
-    fn require_checksum(checksum: Option<Checksum>, path: &Path) -> Result<Checksum, Error> {
+    fn require_checksum(checksum: Option<Checksum>, path: &RelativePath) -> Result<Checksum, Error> {
         checksum.ok_or_else(|| {
             Error::IO(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("could not find {}", path.display()),
+                format!("could not find {}", path),
             ))
         })
     }
 
     fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardItem) -> ChecksumType {
-        match (hoard, hoard_file.pile_name()) {
-            (ConfigHoard::Anonymous(pile), None) => pile.config.checksum_type,
-            (ConfigHoard::Named(piles), Some(pile_name)) => piles
+        match (hoard, hoard_file.pile_name().is_anonymous()) {
+            (ConfigHoard::Anonymous(pile), true) => pile.config.checksum_type,
+            (ConfigHoard::Named(piles), false) => piles
                 .piles
-                .get(pile_name)
+                .get(hoard_file.pile_name())
                 .map(|pile| pile.config.checksum_type)
                 .expect("provided pile name should always be in hoard"),
             (hoard, pile_name) => panic!(
@@ -239,14 +237,14 @@ impl Hoard {
 
     fn new(
         hoards_root: &HoardPath,
-        hoard_name: &str,
+        hoard_name: &HoardName,
         hoard: &crate::hoard::Hoard,
         direction: Direction,
     ) -> Result<Self, Error> {
-        let mut inner: HashMap<String, Pile> =
-            OperationIter::new(hoards_root, hoard_name.to_string(), hoard, direction)?.fold(
+        let mut inner: HashMap<PileName, Pile> =
+            OperationIter::new(hoards_root, hoard_name.clone(), hoard, direction)?.fold(
                 Ok(HashMap::new()),
-                |acc, op| -> Result<HashMap<String, Pile>, Error> {
+                |acc, op| -> Result<HashMap<PileName, Pile>, Error> {
                     let mut acc = acc?;
                     let op = op?;
 
@@ -255,11 +253,11 @@ impl Hoard {
                             let checksum = match direction {
                                 Direction::Backup => Self::require_checksum(
                                     file.system_checksum(Self::checksum_type(hoard, &file))?,
-                                    file.system_path(),
+                                    file.relative_path(),
                                 )?,
                                 Direction::Restore => Self::require_checksum(
                                     file.hoard_checksum(Self::checksum_type(hoard, &file))?,
-                                    file.hoard_path(),
+                                    file.relative_path(),
                                 )?,
                             };
                             Self::get_or_create_pile(&mut acc, file.pile_name())
@@ -269,11 +267,11 @@ impl Hoard {
                             let checksum = match direction {
                                 Direction::Backup => Self::require_checksum(
                                     file.system_checksum(Self::checksum_type(hoard, &file))?,
-                                    file.system_path(),
+                                    file.relative_path(),
                                 )?,
                                 Direction::Restore => Self::require_checksum(
                                     file.hoard_checksum(Self::checksum_type(hoard, &file))?,
-                                    file.hoard_path(),
+                                    file.relative_path(),
                                 )?,
                             };
                             Self::get_or_create_pile(&mut acc, file.pile_name())
@@ -286,7 +284,7 @@ impl Hoard {
                         OperationType::Nothing(file) => {
                             let checksum = Self::require_checksum(
                                 file.system_checksum(Self::checksum_type(hoard, &file))?,
-                                file.system_path(),
+                                file.relative_path(),
                             )?;
                             Self::get_or_create_pile(&mut acc, file.pile_name())
                                 .add_unmodified(file.relative_path().clone(), checksum);
@@ -297,17 +295,18 @@ impl Hoard {
                 },
             )?;
 
-        if inner.len() == 1 && inner.contains_key("") {
-            Ok(Self::Anonymous(inner.remove("").unwrap()))
+        let empty = PileName::anonymous();
+        if inner.len() == 1 && inner.contains_key(&empty) {
+            Ok(Self::Anonymous(inner.remove(&empty).unwrap()))
         } else {
             Ok(Self::Named(inner))
         }
     }
 
-    fn get_pile(&self, name: Option<&str>) -> Option<&Pile> {
-        match (name, self) {
-            (None, Hoard::Anonymous(pile)) => Some(pile),
-            (Some(name), Hoard::Named(piles)) => piles.get(name),
+    fn get_pile(&self, name: &PileName) -> Option<&Pile> {
+        match (name.is_anonymous(), self) {
+            (true, Hoard::Anonymous(pile)) => Some(pile),
+            (false, Hoard::Named(piles)) => piles.get(name),
             _ => None,
         }
     }

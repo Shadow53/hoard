@@ -5,6 +5,7 @@
 use crate::paths::{Error as PathError, SystemPath};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use std::{env, fmt};
 
@@ -62,19 +63,45 @@ impl std::error::Error for Error {
     }
 }
 
+/// A [`String`] representing a path that may contain one or more environment variables to be
+/// expanded.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct PathWithEnv(String);
+
+impl From<String> for PathWithEnv {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for PathWithEnv {
+    fn from(s: &str) -> Self {
+        Self::from(s.to_string())
+    }
+}
+
+impl fmt::Display for PathWithEnv {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// Takes the input string, expands all environment variables, and returns the
 /// expanded string as a [`PathBuf`].
 ///
 /// # Example
 ///
 /// ```
-/// use hoard::env_vars::expand_env_in_path;
 /// use std::path::PathBuf;
+/// use hoard::env_vars::PathWithEnv;
 /// use hoard::paths::SystemPath;
 ///
 /// let template = "/some/${CUSTOM_VAR}/path";
 /// std::env::set_var("CUSTOM_VAR", "foobar");
-/// let path = expand_env_in_path(template)
+/// let path = PathWithEnv::from(template)
+///     .process()
 ///     .expect("failed to expand path");
 /// let expected = SystemPath::try_from(PathBuf::from("/some/foobar/path")).unwrap();
 /// assert_eq!(path, expected);
@@ -83,46 +110,54 @@ impl std::error::Error for Error {
 /// # Errors
 ///
 /// - Any [`VarError`](env::VarError) from looking up the environment variable's value.
-pub fn expand_env_in_path(path: &str) -> Result<SystemPath, Error> {
-    let mut new_path = path.to_owned();
-    let mut start: usize = 0;
-    let mut old_start: usize;
+impl PathWithEnv {
+    /// Replace any environment variables with their associated values and attempt to convert
+    /// into a [`SystemPath`].
+    ///
+    /// # Errors
+    ///
+    /// See [`Error`]
+    pub fn process(self) -> Result<SystemPath, Error> {
+        let mut new_path = self.0;
+        let mut start: usize = 0;
+        let mut old_start: usize;
 
-    let _span = tracing::debug_span!("expand_env_in_path", %path).entered();
+        let _span = tracing::debug_span!("expand_env_in_path", path=%new_path).entered();
 
-    while let Some(mat) = ENV_REGEX.find(&new_path[start..]) {
-        let var = mat.as_str();
-        let var = &var[2..var.len() - 1];
-        tracing::trace!(var, "found environment variable {}", var,);
-        let value = env::var(var).map_err(|error| Error::Env {
-            error,
-            var: var.to_owned(),
-        })?;
+        while let Some(mat) = ENV_REGEX.find(&new_path[start..]) {
+            let var = mat.as_str();
+            let var = &var[2..var.len() - 1];
+            tracing::trace!(var, "found environment variable {}", var,);
+            let value = env::var(var).map_err(|error| Error::Env {
+                error,
+                var: var.to_owned(),
+            })?;
 
-        old_start = start;
-        start += value.len();
-        if start > (new_path.len() + value.len() - mat.as_str().len()) {
-            start = new_path.len();
-        }
+            old_start = start;
+            start += value.len();
+            if start > (new_path.len() + value.len() - mat.as_str().len()) {
+                start = new_path.len();
+            }
 
-        let range = mat.range();
-        // grcov: ignore-start
-        tracing::trace!(
+            let range = mat.range();
+            // grcov: ignore-start
+            tracing::trace!(
             var,
             path = %new_path,
             %value,
             "expanding first instance of variable in path"
         );
-        // grcov: ignore-end
-        new_path.replace_range(range.start + old_start..range.end + old_start, &value);
-        if start >= new_path.len() {
-            break;
+            // grcov: ignore-end
+            new_path.replace_range(range.start + old_start..range.end + old_start, &value);
+            if start >= new_path.len() {
+                break;
+            }
         }
-    }
 
-    // Splitting into components and collecting will collapse multiple separators.
-    SystemPath::try_from(PathBuf::from(new_path).components().collect::<PathBuf>())
-        .map_err(Error::Path)
+        // Splitting into components and collecting will collapse multiple separators.
+        SystemPath::try_from(PathBuf::from(new_path).components().collect::<PathBuf>())
+            .map_err(Error::Path)
+    }
 }
 
 #[cfg(test)]
@@ -139,7 +174,7 @@ mod tests {
                 let old_val = std::env::var_os($var);
                 std::env::set_var($var, $value);
                 let expected: SystemPath = $expected;
-                let result = expand_env_in_path($input).expect("failed to expand env in path");
+                let result = PathWithEnv::from($input).process().expect("failed to expand env in path");
                 assert_eq!(result, expected);
                 if let Some(val) = old_val {
                     std::env::set_var($var, val);

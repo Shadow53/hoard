@@ -4,12 +4,15 @@
 //! - [`SystemPath`]
 //! - [`RelativePath`]
 
+use std::fmt;
+use std::fmt::Formatter;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use thiserror::Error;
+use crate::newtypes::{HoardName, PileName};
 
 /// Returns the default root for hoard files.
 #[must_use]
@@ -281,11 +284,25 @@ impl AsRef<Option<PathBuf>> for RelativePath {
     }
 }
 
-impl Deref for RelativePath {
-    type Target = Option<PathBuf>;
+impl fmt::Display for RelativePath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            None => write!(f, ""),
+            Some(path) => write!(f, "{}", path.display()),
+        }
+    }
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl From<&HoardName> for RelativePath {
+    fn from(name: &HoardName) -> Self {
+        let path = &**name;
+        RelativePath(Some(PathBuf::from(path)))
+    }
+}
+
+impl From<&PileName> for RelativePath {
+    fn from(name: &PileName) -> Self {
+        RelativePath(name.as_ref().map(PathBuf::from))
     }
 }
 
@@ -297,6 +314,14 @@ impl RelativePath {
             None => PathBuf::new(),
             Some(path) => path.clone(),
         }
+    }
+
+    /// Returns the contained path, if one exists.
+    ///
+    /// To get a path regardless of the contents of `self`, use [`RelativePath::to_path_buf`].
+    #[must_use]
+    pub fn as_path(&self) -> Option<&Path> {
+        self.0.as_deref()
     }
 
     #[must_use]
