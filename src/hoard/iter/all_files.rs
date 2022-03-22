@@ -80,7 +80,7 @@ impl AllFilesIter {
                         let system_prefix = path.clone();
                         Ok(RootPathItem {
                             hoard_file: HoardItem::new(
-                                name.clone(),
+                                name.clone().into(),
                                 hoard_prefix,
                                 system_prefix,
                                 RelativePath::none(),

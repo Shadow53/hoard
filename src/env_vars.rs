@@ -130,7 +130,7 @@ impl PathWithEnv {
             tracing::trace!(var, "found environment variable {}", var,);
             let value = env::var(var).map_err(|error| Error::Env {
                 error,
-                var: var.to_owned(),
+                var: var.to_string(),
             })?;
 
             old_start = start;

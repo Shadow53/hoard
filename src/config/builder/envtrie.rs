@@ -4,6 +4,7 @@
 //!   segments and creating a DAG to determine weights.
 //! - No current design for making a short path win out over a longer one.
 
+use std::cmp::Ordering;
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use std::collections::{BTreeMap, HashSet};
@@ -171,10 +172,18 @@ impl Node {
 
         // Default evaluation if subtree does not exist
         let mut eval = Evaluation {
-            name: EnvironmentString::from( self.name.clone()),
-            path: self.value.as_ref(),
-            scores: vec![],
+            name: EnvironmentString::from(self.name.clone()),
+            path: None,
+            scores: vec![self.score],
         };
+
+        if envs.get(&self.name).copied()
+            .ok_or_else(|| Error::EnvironmentNotExist(self.name.clone()))?
+        {
+            eval.path = self.value.as_ref();
+        } else {
+            return Ok(eval);
+        }
 
         if let Some(tree) = &self.tree {
             let _span = tracing::trace_span!("evaluating_subtree", subtree = ?tree).entered();
@@ -250,7 +259,7 @@ impl Node {
 /// does not have a configuration for `"foo|bar"`, it is possible that `"bar|baz"` is the best
 /// match instead.
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnvTrie(Node);
+pub struct EnvTrie(BTreeMap<EnvironmentName, Node>);
 
 fn get_weighted_map(exclusive_list: &[Vec<EnvironmentName>]) -> Result<BTreeMap<EnvironmentName, usize>, Error> {
     let _span = tracing::trace_span!(
@@ -371,7 +380,7 @@ impl EnvTrie {
         );
         // grcov: ignore-end
 
-        let trees: Vec<_> = envs
+        let nodes: Vec<_> = envs
             .iter()
             .map(|(env_str, path)| {
                 let _span =
@@ -389,49 +398,56 @@ impl EnvTrie {
                     }
                 }
 
-                let mut tree = None;
+                let mut env_iter = env_str.into_iter().cloned().rev();
+                let mut prev_node = match env_iter.next() {
+                    None => return Err(Error::NoEnvironments),
+                    Some(name) => Node {
+                        name,
+                        score: 0,
+                        tree: None,
+                        value: Some(path.clone()),
+                    }
+                };
 
                 // Reverse-build a linked list
                 tracing::trace!("building environment tree");
-                for segment in env_str.into_iter().cloned().rev() {
-                    let prev_node = Node {
+                for segment in env_iter {
+                    prev_node = Node {
                         score: weighted_map.get(&segment).copied().unwrap_or(1),
                         name: segment.clone(),
-                        tree: tree.take(),
+                        tree: {
+                            let mut tree = BTreeMap::new();
+                            tree.insert(prev_node.name.clone(), prev_node);
+                            Some(tree)
+                        },
                         value: None,
                     };
-
-                    let _ = tree.insert({
-                        let mut tree = BTreeMap::new();
-                        tree.insert(segment, prev_node);
-                        tree
-                    });
                 }
 
-                let first_node = tree
-                    .expect("environment string should always have 1+ items -- tree should never be None")
-                    .into_iter()
-                    .next()
-                    .map(|(_name, node)| node)
-                    .expect("environment string should always have 1+ items -- tree should never be empty");
-
-                Ok(first_node)
+                Ok(prev_node)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut tree_iter = trees.into_iter();
-        let first = tree_iter.next().ok_or(Error::NoEnvironments);
-
         tracing::trace!("merging trees into a single trie");
-        tree_iter
-            .fold(first, |acc, node| {
+        let tree = nodes.into_iter()
+            .fold(Ok(BTreeMap::<EnvironmentName, Node>::new()), |acc, node| {
                 // TODO: Use result flattening when stable
                 match acc {
                     Err(err) => Err(err),
-                    Ok(acc_node) => acc_node.merge_with(node),
+                    Ok(mut tree) => {
+                        // Explicitly call `drop()` to drop any old value.
+                        match tree.remove(&node.name) {
+                            None => drop(tree.insert(node.name.clone(), node)),
+                            Some(existing) => {
+                                let new_node = existing.merge_with(node)?;
+                                drop(tree.insert(new_node.name.clone(), new_node));
+                            }
+                        }
+                        Ok(tree)
+                    }
                 }
-            })
-            .map(EnvTrie)
+            })?;
+        Ok(EnvTrie(tree))
     }
 
     /// Get the best-matched (highest-scoring) path in the `EnvTrie`.
@@ -446,8 +462,21 @@ impl EnvTrie {
             ?environments,
             "getting best matching path with given environments"
         );
-        let EnvTrie(node) = self;
-        node.get_highest_path(environments)
+        self.0.iter()
+            .filter_map(|(env, node)| node.get_highest_path(environments).transpose().map(|path| (env, node, path)))
+            .fold(Ok(None), |acc, (_, node, path)| {
+            match (acc, path) {
+                (Err(err), _) | (_, Err(err)) => Err(err),
+                (Ok(None), Ok(path)) => Ok(Some((node, path))),
+                (Ok(Some((acc, acc_path))), Ok(path)) => match acc.score.cmp(&node.score) {
+                    Ordering::Equal => Err(Error::Indecision(acc.name.clone().into(), node.name.clone().into())),
+                    Ordering::Less => Ok(Some((node, path))),
+                    Ordering::Greater => Ok(Some((acc, acc_path))),
+                }
+            }
+        })?.map(|(_, path)| {
+            path
+        }).map(Ok).transpose()
     }
 }
 
@@ -471,6 +500,25 @@ mod tests {
     const PATH_1: &str = "/tmp/path1";
     const PATH_2: &str = "/tmp/path2";
     const PATH_3: &str = "/tmp/path3";
+
+    fn trie_eq_ignore_score(given: &EnvTrie, expected: &EnvTrie) -> bool {
+        if given.0.len() != expected.0.len() {
+            return false;
+        }
+
+        for (key, node1) in &given.0 {
+            let equal = match expected.0.get(key) {
+                None => false,
+                Some(node2) => node_eq_ignore_score(node1, node2),
+            };
+
+            if !equal {
+                return false;
+            }
+        }
+
+        true
+    }
 
     fn node_eq_ignore_score(trie: &Node, expected: &Node) -> bool {
         if trie.value != expected.value {
@@ -518,8 +566,8 @@ mod tests {
                     (Err(err), Ok(trie)) => {
                         panic!("expected trie\n{:#?},\ngot error\n{:#?}", trie, err)
                     }
-                    (Ok(EnvTrie(node1)), Ok(EnvTrie(node2))) => if !node_eq_ignore_score(&node1, &node2) {
-                        panic!("received trie did not match expected\nReceived: {:#?}\nExpected: {:#?}", node1, node2)
+                    (Ok(trie), Ok(expected)) => if !trie_eq_ignore_score(&trie, &expected) {
+                        panic!("received trie did not match expected\nReceived: {:#?}\nExpected: {:#?}", trie, expected)
                     },
                     (Err(err), Err(exp)) => assert_eq!(
                         err, exp,
@@ -533,175 +581,119 @@ mod tests {
     trie_test_ignore_score! {
         name: test_valid_single_env,
         environments: btreemap! {
-            LABEL_A_1.into() => PATH_1.into(),
-            LABEL_B_1.into() => PATH_2.into(),
-            LABEL_C_1.into() => PATH_3.into(),
+            LABEL_A_1.parse().unwrap() => PATH_1.into(),
+            LABEL_B_1.parse().unwrap() => PATH_2.into(),
+            LABEL_C_1.parse().unwrap() => PATH_3.into(),
         },
         exclusivity: vec![],
         expected: {
-            let node = Node {
-                name: String::new(),
-                score: 1,
-                value: None,
-                tree: Some(btreemap!{
-                    LABEL_A_1.to_owned() => Node {
-                        name: LABEL_A_1.to_owned(),
-                        score: 1,
-                        tree: None,
-                        value: Some(PATH_1.into()),
-                    },
-                    LABEL_B_1.to_owned() => Node {
-                        name: LABEL_B_1.to_owned(),
-                        score: 1,
-                        tree: None,
-                        value: Some(PATH_2.into()),
-                    },
-                    LABEL_C_1.to_owned() => Node {
-                        name: LABEL_C_1.to_owned(),
-                        score: 1,
-                        tree: None,
-                        value: Some(PATH_3.into()),
-                    },
-                })
+            let tree = btreemap!{
+                LABEL_A_1.parse().unwrap() => Node {
+                    name: LABEL_A_1.parse().unwrap(),
+                    score: 1,
+                    tree: None,
+                    value: Some(PATH_1.into()),
+                },
+                LABEL_B_1.parse().unwrap() => Node {
+                    name: LABEL_B_1.parse().unwrap(),
+                    score: 1,
+                    tree: None,
+                    value: Some(PATH_2.into()),
+                },
+                LABEL_C_1.parse().unwrap() => Node {
+                    name: LABEL_C_1.parse().unwrap(),
+                    score: 1,
+                    tree: None,
+                    value: Some(PATH_3.into()),
+                },
             };
-            Ok(EnvTrie(node))
+            Ok(EnvTrie(tree))
         }
     }
 
     trie_test_ignore_score! {
         name: test_valid_multi_env,
         environments: btreemap! {
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1) => PATH_1.into(),
+            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1).parse().unwrap() => PATH_1.into(),
             // Testing merged trees
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1) => PATH_2.into(),
+            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1).parse().unwrap() => PATH_2.into(),
             // The generated tree should be in sorted order
-            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2) => PATH_3.into(),
+            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2).parse().unwrap() => PATH_3.into(),
             // Testing overlapping trees
-            format!("{}|{}", LABEL_A_3, LABEL_B_3) => PATH_2.into(),
+            format!("{}|{}", LABEL_A_3, LABEL_B_3).parse().unwrap() => PATH_2.into(),
         },
         exclusivity: vec![
-            vec![LABEL_A_1.into(), LABEL_A_2.into(), LABEL_A_3.into()],
-            vec![LABEL_B_1.into(), LABEL_B_2.into(), LABEL_B_3.into()],
-            vec![LABEL_C_1.into(), LABEL_C_2.into()],
+            vec![LABEL_A_1.parse().unwrap(), LABEL_A_2.parse().unwrap(), LABEL_A_3.parse().unwrap()],
+            vec![LABEL_B_1.parse().unwrap(), LABEL_B_2.parse().unwrap(), LABEL_B_3.parse().unwrap()],
+            vec![LABEL_C_1.parse().unwrap(), LABEL_C_2.parse().unwrap()],
         ],
         expected: {
-            let node = Node {
-                name: String::new(),
-                score: 1,
-                value: None,
-                tree: Some(btreemap! {
-                    LABEL_A_1.into() => Node {
-                        name: LABEL_A_1.to_owned(),
-                        score: 1,
-                        value: None,
-                        tree: Some(btreemap!{
-                            LABEL_B_1.into() => Node {
-                                name: LABEL_B_1.to_owned(),
-                                score: 1,
-                                value: None,
-                                tree: Some(btreemap!{
-                                    LABEL_C_1.into() => Node {
-                                        name: LABEL_C_1.to_owned(),
-                                        score: 1,
-                                        tree: None,
-                                        value: Some(PATH_1.into()),
-                                    }
-                                })
-                            },
-                            LABEL_B_2.into() => Node {
-                                name: LABEL_B_2.to_owned(),
-                                score: 1,
-                                value: None,
-                                tree: Some(btreemap!{
-                                    LABEL_C_1.into() => Node {
-                                        name: LABEL_C_1.to_owned(),
-                                        score: 1,
-                                        tree: None,
-                                        value: Some(PATH_2.into())
-                                    }
-                                })
-                            }
-                        })
-                    },
-                    LABEL_A_3.into() => Node {
-                        name: LABEL_A_3.to_owned(),
-                        score: 1,
-                        value: None,
-                        tree: Some(btreemap! {
-                            LABEL_B_3.into() => Node {
-                                name: LABEL_B_3.to_owned(),
-                                score: 1,
-                                value: Some(PATH_2.into()),
-                                tree: Some(btreemap! {
-                                    LABEL_C_2.into() => Node {
-                                        name: LABEL_C_2.to_owned(),
-                                        score: 1,
-                                        tree: None,
-                                        value: Some(PATH_3.into()),
-                                    }
-                                })
-                            }
-                        })
-                    },
-                })
+            let tree = btreemap! {
+                LABEL_A_1.parse().unwrap() => Node {
+                    name: LABEL_A_1.parse().unwrap(),
+                    score: 1,
+                    value: None,
+                    tree: Some(btreemap!{
+                        LABEL_B_1.parse().unwrap() => Node {
+                            name: LABEL_B_1.parse().unwrap(),
+                            score: 1,
+                            value: None,
+                            tree: Some(btreemap!{
+                                LABEL_C_1.parse().unwrap() => Node {
+                                    name: LABEL_C_1.parse().unwrap(),
+                                    score: 1,
+                                    tree: None,
+                                    value: Some(PATH_1.into()),
+                                }
+                            })
+                        },
+                        LABEL_B_2.parse().unwrap() => Node {
+                            name: LABEL_B_2.parse().unwrap(),
+                            score: 1,
+                            value: None,
+                            tree: Some(btreemap!{
+                                LABEL_C_1.parse().unwrap() => Node {
+                                    name: LABEL_C_1.parse().unwrap(),
+                                    score: 1,
+                                    tree: None,
+                                    value: Some(PATH_2.into())
+                                }
+                            })
+                        }
+                    })
+                },
+                LABEL_A_3.parse().unwrap() => Node {
+                    name: LABEL_A_3.parse().unwrap(),
+                    score: 1,
+                    value: None,
+                    tree: Some(btreemap! {
+                        LABEL_B_3.parse().unwrap() => Node {
+                            name: LABEL_B_3.parse().unwrap(),
+                            score: 1,
+                            value: Some(PATH_2.into()),
+                            tree: Some(btreemap! {
+                                LABEL_C_2.parse().unwrap() => Node {
+                                    name: LABEL_C_2.parse().unwrap(),
+                                    score: 1,
+                                    tree: None,
+                                    value: Some(PATH_3.into()),
+                                }
+                            })
+                        }
+                    })
+                },
             };
 
-            Ok(EnvTrie(node))
+            Ok(EnvTrie(tree))
         }
-    }
-
-    trie_test_ignore_score! {
-        name: test_invalid_separator_prefix,
-        environments: btreemap! {
-            format!("|{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
-        },
-        exclusivity: vec![],
-        expected: Err(Error::EmptyEnvironment(format!("|{}|{}", LABEL_A_1, LABEL_B_1)))
-    }
-
-    trie_test_ignore_score! {
-        name: test_invalid_separator_suffix,
-        environments: btreemap! {
-            format!("{}|{}|", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
-        },
-        exclusivity: vec![],
-        expected: Err(Error::EmptyEnvironment(format!("{}|{}|", LABEL_A_1, LABEL_B_1)))
-    }
-
-    trie_test_ignore_score! {
-        name: test_invalid_consecutive_separator,
-        environments: btreemap! {
-            format!("{}||{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
-        },
-        exclusivity: vec![],
-        expected: Err(Error::EmptyEnvironment(format!("{}||{}", LABEL_A_1, LABEL_B_1)))
     }
 
     trie_test_ignore_score! {
         name: test_combine_mutually_exclusive_is_invalid,
         environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_A_2) => PATH_1.into(),
+            format!("{}|{}", LABEL_A_1, LABEL_A_2).parse().unwrap() => PATH_1.into(),
         },
-        exclusivity: vec![vec![LABEL_A_1.into(), LABEL_A_2.into()]],
-        expected: Err(Error::CombinedMutuallyExclusive(format!("{}|{}", LABEL_A_1, LABEL_A_2)))
-    }
-
-    trie_test_ignore_score! {
-        name: test_same_condition_twice_is_invalid,
-        environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_B_1) => PATH_1.into(),
-            format!("{}|{}", LABEL_B_1, LABEL_A_1) => PATH_2.into(),
-        },
-        exclusivity: vec![],
-        expected: Err(Error::DoubleDefine(PATH_1.into(), PATH_2.into()))
-    }
-
-    trie_test_ignore_score! {
-        name: test_empty_condition_is_invalid,
-        environments: btreemap! {
-            "".into() => PATH_1.into(),
-        },
-        exclusivity: vec![],
-        expected: Err(Error::NoEnvironments)
+        exclusivity: vec![vec![LABEL_A_1.parse().unwrap(), LABEL_A_2.parse().unwrap()]],
+        expected: Err(Error::CombinedMutuallyExclusive(format!("{}|{}", LABEL_A_1, LABEL_A_2).parse().unwrap()))
     }
 }

@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
-use crate::newtypes::PileName;
+use crate::newtypes::NonEmptyPileName;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]
@@ -88,7 +88,7 @@ pub struct Pile {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MultipleEntries {
     /// The named [`Pile`]s in the hoard.
-    pub piles: HashMap<PileName, Pile>,
+    pub piles: HashMap<NonEmptyPileName, Pile>,
 }
 
 /// A configured hoard. May contain one or more [`Pile`]s.

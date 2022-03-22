@@ -14,13 +14,16 @@ use hoard::paths::SystemPath;
 
 fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
     let current = LastPaths::from_default_file().expect("reading last_paths.json should not fail");
+    let anon_file = HOARD_ANON_FILE.parse().unwrap();
+    let anon_dir = HOARD_ANON_DIR.parse().unwrap();
+    let named = HOARD_NAMED.parse().unwrap();
     assert_eq!(
         current
-            .hoard("anon_file")
+            .hoard(&anon_file)
             .expect("hoard should exist")
             .piles,
         expected
-            .hoard("anon_file")
+            .hoard(&anon_file)
             .expect("hoard should exist")
             .piles,
         "Expected: {:#?}\nReceived{:#?}\n{}",
@@ -29,9 +32,9 @@ fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
         tester.extra_logging_output()
     );
     assert_eq!(
-        current.hoard("anon_dir").expect("hoard should exist").piles,
+        current.hoard(&anon_dir).expect("hoard should exist").piles,
         expected
-            .hoard("anon_dir")
+            .hoard(&anon_dir)
             .expect("hoard should exist")
             .piles,
         "Expected: {:#?}\nReceived{:#?}\n{}",
@@ -40,8 +43,8 @@ fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
         tester.extra_logging_output()
     );
     assert_eq!(
-        current.hoard("named").expect("hoard should exist").piles,
-        expected.hoard("named").expect("hoard should exist").piles,
+        current.hoard(&named).expect("hoard should exist").piles,
+        expected.hoard(&named).expect("hoard should exist").piles,
         "Expected: {:#?}\nReceived{:#?}\n{}",
         expected,
         current,
@@ -55,27 +58,27 @@ fn test_last_paths() {
 
     let timestamp = time::OffsetDateTime::now_utc();
     let first_env_paths = LastPaths::from(maplit::hashmap! {
-        String::from(HOARD_ANON_FILE) => HoardPaths {
+        HOARD_ANON_FILE.parse().unwrap() => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
                 Some(SystemPath::try_from(tester.home_dir().join("first_anon_file")).unwrap())
             )
         },
-        String::from(HOARD_ANON_DIR) => HoardPaths {
+        HOARD_ANON_DIR.parse().unwrap() => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
                 Some(SystemPath::try_from(tester.home_dir().join("first_anon_dir")).unwrap())
             )
         },
-        String::from(HOARD_NAMED) => HoardPaths {
+        HOARD_NAMED.parse().unwrap() => HoardPaths {
             timestamp,
             piles: PilePaths::Named(
                 maplit::hashmap! {
-                    String::from("file") =>
+                    "file".parse().unwrap() =>
                         SystemPath::try_from(tester.home_dir().join("first_named_file")).unwrap(),
-                    String::from("dir1") =>
+                    "dir1".parse().unwrap() =>
                         SystemPath::try_from(tester.home_dir().join("first_named_dir1")).unwrap(),
-                    String::from("dir2") =>
+                    "dir2".parse().unwrap() =>
                         SystemPath::try_from(tester.home_dir().join("first_named_dir2")).unwrap()
                 }
             )
@@ -83,27 +86,27 @@ fn test_last_paths() {
     });
 
     let second_env_paths = LastPaths::from(maplit::hashmap! {
-        String::from(HOARD_ANON_FILE) => HoardPaths {
+        HOARD_ANON_FILE.parse().unwrap() => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
                 Some(SystemPath::try_from(tester.home_dir().join("second_anon_file")).unwrap())
             )
         },
-        String::from(HOARD_ANON_DIR) => HoardPaths {
+        HOARD_ANON_DIR.parse().unwrap() => HoardPaths {
             timestamp,
             piles: PilePaths::Anonymous(
                 Some(SystemPath::try_from(tester.home_dir().join("second_anon_dir")).unwrap())
             )
         },
-        String::from(HOARD_NAMED) => HoardPaths {
+        HOARD_NAMED.parse().unwrap() => HoardPaths {
             timestamp,
             piles: PilePaths::Named(
                 maplit::hashmap! {
-                    String::from("file") =>
+                    "file".parse().unwrap() =>
                         SystemPath::try_from(tester.home_dir().join("second_named_file")).unwrap(),
-                    String::from("dir1") =>
+                    "dir1".parse().unwrap() =>
                         SystemPath::try_from(tester.home_dir().join("second_named_dir1")).unwrap(),
-                    String::from("dir2") =>
+                    "dir2".parse().unwrap() =>
                         SystemPath::try_from(tester.home_dir().join("second_named_dir2")).unwrap()
                 }
             )

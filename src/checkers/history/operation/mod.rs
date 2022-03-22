@@ -45,6 +45,11 @@ pub enum Error {
     /// An error occurred in the file iterator.
     #[error("error while iterating files: {0}")]
     Iterator(#[from] crate::hoard::iter::Error),
+    /// Found a mix of empty/anonymous and actual pile names.
+    ///
+    /// This shouldn't happen in practice, but returning an error is preferred to panicking.
+    #[error("found mixed empty/anonymous and non-empty pile names")]
+    MixedPileNames,
 }
 
 /// Information logged about a single Hoard file inside of an Operation.

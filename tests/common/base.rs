@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use hoard::newtypes::PileName;
 
 use super::tester::Tester;
 
@@ -162,7 +163,7 @@ impl DefaultConfigTester {
         .unwrap();
         let hoard_path =
             HoardPath::try_from(self.data_dir().join("hoards").join(HOARD_ANON_FILE)).unwrap();
-        HoardItem::new(None, hoard_path, system_path, RelativePath::none())
+        HoardItem::new(PileName::anonymous(), hoard_path, system_path, RelativePath::none())
     }
 
     pub fn anon_dir(&self) -> HoardItem {
@@ -174,7 +175,7 @@ impl DefaultConfigTester {
         .unwrap();
         let hoard_path =
             HoardPath::try_from(self.data_dir().join("hoards").join(HOARD_ANON_DIR)).unwrap();
-        HoardItem::new(None, hoard_path, system_path, RelativePath::none())
+        HoardItem::new(PileName::anonymous(), hoard_path, system_path, RelativePath::none())
     }
 
     pub fn named_file(&self) -> HoardItem {
@@ -192,7 +193,7 @@ impl DefaultConfigTester {
         )
         .unwrap();
         HoardItem::new(
-            Some(String::from(HOARD_NAMED_FILE)),
+            HOARD_NAMED_FILE.parse().unwrap(),
             hoard_path,
             system_path,
             RelativePath::none(),
@@ -214,7 +215,7 @@ impl DefaultConfigTester {
         )
         .unwrap();
         HoardItem::new(
-            Some(String::from(HOARD_NAMED_DIR1)),
+            HOARD_NAMED_DIR1.parse().unwrap(),
             hoard_path,
             system_path,
             RelativePath::none(),
@@ -236,7 +237,7 @@ impl DefaultConfigTester {
         )
         .unwrap();
         HoardItem::new(
-            Some(String::from(HOARD_NAMED_DIR2)),
+            HOARD_NAMED_DIR2.parse().unwrap(),
             hoard_path,
             system_path,
             RelativePath::none(),
@@ -245,7 +246,7 @@ impl DefaultConfigTester {
 
     fn file_in_hoard_dir(dir: &HoardItem, file: RelativePath) -> HoardItem {
         HoardItem::new(
-            dir.pile_name().map(ToString::to_string),
+            dir.pile_name().clone(),
             dir.hoard_prefix().clone(),
             dir.system_prefix().clone(),
             file,

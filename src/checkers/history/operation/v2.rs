@@ -16,8 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use time::OffsetDateTime;
-use crate::newtypes::{HoardName, PileName};
-
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use super::Error;
 
 /// Errors that may occur while working with operation logs.
@@ -128,6 +127,7 @@ impl OperationV2 {
             Hoard::Named(
                 files
                     .into_iter()
+                    .map(|(key, val)| key.try_into().map(|key| (key, val)).expect("log was verified to not be anonymous"))
                     .collect(),
             )
         };
@@ -183,7 +183,7 @@ impl OperationImpl for OperationV2 {
             Hoard::Named(piles) => Box::new(piles.iter().flat_map(move |(pile_name, pile)| {
                 pile.all_files_with_checksums()
                     .map(move |(path, checksum)| OperationFileInfo {
-                        pile_name: pile_name.clone(),
+                        pile_name: pile_name.clone().into(),
                         relative_path: path.clone(),
                         checksum,
                     })
@@ -193,11 +193,10 @@ impl OperationImpl for OperationV2 {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 #[allow(variant_size_differences)]
 enum Hoard {
     Anonymous(Pile),
-    Named(HashMap<PileName, Pile>),
+    Named(HashMap<NonEmptyPileName, Pile>),
 }
 
 impl Hoard {
@@ -221,11 +220,11 @@ impl Hoard {
     }
 
     fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardItem) -> ChecksumType {
-        match (hoard, hoard_file.pile_name().is_anonymous()) {
-            (ConfigHoard::Anonymous(pile), true) => pile.config.checksum_type,
-            (ConfigHoard::Named(piles), false) => piles
+        match (hoard, hoard_file.pile_name().as_ref()) {
+            (ConfigHoard::Anonymous(pile), None) => pile.config.checksum_type,
+            (ConfigHoard::Named(piles), Some(name)) => piles
                 .piles
-                .get(hoard_file.pile_name())
+                .get(name)
                 .map(|pile| pile.config.checksum_type)
                 .expect("provided pile name should always be in hoard"),
             (hoard, pile_name) => panic!(
@@ -299,14 +298,19 @@ impl Hoard {
         if inner.len() == 1 && inner.contains_key(&empty) {
             Ok(Self::Anonymous(inner.remove(&empty).unwrap()))
         } else {
+            let inner = inner.into_iter()
+                .map(|(key, val)| key.try_into().map(|key| (key, val)).map_err(|_| Error::MixedPileNames))
+                .collect::<Result<_, _>>()?;
             Ok(Self::Named(inner))
         }
     }
 
     fn get_pile(&self, name: &PileName) -> Option<&Pile> {
-        match (name.is_anonymous(), self) {
-            (true, Hoard::Anonymous(pile)) => Some(pile),
-            (false, Hoard::Named(piles)) => piles.get(name),
+        match (name.as_ref(), self) {
+            (None, Hoard::Anonymous(pile)) => Some(pile),
+            (Some(name), Hoard::Named(piles)) => {
+                piles.get(name)
+            },
             _ => None,
         }
     }
@@ -417,14 +421,14 @@ mod tests {
             let first_timestamp = time::OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
-            let hoard_name = String::from("anon_file");
+            let hoard_name: HoardName = "anon_file".parse().unwrap();
             let ops_v1 = vec![
                 v1::OperationV1 {
                     timestamp: first_timestamp,
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(
-                        maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") },
+                        maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") },
                     )),
                 },
                 v1::OperationV1 {
@@ -432,7 +436,7 @@ mod tests {
                     is_backup: false,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(
-                        maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") },
+                        maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") },
                     )),
                 },
                 v1::OperationV1 {
@@ -489,15 +493,15 @@ mod tests {
             let first_timestamp = time::OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
-            let hoard_name = String::from("anon_dir");
+            let hoard_name: HoardName = "anon_dir".parse().unwrap();
             let ops_v1 = vec![
                 v1::OperationV1 {
                     timestamp: first_timestamp,
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
-                        PathBuf::from("file_1") => String::from("ba9d332813a722b273a95fa13dd88d94"),
-                        PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
+                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("ba9d332813a722b273a95fa13dd88d94"),
+                        RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
                     })),
                 },
                 v1::OperationV1 {
@@ -505,9 +509,9 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
-                        PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                        PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
-                        PathBuf::from("file_3") => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
+                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
+                        RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
+                        RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
                     })),
                 },
                 v1::OperationV1 {
@@ -515,8 +519,8 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
-                        PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                        PathBuf::from("file_3") => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
+                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
+                        RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
                     })),
                 },
             ];
@@ -588,17 +592,17 @@ mod tests {
             let first_timestamp = time::OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
-            let hoard_name = String::from("named");
+            let hoard_name: HoardName = "named".parse().unwrap();
             let ops_v1 = vec![
                 v1::OperationV1 {
                     timestamp: first_timestamp,
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Named(maplit::hashmap! {
-                        String::from("single_file") => v1::Pile(maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") }),
-                        String::from("dir") => v1::Pile(maplit::hashmap! {
-                            PathBuf::from("file_1") => String::from("ba9d332813a722b273a95fa13dd88d94"),
-                            PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
+                        "single_file".parse().unwrap() => v1::Pile(maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") }),
+                        "dir".parse().unwrap() => v1::Pile(maplit::hashmap! {
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("ba9d332813a722b273a95fa13dd88d94"),
+                            RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
                         })
                     }),
                 },
@@ -607,11 +611,11 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Named(maplit::hashmap! {
-                        String::from("single_file") => v1::Pile(maplit::hashmap! { PathBuf::new() => String::from("d3369a026ace494f56ead54d502a00dd") }),
-                        String::from("dir") => v1::Pile(maplit::hashmap! {
-                            PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                            PathBuf::from("file_2") => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
-                            PathBuf::from("file_3") => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
+                        "single_file".parse().unwrap() => v1::Pile(maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") }),
+                        "dir".parse().unwrap() => v1::Pile(maplit::hashmap! {
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
+                            RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
+                            RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
                         })
                     }),
                 },
@@ -620,10 +624,10 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Named(maplit::hashmap! {
-                        String::from("single_file") => v1::Pile(HashMap::new()),
-                        String::from("dir") => v1::Pile(maplit::hashmap! {
-                            PathBuf::from("file_1") => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                            PathBuf::from("file_3") => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
+                        "single_file".parse().unwrap() => v1::Pile(HashMap::new()),
+                        "dir".parse().unwrap() => v1::Pile(maplit::hashmap! {
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
+                            RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
                         })
                     }),
                 },
@@ -634,12 +638,12 @@ mod tests {
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
                     files: Hoard::Named(maplit::hashmap! {
-                        String::from("single_file") => {
+                        "single_file".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_created(RelativePath::none(), Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")));
                             pile
                         },
-                        String::from("dir") => {
+                        "dir".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_created(
                                 RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
@@ -658,12 +662,12 @@ mod tests {
                     direction: Direction::Backup,
                     hoard: hoard_name.clone(),
                     files: Hoard::Named(maplit::hashmap! {
-                        String::from("single_file") => {
+                        "single_file".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_unmodified(RelativePath::none(), Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")));
                             pile
                         },
-                        String::from("dir") => {
+                        "dir".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_modified(
                                 RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
@@ -684,14 +688,14 @@ mod tests {
                 OperationV2 {
                     timestamp: third_timestamp,
                     direction: Direction::Backup,
-                    hoard: hoard_name,
+                    hoard: hoard_name.parse().unwrap(),
                     files: Hoard::Named(maplit::hashmap! {
-                        String::from("single_file") => {
+                        "single_file".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_deleted(RelativePath::none());
                             pile
                         },
-                        String::from("dir") => {
+                        "dir".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_unmodified(
                                 RelativePath::try_from(PathBuf::from("file_1")).unwrap(),

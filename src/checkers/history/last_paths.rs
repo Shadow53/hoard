@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
-use crate::newtypes::{HoardName, PileName};
+use crate::newtypes::{HoardName, NonEmptyPileName};
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -159,12 +159,11 @@ pub struct HoardPaths {
 
 /// Internal type for [`HoardPaths`] mapping to anonymous or named piles.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
 pub enum PilePaths {
     /// A single, anonymous pile's path.
     Anonymous(Option<SystemPath>),
     /// One or more named piles and their paths.
-    Named(HashMap<PileName, SystemPath>),
+    Named(HashMap<NonEmptyPileName, SystemPath>),
 }
 
 impl From<SystemPath> for PilePaths {
@@ -179,8 +178,8 @@ impl From<Option<SystemPath>> for PilePaths {
     }
 }
 
-impl From<HashMap<PileName, SystemPath>> for PilePaths {
-    fn from(other: HashMap<PileName, SystemPath>) -> Self {
+impl From<HashMap<NonEmptyPileName, SystemPath>> for PilePaths {
+    fn from(other: HashMap<NonEmptyPileName, SystemPath>) -> Self {
         Self::Named(other)
     }
 }
@@ -224,7 +223,7 @@ impl HoardPaths {
     /// Returns `None` if the named pile is not found or if the hoard contains an
     /// anonymous pile.
     #[must_use]
-    pub fn named_pile(&self, name: &PileName) -> Option<&SystemPath> {
+    pub fn named_pile(&self, name: &NonEmptyPileName) -> Option<&SystemPath> {
         if let PilePaths::Named(named) = &self.piles {
             named.get(name)
         } else {
@@ -312,11 +311,11 @@ impl HoardPaths {
             }
             (PilePaths::Named(old), PilePaths::Named(new)) => {
                 tracing::trace!("both piles are named");
-                let old_set: HashSet<&PileName> = old.keys().collect();
-                let new_set: HashSet<&PileName> = new.keys().collect();
+                let old_set: HashSet<&NonEmptyPileName> = old.keys().collect();
+                let new_set: HashSet<&NonEmptyPileName> = new.keys().collect();
 
-                let only_in_old: Vec<&PileName> = old_set.difference(&new_set).copied().collect();
-                let only_in_new: Vec<&PileName> = new_set.difference(&old_set).copied().collect();
+                let only_in_old: Vec<&NonEmptyPileName> = old_set.difference(&new_set).copied().collect();
+                let only_in_new: Vec<&NonEmptyPileName> = new_set.difference(&old_set).copied().collect();
 
                 // Warn about both before returning.
                 if !only_in_old.is_empty() {
@@ -419,8 +418,8 @@ mod tests {
     fn test_lastpaths_get_set_hoard() {
         let hoard_paths = anonymous_hoard_paths();
         let mut last_paths = LastPaths::default();
-        let key = "testkey".parse().unwrap();
-        last_paths.set_hoard(key, hoard_paths.clone());
+        let key: HoardName = "testkey".parse().unwrap();
+        last_paths.set_hoard(key.clone(), hoard_paths.clone());
         let got_hoard_paths = last_paths.hoard(&key);
         assert_eq!(got_hoard_paths, Some(&hoard_paths));
     }
@@ -436,7 +435,7 @@ mod tests {
         let anonymous = anonymous_hoard_paths();
         assert_eq!(anonymous.named_pile(&NAMED_PILE_1.parse().unwrap()), None);
         let named = named_hoard_paths();
-        assert_eq!(named.named_pile(&"no exist".parse().unwrap()), None);
+        assert_eq!(named.named_pile(&"no_exist".parse().unwrap()), None);
         assert!(named.named_pile(&NAMED_PILE_1.parse().unwrap()).is_some());
     }
 

@@ -6,6 +6,7 @@ use hoard::command::Command;
 use hoard::hoard_item::Checksum;
 use hoard::paths::RelativePath;
 use std::fs;
+use hoard::newtypes::PileName;
 
 const CONFIG: &str = r#"
 exclusivity = [[ "unix", "windows" ]]
@@ -49,20 +50,21 @@ fn test_operation_checksums() {
         <sha2::Sha256 as sha2::Digest>::digest(&data)
     ));
 
-    let md5_op = Operation::latest_local("md5", Some((None, &rel_file)))
+    let pile_name = PileName::anonymous();
+    let md5_op = Operation::latest_local(&"md5".parse().unwrap(), Some((&pile_name, &rel_file)))
         .expect("should not fail to load operation for md5 hoard")
         .expect("operation should exist")
-        .checksum_for(None, &rel_file)
+        .checksum_for(&pile_name, &rel_file)
         .expect("checksum should exist for file");
-    let sha256_op = Operation::latest_local("sha256", Some((None, &rel_file)))
+    let sha256_op = Operation::latest_local(&"sha256".parse().unwrap(), Some((&pile_name, &rel_file)))
         .expect("should not fail to load operation for sha256 hoard")
         .expect("operation should exist")
-        .checksum_for(None, &rel_file)
+        .checksum_for(&pile_name, &rel_file)
         .expect("checksum should exist for file");
-    let default_op = Operation::latest_local("default", Some((None, &rel_file)))
+    let default_op = Operation::latest_local(&"default".parse().unwrap(), Some((&pile_name, &rel_file)))
         .expect("should not fail to load operation for default hoard")
         .expect("operation should exist")
-        .checksum_for(None, &rel_file)
+        .checksum_for(&pile_name, &rel_file)
         .expect("checksum should exist for file");
 
     assert_eq!(md5_op, md5);

@@ -14,7 +14,7 @@ use crate::hoard::PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
-use crate::newtypes::{EnvironmentName, EnvironmentString, PileName};
+use crate::newtypes::{EnvironmentName, EnvironmentString, NonEmptyPileName};
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
 type ConfigSingle = crate::config::hoard::Pile;
@@ -75,7 +75,7 @@ impl Pile {
 }
 
 /// A set of multiple related piles (i.e. in a single hoard).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MultipleEntries {
     /// Any custom configuration that applies to all contained files.
     ///
@@ -83,7 +83,7 @@ pub struct MultipleEntries {
     pub config: Option<PileConfig>,
     /// A mapping of pile name to not-yet-processed [`Pile`]s.
     #[serde(flatten)]
-    pub items: BTreeMap<PileName, Pile>,
+    pub items: BTreeMap<NonEmptyPileName, Pile>,
 }
 
 impl MultipleEntries {
@@ -379,7 +379,7 @@ mod tests {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: None,
                 items: btreemap! {
-                    "item1".to_string() => Pile {
+                    "item1".parse().unwrap() => Pile {
                         config: None,
                         items: btreemap! {
                             "bar_env|foo_env".parse().unwrap() => "/some/path".into()
@@ -417,7 +417,7 @@ mod tests {
                     ignore: Vec::new(),
                 }),
                 items: btreemap! {
-                    "item1".to_string() => Pile {
+                    "item1".parse().unwrap() => Pile {
                         config: None,
                         items: btreemap! {
                             "bar_env|foo_env".parse().unwrap() => "/some/path".into()

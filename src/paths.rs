@@ -12,7 +12,7 @@ use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use thiserror::Error;
-use crate::newtypes::{HoardName, PileName};
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 
 /// Returns the default root for hoard files.
 #[must_use]
@@ -302,7 +302,13 @@ impl From<&HoardName> for RelativePath {
 
 impl From<&PileName> for RelativePath {
     fn from(name: &PileName) -> Self {
-        RelativePath(name.as_ref().map(PathBuf::from))
+        RelativePath(name.as_deref().map(PathBuf::from))
+    }
+}
+
+impl From<&NonEmptyPileName> for RelativePath {
+    fn from(name: &NonEmptyPileName) -> Self {
+        RelativePath(Some(PathBuf::from(name.as_ref())))
     }
 }
 
