@@ -13,7 +13,7 @@ use crate::paths::RelativePath;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use time::OffsetDateTime;
-use crate::newtypes::{HoardName, PileName};
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 
 /// A single operation log.
 ///
@@ -49,9 +49,9 @@ impl super::OperationImpl for OperationV1 {
         rel_path: &RelativePath,
         _only_modified: bool,
     ) -> bool {
-        match (pile_name.is_anonymous(), &self.hoard) {
-            (true, Hoard::Anonymous(pile)) => pile.0.contains_key(rel_path),
-            (false, Hoard::Named(piles)) => piles
+        match (pile_name.as_ref(), &self.hoard) {
+            (None, Hoard::Anonymous(pile)) => pile.0.contains_key(rel_path),
+            (Some(pile_name), Hoard::Named(piles)) => piles
                 .get(pile_name)
                 .map_or(false, |pile| pile.0.contains_key(rel_path)),
             _ => false,
@@ -67,12 +67,12 @@ impl super::OperationImpl for OperationV1 {
     }
 
     fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
-        match (pile_name.is_anonymous(), &self.hoard) {
-            (true, Hoard::Anonymous(pile)) => pile
+        match (pile_name.as_ref(), &self.hoard) {
+            (None, Hoard::Anonymous(pile)) => pile
                 .0
                 .get(rel_path)
                 .map(|md5| Checksum::MD5(md5.to_string())),
-            (false, Hoard::Named(piles)) => piles.get(pile_name).and_then(|pile| {
+            (Some(pile_name), Hoard::Named(piles)) => piles.get(pile_name).and_then(|pile| {
                 pile.0
                     .get(rel_path)
                     .map(|md5| Checksum::MD5(md5.to_string()))
@@ -94,7 +94,7 @@ impl super::OperationImpl for OperationV1 {
             Hoard::Named(piles) => Box::new({
                 piles.iter().flat_map(move |(pile_name, pile)| {
                     pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
-                        pile_name: pile_name.clone(),
+                        pile_name: pile_name.clone().into(),
                         relative_path: rel_path.clone(),
                         checksum: Some(Checksum::MD5(md5.clone())),
                     })
@@ -112,7 +112,7 @@ pub enum Hoard {
     /// Information for a single, anonymous pile.
     Anonymous(Pile),
     /// Information for some number of named piles.
-    Named(HashMap<PileName, Pile>),
+    Named(HashMap<NonEmptyPileName, Pile>),
 }
 
 /// A mapping of file path (relative to pile) to file checksum.
