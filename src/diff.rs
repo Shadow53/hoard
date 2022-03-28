@@ -6,8 +6,8 @@ use std::io::Read;
 use std::path::Path;
 use std::{fs, io};
 
-use similar::{ChangeTag, TextDiff};
 use crate::paths::{HoardPath, SystemPath};
+use similar::{ChangeTag, TextDiff};
 
 const CONTEXT_RADIUS: usize = 5;
 
@@ -65,11 +65,15 @@ fn content_and_meta_for(path: &Path) -> io::Result<(FileContent, Option<fs::Meta
     }
 }
 
-pub(crate) fn diff_files(hoard_path: &HoardPath, system_path: &SystemPath) -> io::Result<Option<Diff>> {
+pub(crate) fn diff_files(
+    hoard_path: &HoardPath,
+    system_path: &SystemPath,
+) -> io::Result<Option<Diff>> {
     let (hoard_content, hoard_meta) = content_and_meta_for(hoard_path)?;
     let (system_content, system_meta) = content_and_meta_for(system_path)?;
 
-    let permissions_diff = if let (Some(hoard_meta), Some(system_meta)) = (hoard_meta, system_meta) {
+    let permissions_diff = if let (Some(hoard_meta), Some(system_meta)) = (hoard_meta, system_meta)
+    {
         let hoard_perms = hoard_meta.permissions();
         let system_perms = system_meta.permissions();
         (hoard_perms != system_perms).then(|| Diff::Permissions(hoard_perms, system_perms))
@@ -92,7 +96,10 @@ pub(crate) fn diff_files(hoard_path: &HoardPath, system_path: &SystemPath) -> io
                 let udiff = text_diff
                     .unified_diff()
                     .context_radius(CONTEXT_RADIUS)
-                    .header(&hoard_path.to_string_lossy(), &system_path.to_string_lossy())
+                    .header(
+                        &hoard_path.to_string_lossy(),
+                        &system_path.to_string_lossy(),
+                    )
                     .to_string();
                 Some(Diff::Text(udiff))
             } else {
@@ -117,12 +124,13 @@ pub(crate) fn diff_files(hoard_path: &HoardPath, system_path: &SystemPath) -> io
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::path::PathBuf;
     use crate::paths::RelativePath;
+    use std::path::PathBuf;
 
     #[test]
     fn test_diff_non_existent_files() {
-        let hoard_path = crate::paths::hoards_dir().join(&RelativePath::try_from(PathBuf::from("does_not_exist")).unwrap());
+        let hoard_path = crate::paths::hoards_dir()
+            .join(&RelativePath::try_from(PathBuf::from("does_not_exist")).unwrap());
         let system_path = SystemPath::try_from(PathBuf::from("/also/does/not/exist")).unwrap();
         let diff = diff_files(&hoard_path, &system_path).expect("diff should not fail");
 

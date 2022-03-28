@@ -7,6 +7,7 @@ pub(crate) mod pile_config;
 
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::Error as FilterError;
+use crate::newtypes::NonEmptyPileName;
 use crate::paths::SystemPath;
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,6 @@ use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
-use crate::newtypes::NonEmptyPileName;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]

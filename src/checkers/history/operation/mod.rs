@@ -17,9 +17,9 @@ pub mod v2;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
 use crate::checksum::Checksum;
+use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 pub(crate) use util::cleanup_operations;
-use crate::newtypes::{HoardName, PileName};
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -512,12 +512,15 @@ impl Checker for Operation {
         let id = super::get_or_generate_uuid()?;
         let path = super::get_history_dir_for_id(id)
             .join(&RelativePath::from(self.hoard_name()))
-            .join(&RelativePath::try_from(PathBuf::from(format!(
-                "{}.log",
-                self.timestamp()
-                    .format(&TIME_FORMAT)
-                    .map_err(Error::FormatDatetime)?
-            ))).expect("file name is always a valid RelativePath"));
+            .join(
+                &RelativePath::try_from(PathBuf::from(format!(
+                    "{}.log",
+                    self.timestamp()
+                        .format(&TIME_FORMAT)
+                        .map_err(Error::FormatDatetime)?
+                )))
+                .expect("file name is always a valid RelativePath"),
+            );
         tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
         path.parent().map(fs::create_dir_all).transpose()?;
         let file = fs::File::create(path)?;

@@ -7,18 +7,18 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
+use super::Error;
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
 use crate::checksum::{Checksum, ChecksumType};
 use crate::hoard::iter::{OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard as ConfigHoard};
 use crate::hoard_item::HoardItem;
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use time::OffsetDateTime;
-use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
-use super::Error;
 
 /// Errors that may occur while working with operation logs.
 
@@ -128,7 +128,11 @@ impl OperationV2 {
             Hoard::Named(
                 files
                     .into_iter()
-                    .map(|(key, val)| key.try_into().map(|key| (key, val)).expect("log was verified to not be anonymous"))
+                    .map(|(key, val)| {
+                        key.try_into()
+                            .map(|key| (key, val))
+                            .expect("log was verified to not be anonymous")
+                    })
                     .collect(),
             )
         };
@@ -211,7 +215,10 @@ impl Hoard {
         map.get_mut(pile_name).unwrap()
     }
 
-    fn require_checksum(checksum: Option<Checksum>, path: &RelativePath) -> Result<Checksum, Error> {
+    fn require_checksum(
+        checksum: Option<Checksum>,
+        path: &RelativePath,
+    ) -> Result<Checksum, Error> {
         checksum.ok_or_else(|| {
             Error::IO(io::Error::new(
                 io::ErrorKind::NotFound,
@@ -299,8 +306,13 @@ impl Hoard {
         if inner.len() == 1 && inner.contains_key(&empty) {
             Ok(Self::Anonymous(inner.remove(&empty).unwrap()))
         } else {
-            let inner = inner.into_iter()
-                .map(|(key, val)| key.try_into().map(|key| (key, val)).map_err(|_| Error::MixedPileNames))
+            let inner = inner
+                .into_iter()
+                .map(|(key, val)| {
+                    key.try_into()
+                        .map(|key| (key, val))
+                        .map_err(|_| Error::MixedPileNames)
+                })
                 .collect::<Result<_, _>>()?;
             Ok(Self::Named(inner))
         }
@@ -309,9 +321,7 @@ impl Hoard {
     fn get_pile(&self, name: &PileName) -> Option<&Pile> {
         match (name.as_ref(), self) {
             (None, Hoard::Anonymous(pile)) => Some(pile),
-            (Some(name), Hoard::Named(piles)) => {
-                piles.get(name)
-            },
+            (Some(name), Hoard::Named(piles)) => piles.get(name),
             _ => None,
         }
     }
@@ -383,9 +393,9 @@ impl Pile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::checksum::MD5;
     use serde_test::{assert_tokens, Token};
     use std::path::PathBuf;
-    use crate::checksum::MD5;
 
     #[test]
     fn test_checksum_derives() {

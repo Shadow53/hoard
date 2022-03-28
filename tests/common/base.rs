@@ -1,4 +1,5 @@
 use hoard::hoard_item::HoardItem;
+use hoard::newtypes::PileName;
 use hoard::paths::{HoardPath, RelativePath, SystemPath};
 use rand::RngCore;
 use sha2::digest::generic_array::GenericArray;
@@ -8,7 +9,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use hoard::newtypes::PileName;
 
 use super::tester::Tester;
 
@@ -163,7 +163,12 @@ impl DefaultConfigTester {
         .unwrap();
         let hoard_path =
             HoardPath::try_from(self.data_dir().join("hoards").join(HOARD_ANON_FILE)).unwrap();
-        HoardItem::new(PileName::anonymous(), hoard_path, system_path, RelativePath::none())
+        HoardItem::new(
+            PileName::anonymous(),
+            hoard_path,
+            system_path,
+            RelativePath::none(),
+        )
     }
 
     pub fn anon_dir(&self) -> HoardItem {
@@ -175,7 +180,12 @@ impl DefaultConfigTester {
         .unwrap();
         let hoard_path =
             HoardPath::try_from(self.data_dir().join("hoards").join(HOARD_ANON_DIR)).unwrap();
-        HoardItem::new(PileName::anonymous(), hoard_path, system_path, RelativePath::none())
+        HoardItem::new(
+            PileName::anonymous(),
+            hoard_path,
+            system_path,
+            RelativePath::none(),
+        )
     }
 
     pub fn named_file(&self) -> HoardItem {

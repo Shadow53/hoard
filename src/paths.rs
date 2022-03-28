@@ -4,15 +4,15 @@
 //! - [`SystemPath`]
 //! - [`RelativePath`]
 
-use std::fmt;
-use std::fmt::Formatter;
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
+use std::fmt::Formatter;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use thiserror::Error;
-use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 
 /// Returns the default root for hoard files.
 #[must_use]

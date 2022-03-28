@@ -6,6 +6,7 @@
 
 use super::super::Checker;
 use crate::hoard::{Direction, Hoard};
+use crate::newtypes::{HoardName, NonEmptyPileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -13,7 +14,6 @@ use std::path::PathBuf;
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
-use crate::newtypes::{HoardName, NonEmptyPileName};
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -50,7 +50,10 @@ where
 fn get_last_paths_file_path() -> Result<HoardPath, io::Error> {
     tracing::debug!("getting lastpaths file path");
     let id = super::get_or_generate_uuid()?;
-    Ok(super::get_history_dir_for_id(id).join(&RelativePath::try_from(PathBuf::from(FILE_NAME)).expect("file names are always valid RelativePaths")))
+    Ok(super::get_history_dir_for_id(id).join(
+        &RelativePath::try_from(PathBuf::from(FILE_NAME))
+            .expect("file names are always valid RelativePaths"),
+    ))
 }
 
 fn read_last_paths_file() -> Result<fs::File, io::Error> {
@@ -314,8 +317,10 @@ impl HoardPaths {
                 let old_set: HashSet<&NonEmptyPileName> = old.keys().collect();
                 let new_set: HashSet<&NonEmptyPileName> = new.keys().collect();
 
-                let only_in_old: Vec<&NonEmptyPileName> = old_set.difference(&new_set).copied().collect();
-                let only_in_new: Vec<&NonEmptyPileName> = new_set.difference(&old_set).copied().collect();
+                let only_in_old: Vec<&NonEmptyPileName> =
+                    old_set.difference(&new_set).copied().collect();
+                let only_in_new: Vec<&NonEmptyPileName> =
+                    new_set.difference(&old_set).copied().collect();
 
                 // Warn about both before returning.
                 if !only_in_old.is_empty() {

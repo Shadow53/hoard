@@ -2,12 +2,12 @@ mod common;
 
 use common::tester::Tester;
 use hoard::command::Command;
+use hoard::newtypes::HoardName;
 use paste::paste;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use hoard::newtypes::HoardName;
 
 const DIFF_TOML: &str = r#"
 exclusivity = [
@@ -49,7 +49,14 @@ exclusivity = [
     "windows" = "${HOARD_TMP}/testdir"
 "#;
 
-fn no_op(_tester: &Tester, _path: &Path, _content: Option<Content>, _is_text: bool, _hoard: &HoardName) {}
+fn no_op(
+    _tester: &Tester,
+    _path: &Path,
+    _content: Option<Content>,
+    _is_text: bool,
+    _hoard: &HoardName,
+) {
+}
 
 fn setup_modify(
     tester: &Tester,

@@ -19,9 +19,9 @@ pub(crate) use list::run_list;
 pub(crate) use status::run_status;
 pub(crate) use upgrade::run_upgrade;
 
+use crate::newtypes::HoardName;
 pub use backup_restore::Error as BackupRestoreError;
 pub use edit::Error as EditError;
-use crate::newtypes::HoardName;
 
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]

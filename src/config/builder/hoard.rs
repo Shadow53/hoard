@@ -11,10 +11,10 @@
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{Error as EnvError, PathWithEnv};
 use crate::hoard::PileConfig;
+use crate::newtypes::{EnvironmentName, EnvironmentString, NonEmptyPileName};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
-use crate::newtypes::{EnvironmentName, EnvironmentString, NonEmptyPileName};
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
 type ConfigSingle = crate::config::hoard::Pile;
@@ -61,7 +61,11 @@ impl Pile {
 
         let Pile { config, items } = self;
         let trie = EnvTrie::new(&items, exclusivity)?;
-        let path = trie.get_path(envs)?.cloned().map(PathWithEnv::process).transpose()?;
+        let path = trie
+            .get_path(envs)?
+            .cloned()
+            .map(PathWithEnv::process)
+            .transpose()?;
 
         Ok(ConfigSingle {
             config: config.unwrap_or_default(),

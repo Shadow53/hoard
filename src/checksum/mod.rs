@@ -1,7 +1,7 @@
 #![allow(clippy::module_name_repetitions)]
 //! Module for handling checksums.
-use std::fmt;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 mod digest;
 
 pub use self::digest::{MD5, SHA256};

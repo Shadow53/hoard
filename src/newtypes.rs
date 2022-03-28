@@ -3,8 +3,8 @@
 //! - Names (`*Name`) must contain only alphanumeric characters, dash (`-`), or underscore (`_`).
 //! - [`EnvironmentString`] has its own requirements.
 
-use std::{ops::Deref, str::FromStr, collections::BTreeSet, fmt};
-use serde::{Serialize, Deserialize, Deserializer, Serializer, de, de::Error as _};
+use serde::{de, de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+use std::{collections::BTreeSet, fmt, ops::Deref, str::FromStr};
 use thiserror::Error;
 
 /// Errors that may occur while creating an instance of one of this newtypes.
@@ -21,7 +21,13 @@ pub enum Error {
 const DISALLOWED_NAMES: [&str; 2] = ["", "config"];
 
 fn validate_name(name: String) -> Result<String, Error> {
-    if name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') && DISALLOWED_NAMES.iter().all(|disallowed| &name != disallowed) {
+    if name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        && DISALLOWED_NAMES
+            .iter()
+            .all(|disallowed| &name != disallowed)
+    {
         Ok(name)
     } else {
         Err(Error::InvalidName(name))
@@ -58,26 +64,41 @@ impl<'de> de::Visitor<'de> for PileNameVisitor {
         write!(f, "a valid pile name")
     }
 
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: de::Error {
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
         v.parse().map_err(E::custom)
     }
 
-    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         deserializer.deserialize_str(self)
     }
 
-    fn visit_none<E>(self) -> Result<Self::Value, E> where E: de::Error {
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
         Ok(PileName(None))
     }
 }
 
 impl<'de> Deserialize<'de> for PileName {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         deserializer.deserialize_any(PileNameVisitor)
     }
 }
 
-impl<T> TryFrom<Option<T>> for PileName where T: AsRef<str> {
+impl<T> TryFrom<Option<T>> for PileName
+where
+    T: AsRef<str>,
+{
     type Error = Error;
 
     fn try_from(value: Option<T>) -> Result<Self, Self::Error> {
@@ -120,7 +141,9 @@ impl PileName {
 
     /// Returns whether the `PileName` represents an anonymous pile.
     #[must_use]
-    pub fn is_anonymous(&self) -> bool { self.0.is_none() }
+    pub fn is_anonymous(&self) -> bool {
+        self.0.is_none()
+    }
 
     /// Like [`Option::as_ref`] on the inner value.
     #[must_use]
@@ -233,7 +256,10 @@ impl fmt::Display for HoardName {
 }
 
 impl<'de> Deserialize<'de> for HoardName {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         let inner = String::deserialize(deserializer)?;
         inner.parse().map_err(D::Error::custom)
     }
@@ -271,7 +297,10 @@ impl fmt::Display for EnvironmentName {
 }
 
 impl<'de> Deserialize<'de> for EnvironmentName {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         let inner = String::deserialize(deserializer)?;
         inner.parse().map_err(D::Error::custom)
     }
@@ -333,14 +362,20 @@ impl fmt::Display for EnvironmentString {
 }
 
 impl<'de> Deserialize<'de> for EnvironmentString {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         let inner = String::deserialize(deserializer)?;
         inner.parse().map_err(D::Error::custom)
     }
 }
 
 impl Serialize for EnvironmentString {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&self.to_string())
     }
 }

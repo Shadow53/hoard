@@ -12,8 +12,8 @@ use crate::hoard::PileConfig;
 use glob::{Pattern, PatternError};
 
 use super::Filter;
-use thiserror::Error;
 use crate::paths::{RelativePath, SystemPath};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {

@@ -1,10 +1,10 @@
 use crate::checkers::{Checkers, Error as ConsistencyError};
 use crate::hoard::iter::{Error as IterError, OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard};
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 use std::fs;
 use thiserror::Error;
-use crate::newtypes::HoardName;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -65,8 +65,12 @@ fn backup_or_restore<'a>(
             match operation {
                 OperationType::Create(file) | OperationType::Modify(file) => {
                     let (src, dest) = match direction {
-                        Direction::Backup => (file.system_path().as_ref(), file.hoard_path().as_ref()),
-                        Direction::Restore => (file.hoard_path().as_ref(), file.system_path().as_ref()),
+                        Direction::Backup => {
+                            (file.system_path().as_ref(), file.hoard_path().as_ref())
+                        }
+                        Direction::Restore => {
+                            (file.hoard_path().as_ref(), file.system_path().as_ref())
+                        }
                     };
                     if let Some(parent) = dest.parent() {
                         tracing::trace!(?parent, "ensuring parent dirs");

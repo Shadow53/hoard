@@ -1,11 +1,11 @@
 //! Types for working with files that are managed by Hoard.
 
+use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
+use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::io::ErrorKind;
 use std::path::Path;
 use std::{fs, io};
-use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
-use crate::newtypes::PileName;
 
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

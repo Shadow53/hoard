@@ -3,11 +3,11 @@
 pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
-use crate::newtypes::HoardName;
 
 pub mod builder;
 
@@ -96,10 +96,7 @@ impl Config {
     ) -> Result<HashMap<&'a HoardName, &'a Hoard>, Error> {
         if hoards.is_empty() {
             tracing::debug!("no hoard names provided, acting on all of them.");
-            Ok(self
-                .hoards
-                .iter()
-                .collect())
+            Ok(self.hoards.iter().collect())
         } else {
             tracing::debug!("using hoard names provided on cli");
             tracing::trace!(?hoards);
@@ -125,9 +122,7 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
-                let iter = self
-                    .hoards
-                    .iter();
+                let iter = self.hoards.iter();
                 command::run_status(&self.get_hoards_root_path(), iter)?;
             }
             Command::Diff { hoard, verbose } => {

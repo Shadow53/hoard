@@ -2,10 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-use std::path::{Path, PathBuf};
-use std::{fmt, fs};
 use std::fmt::Debug;
 use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::{fmt, fs};
 use thiserror::Error;
 
 #[cfg(unix)]
@@ -20,7 +20,11 @@ pub struct InvalidPathError(PathBuf);
 
 impl fmt::Display for InvalidPathError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "expected an absolute path or lone file name, got {}", self.0.display())
+        write!(
+            f,
+            "expected an absolute path or lone file name, got {}",
+            self.0.display()
+        )
     }
 }
 

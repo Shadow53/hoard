@@ -8,10 +8,10 @@ use std::fs::Permissions;
 use std::{fmt, fs};
 use tracing::trace_span;
 
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use crate::newtypes::HoardName;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum DiffSource {
@@ -237,7 +237,10 @@ impl HoardDiffIter {
         self.filter(|diff| !matches!(diff, Ok(HoardFileDiff::Unchanged(_))))
     }
 
-    fn process_file(hoard_name: &HoardName, file: &HoardItem) -> Result<ProcessedFile, super::Error> {
+    fn process_file(
+        hoard_name: &HoardName,
+        file: &HoardItem,
+    ) -> Result<ProcessedFile, super::Error> {
         let _span = tracing::trace_span!("process_file", ?file).entered();
         let has_same_permissions = {
             let hoard_perms = fs::File::open(file.hoard_path())

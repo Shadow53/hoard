@@ -1,10 +1,10 @@
 use crate::filters::{Filter, Filters};
 use crate::hoard::iter::HoardItem;
 use crate::hoard::Hoard;
+use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 use std::iter::Peekable;
 use std::{fs, io};
-use crate::newtypes::{HoardName, PileName};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RootPathItem {
@@ -44,9 +44,7 @@ impl AllFilesIter {
         hoard_name: &HoardName,
         hoard: &Hoard,
     ) -> Result<Self, super::Error> {
-        let hoard_name_root = hoards_root.join(
-            &RelativePath::from(hoard_name),
-        );
+        let hoard_name_root = hoards_root.join(&RelativePath::from(hoard_name));
         let root_paths = match hoard {
             Hoard::Anonymous(pile) => {
                 let path = pile.path.clone();

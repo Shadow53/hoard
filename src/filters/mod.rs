@@ -1,8 +1,8 @@
 //! Provides filters for determining whether a path should be backed up or not.
 
 use crate::hoard::PileConfig;
-use thiserror::Error;
 use crate::paths::{RelativePath, SystemPath};
+use thiserror::Error;
 
 pub(crate) mod ignore;
 

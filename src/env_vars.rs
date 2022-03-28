@@ -5,7 +5,7 @@
 use crate::paths::{Error as PathError, SystemPath};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{env, fmt};
 
@@ -142,11 +142,11 @@ impl PathWithEnv {
             let range = mat.range();
             // grcov: ignore-start
             tracing::trace!(
-            var,
-            path = %new_path,
-            %value,
-            "expanding first instance of variable in path"
-        );
+                var,
+                path = %new_path,
+                %value,
+                "expanding first instance of variable in path"
+            );
             // grcov: ignore-end
             new_path.replace_range(range.start + old_start..range.end + old_start, &value);
             if start >= new_path.len() {

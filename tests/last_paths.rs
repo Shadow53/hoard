@@ -18,10 +18,7 @@ fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
     let anon_dir = HOARD_ANON_DIR.parse().unwrap();
     let named = HOARD_NAMED.parse().unwrap();
     assert_eq!(
-        current
-            .hoard(&anon_file)
-            .expect("hoard should exist")
-            .piles,
+        current.hoard(&anon_file).expect("hoard should exist").piles,
         expected
             .hoard(&anon_file)
             .expect("hoard should exist")
@@ -33,10 +30,7 @@ fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
     );
     assert_eq!(
         current.hoard(&anon_dir).expect("hoard should exist").piles,
-        expected
-            .hoard(&anon_dir)
-            .expect("hoard should exist")
-            .piles,
+        expected.hoard(&anon_dir).expect("hoard should exist").piles,
         "Expected: {:#?}\nReceived{:#?}\n{}",
         expected,
         current,

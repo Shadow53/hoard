@@ -4,13 +4,13 @@
 //!   segments and creating a DAG to determine weights.
 //! - No current design for making a short path win out over a longer one.
 
-use std::cmp::Ordering;
-use petgraph::algo::toposort;
-use petgraph::graph::DiGraph;
-use std::collections::{BTreeMap, HashSet};
-use thiserror::Error;
 use crate::env_vars::PathWithEnv;
 use crate::newtypes::{EnvironmentName, EnvironmentString};
+use petgraph::algo::toposort;
+use petgraph::graph::DiGraph;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashSet};
+use thiserror::Error;
 
 /// Errors that may occur while building or evaluating an [`EnvTrie`].
 #[derive(Debug, Error, PartialEq)]
@@ -177,7 +177,9 @@ impl Node {
             scores: vec![self.score],
         };
 
-        if envs.get(&self.name).copied()
+        if envs
+            .get(&self.name)
+            .copied()
             .ok_or_else(|| Error::EnvironmentNotExist(self.name.clone()))?
         {
             eval.path = self.value.as_ref();
@@ -214,11 +216,11 @@ impl Node {
                                 {
                                     left.insert(self.name.clone());
                                     left
-                                 },
+                                },
                                 {
                                     right.insert(self.name.clone());
                                     right
-                                }
+                                },
                             ))
                         }
                         _ => return Err(err),
@@ -243,7 +245,10 @@ impl Node {
         Ok(eval)
     }
 
-    fn get_highest_path(&self, envs: &BTreeMap<EnvironmentName, bool>) -> Result<Option<&PathWithEnv>, Error> {
+    fn get_highest_path(
+        &self,
+        envs: &BTreeMap<EnvironmentName, bool>,
+    ) -> Result<Option<&PathWithEnv>, Error> {
         tracing::trace!("evaluating envtrie for best matching path");
         let Evaluation { path, .. } = self.get_evaluation(envs)?;
         Ok(path)
@@ -261,7 +266,9 @@ impl Node {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnvTrie(BTreeMap<EnvironmentName, Node>);
 
-fn get_weighted_map(exclusive_list: &[Vec<EnvironmentName>]) -> Result<BTreeMap<EnvironmentName, usize>, Error> {
+fn get_weighted_map(
+    exclusive_list: &[Vec<EnvironmentName>],
+) -> Result<BTreeMap<EnvironmentName, usize>, Error> {
     let _span = tracing::trace_span!(
         "get_weighted_map",
         exclusivity = ?exclusive_list
@@ -301,13 +308,10 @@ fn get_weighted_map(exclusive_list: &[Vec<EnvironmentName>]) -> Result<BTreeMap<
 
     for list in exclusive_list {
         for (score, item) in list.iter().rev().enumerate() {
-            let weight = weighted_map.get(item).map_or(score, |val| {
-                if *val > score {
-                    *val
-                } else {
-                    score
-                }
-            });
+            let weight =
+                weighted_map
+                    .get(item)
+                    .map_or(score, |val| if *val > score { *val } else { score });
             weighted_map.insert(item.clone(), weight);
         }
     }
@@ -331,7 +335,9 @@ fn merge_maps(
     map1
 }
 
-fn get_exclusivity_map(exclusivity_list: &[Vec<EnvironmentName>]) -> BTreeMap<EnvironmentName, HashSet<EnvironmentName>> {
+fn get_exclusivity_map(
+    exclusivity_list: &[Vec<EnvironmentName>],
+) -> BTreeMap<EnvironmentName, HashSet<EnvironmentName>> {
     let _span = tracing::trace_span!(
         "get_exclusivity_map",
         exclusivity = ?exclusivity_list
@@ -406,7 +412,7 @@ impl EnvTrie {
                         score: 0,
                         tree: None,
                         value: Some(path.clone()),
-                    }
+                    },
                 };
 
                 // Reverse-build a linked list
@@ -429,24 +435,26 @@ impl EnvTrie {
             .collect::<Result<Vec<_>, _>>()?;
 
         tracing::trace!("merging trees into a single trie");
-        let tree = nodes.into_iter()
-            .fold(Ok(BTreeMap::<EnvironmentName, Node>::new()), |acc, node| {
-                // TODO: Use result flattening when stable
-                match acc {
-                    Err(err) => Err(err),
-                    Ok(mut tree) => {
-                        // Explicitly call `drop()` to drop any old value.
-                        match tree.remove(&node.name) {
-                            None => drop(tree.insert(node.name.clone(), node)),
-                            Some(existing) => {
-                                let new_node = existing.merge_with(node)?;
-                                drop(tree.insert(new_node.name.clone(), new_node));
+        let tree =
+            nodes
+                .into_iter()
+                .fold(Ok(BTreeMap::<EnvironmentName, Node>::new()), |acc, node| {
+                    // TODO: Use result flattening when stable
+                    match acc {
+                        Err(err) => Err(err),
+                        Ok(mut tree) => {
+                            // Explicitly call `drop()` to drop any old value.
+                            match tree.remove(&node.name) {
+                                None => drop(tree.insert(node.name.clone(), node)),
+                                Some(existing) => {
+                                    let new_node = existing.merge_with(node)?;
+                                    drop(tree.insert(new_node.name.clone(), new_node));
+                                }
                             }
+                            Ok(tree)
                         }
-                        Ok(tree)
                     }
-                }
-            })?;
+                })?;
         Ok(EnvTrie(tree))
     }
 
@@ -456,27 +464,37 @@ impl EnvTrie {
     ///
     /// - [`Error::EnvironmentNotExist`] if one of the environments does not exist in the
     ///   `environments` argument.
-    pub fn get_path(&self, environments: &BTreeMap<EnvironmentName, bool>) -> Result<Option<&PathWithEnv>, Error> {
+    pub fn get_path(
+        &self,
+        environments: &BTreeMap<EnvironmentName, bool>,
+    ) -> Result<Option<&PathWithEnv>, Error> {
         tracing::trace!(
             trie = ?self,
             ?environments,
             "getting best matching path with given environments"
         );
-        self.0.iter()
-            .filter_map(|(env, node)| node.get_highest_path(environments).transpose().map(|path| (env, node, path)))
-            .fold(Ok(None), |acc, (_, node, path)| {
-            match (acc, path) {
+        self.0
+            .iter()
+            .filter_map(|(env, node)| {
+                node.get_highest_path(environments)
+                    .transpose()
+                    .map(|path| (env, node, path))
+            })
+            .fold(Ok(None), |acc, (_, node, path)| match (acc, path) {
                 (Err(err), _) | (_, Err(err)) => Err(err),
                 (Ok(None), Ok(path)) => Ok(Some((node, path))),
                 (Ok(Some((acc, acc_path))), Ok(path)) => match acc.score.cmp(&node.score) {
-                    Ordering::Equal => Err(Error::Indecision(acc.name.clone().into(), node.name.clone().into())),
+                    Ordering::Equal => Err(Error::Indecision(
+                        acc.name.clone().into(),
+                        node.name.clone().into(),
+                    )),
                     Ordering::Less => Ok(Some((node, path))),
                     Ordering::Greater => Ok(Some((acc, acc_path))),
-                }
-            }
-        })?.map(|(_, path)| {
-            path
-        }).map(Ok).transpose()
+                },
+            })?
+            .map(|(_, path)| path)
+            .map(Ok)
+            .transpose()
     }
 }
 

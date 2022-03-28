@@ -8,13 +8,13 @@
 //! was the last one to touch a file.
 
 use crate::checkers::history::operation::OperationFileInfo;
+use crate::checksum::Checksum;
 use crate::hoard::Direction;
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use crate::paths::RelativePath;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use time::OffsetDateTime;
-use crate::checksum::Checksum;
-use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 
 /// A single operation log.
 ///
@@ -69,15 +69,10 @@ impl super::OperationImpl for OperationV1 {
 
     fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
         match (pile_name.as_ref(), &self.hoard) {
-            (None, Hoard::Anonymous(pile)) => pile
-                .0
-                .get(rel_path)
-                .cloned(),
-            (Some(pile_name), Hoard::Named(piles)) => piles.get(pile_name).and_then(|pile| {
-                pile.0
-                    .get(rel_path)
-                    .cloned()
-            }),
+            (None, Hoard::Anonymous(pile)) => pile.0.get(rel_path).cloned(),
+            (Some(pile_name), Hoard::Named(piles)) => piles
+                .get(pile_name)
+                .and_then(|pile| pile.0.get(rel_path).cloned()),
             _ => None,
         }
     }
@@ -85,13 +80,13 @@ impl super::OperationImpl for OperationV1 {
     /// Returns, in order: the pile name, the relative path, and the file's checksum.
     fn all_files_with_checksums<'s>(&'s self) -> Box<dyn Iterator<Item = OperationFileInfo> + 's> {
         match &self.hoard {
-            Hoard::Anonymous(pile) => Box::new(pile.0.iter().map(move |(rel_path, md5)| {
-                OperationFileInfo {
+            Hoard::Anonymous(pile) => {
+                Box::new(pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
                     pile_name: PileName::anonymous(),
                     relative_path: rel_path.clone(),
                     checksum: Some(md5.clone()),
-                }
-            })),
+                }))
+            }
             Hoard::Named(piles) => Box::new({
                 piles.iter().flat_map(move |(pile_name, pile)| {
                     pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {

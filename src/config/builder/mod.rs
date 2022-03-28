@@ -280,7 +280,10 @@ impl Builder {
     ///
     /// The map associates an environment name with the [`Environment`] definition.
     #[must_use]
-    pub fn set_environments(mut self, environments: BTreeMap<EnvironmentName, Environment>) -> Self {
+    pub fn set_environments(
+        mut self,
+        environments: BTreeMap<EnvironmentName, Environment>,
+    ) -> Self {
         // grcov: ignore-start
         tracing::trace!(?environments, "setting environments");
         // grcov: ignore-end
@@ -381,7 +384,9 @@ impl Builder {
             .into_iter()
             .map(|(name, hoard)| {
                 let _span = tracing::debug_span!("processing_hoard", %name).entered();
-                hoard.process_with(&environments, &exclusivity).map(|hoard| (name, hoard))
+                hoard
+                    .process_with(&environments, &exclusivity)
+                    .map(|hoard| (name, hoard))
             })
             .collect::<Result<_, Error>>()?;
         tracing::debug!("processed hoards");

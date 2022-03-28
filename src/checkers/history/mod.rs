@@ -1,10 +1,10 @@
 //! Keep records of previous operations (including on other system) to prevent inconsistencies
 //! and accidental overwrites or deletions.
 
+use crate::paths::{HoardPath, RelativePath};
 use std::path::PathBuf;
 use std::{fs, io};
 use uuid::Uuid;
-use crate::paths::{HoardPath, RelativePath};
 
 pub mod last_paths;
 pub mod operation;
@@ -25,7 +25,10 @@ fn get_history_root_dir() -> HoardPath {
 
 fn get_history_dir_for_id(id: Uuid) -> HoardPath {
     let _span = tracing::debug_span!("get_history_dir_for_id", %id).entered();
-    get_history_root_dir().join(&RelativePath::try_from(PathBuf::from(id.to_string())).expect("uuid is always a valid relative path"))
+    get_history_root_dir().join(
+        &RelativePath::try_from(PathBuf::from(id.to_string()))
+            .expect("uuid is always a valid relative path"),
+    )
 }
 
 fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {

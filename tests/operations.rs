@@ -1,16 +1,19 @@
 use crate::common::base::{DefaultConfigTester, HOARD_ANON_FILE};
 use hoard::checkers::history::operation::{Operation, OperationImpl};
-use hoard::command::Command;
 use hoard::checksum::Checksum;
+use hoard::command::Command;
 use hoard::hoard_item::HoardItem;
 use hoard::newtypes::PileName;
 
 mod common;
 
 fn last_op(file: &HoardItem) -> Operation {
-    Operation::latest_local(&HOARD_ANON_FILE.parse().unwrap(), Some((&PileName::anonymous(), file.relative_path())))
-        .expect("finding a recent operation should not fail")
-        .expect("a recent operation should exist")
+    Operation::latest_local(
+        &HOARD_ANON_FILE.parse().unwrap(),
+        Some((&PileName::anonymous(), file.relative_path())),
+    )
+    .expect("finding a recent operation should not fail")
+    .expect("a recent operation should exist")
 }
 
 fn last_checksum(file: &HoardItem) -> Checksum {

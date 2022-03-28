@@ -3,9 +3,9 @@ use crate::hoard::Hoard;
 use crate::paths::HoardPath;
 use std::collections::BTreeSet;
 
+use crate::newtypes::HoardName;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use crate::newtypes::HoardName;
 
 pub(crate) fn run_diff(
     hoard: &Hoard,
@@ -15,15 +15,14 @@ pub(crate) fn run_diff(
 ) -> Result<(), super::Error> {
     let _span = tracing::trace_span!("run_diff").entered();
     tracing::trace!("running the diff command");
-    let diffs: BTreeSet<HoardFileDiff> =
-        HoardDiffIter::new(hoards_root, hoard_name.clone(), hoard)
-            .map_err(|err| {
-                tracing::error!("failed to create diff iterator: {}", err);
-                super::Error::Diff(err)
-            })?
-            .only_changed()
-            .collect::<Result<_, _>>()
-            .map_err(super::Error::Diff)?;
+    let diffs: BTreeSet<HoardFileDiff> = HoardDiffIter::new(hoards_root, hoard_name.clone(), hoard)
+        .map_err(|err| {
+            tracing::error!("failed to create diff iterator: {}", err);
+            super::Error::Diff(err)
+        })?
+        .only_changed()
+        .collect::<Result<_, _>>()
+        .map_err(super::Error::Diff)?;
     for hoard_diff in diffs {
         tracing::trace!("printing diff: {:?}", hoard_diff);
         match hoard_diff {

@@ -1,11 +1,11 @@
 //! See [`PathExists`].
 
+use crate::env_vars::PathWithEnv;
 use crate::paths::SystemPath;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::fmt::Formatter;
-use crate::env_vars::PathWithEnv;
 
 struct PathExistsVisitor;
 
