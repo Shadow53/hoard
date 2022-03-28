@@ -8,9 +8,10 @@
 //! was the last one to touch a file.
 
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
+use crate::checksum::{Checksum, ChecksumType};
 use crate::hoard::iter::{OperationIter, OperationType};
 use crate::hoard::{Direction, Hoard as ConfigHoard};
-use crate::hoard_item::{Checksum, ChecksumType, HoardItem};
+use crate::hoard_item::HoardItem;
 use crate::paths::{HoardPath, RelativePath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -384,10 +385,11 @@ mod tests {
     use super::*;
     use serde_test::{assert_tokens, Token};
     use std::path::PathBuf;
+    use crate::checksum::MD5;
 
     #[test]
     fn test_checksum_derives() {
-        let checksum = Checksum::MD5("legit checksum".to_string());
+        let checksum = Checksum::MD5(MD5::from_data("testing"));
         assert!(format!("{:?}", checksum).contains("MD5"));
         assert_eq!(checksum, checksum.clone());
         assert_tokens(
@@ -395,7 +397,7 @@ mod tests {
             &[
                 Token::Enum { name: "Checksum" },
                 Token::Str("md5"),
-                Token::Str("legit checksum"),
+                Token::Str("ae2b1fca515949e5d54fb22b8ed95575"),
             ],
         );
     }
@@ -428,7 +430,7 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(
-                        maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") },
+                        maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) },
                     )),
                 },
                 v1::OperationV1 {
@@ -436,7 +438,7 @@ mod tests {
                     is_backup: false,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(
-                        maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") },
+                        maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) },
                     )),
                 },
                 v1::OperationV1 {
@@ -455,7 +457,7 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_created(
                             RelativePath::none(),
-                            Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")),
+                            Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()),
                         );
                         pile
                     }),
@@ -468,7 +470,7 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_unmodified(
                             RelativePath::none(),
-                            Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")),
+                            Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()),
                         );
                         pile
                     }),
@@ -500,8 +502,8 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
-                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("ba9d332813a722b273a95fa13dd88d94"),
-                        RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
+                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("ba9d332813a722b273a95fa13dd88d94".parse().unwrap()),
+                        RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
                     })),
                 },
                 v1::OperationV1 {
@@ -509,9 +511,9 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
-                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                        RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
-                        RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
+                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
+                        RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
+                        RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap()),
                     })),
                 },
                 v1::OperationV1 {
@@ -519,8 +521,8 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Anonymous(v1::Pile(maplit::hashmap! {
-                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                        RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
+                        RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
+                        RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap()),
                     })),
                 },
             ];
@@ -533,11 +535,11 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_created(
                             RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                            Checksum::MD5(String::from("ba9d332813a722b273a95fa13dd88d94")),
+                            Checksum::MD5("ba9d332813a722b273a95fa13dd88d94".parse().unwrap()),
                         );
                         pile.add_created(
                             RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
-                            Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c")),
+                            Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
                         );
                         pile
                     }),
@@ -550,15 +552,15 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_created(
                             RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                            Checksum::MD5(String::from("797b373a9c4ec0d6de0a31a90b5bee8e")),
+                            Checksum::MD5("797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap()),
                         );
                         pile.add_modified(
                             RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                            Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2")),
+                            Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
                         );
                         pile.add_unmodified(
                             RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
-                            Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c")),
+                            Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
                         );
                         pile
                     }),
@@ -571,12 +573,12 @@ mod tests {
                         let mut pile = Pile::new();
                         pile.add_modified(
                             RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                            Checksum::MD5(String::from("1deb21ef3bb87be4ad71d73fff6bb8ec")),
+                            Checksum::MD5("1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap()),
                         );
                         pile.add_deleted(RelativePath::try_from(PathBuf::from("file_2")).unwrap());
                         pile.add_unmodified(
                             RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                            Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2")),
+                            Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
                         );
                         pile
                     }),
@@ -599,10 +601,10 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Named(maplit::hashmap! {
-                        "single_file".parse().unwrap() => v1::Pile(maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") }),
+                        "single_file".parse().unwrap() => v1::Pile(maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) }),
                         "dir".parse().unwrap() => v1::Pile(maplit::hashmap! {
-                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("ba9d332813a722b273a95fa13dd88d94"),
-                            RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("ba9d332813a722b273a95fa13dd88d94".parse().unwrap()),
+                            RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
                         })
                     }),
                 },
@@ -611,11 +613,11 @@ mod tests {
                     is_backup: true,
                     hoard_name: hoard_name.clone(),
                     hoard: v1::Hoard::Named(maplit::hashmap! {
-                        "single_file".parse().unwrap() => v1::Pile(maplit::hashmap! { RelativePath::none() => String::from("d3369a026ace494f56ead54d502a00dd") }),
+                        "single_file".parse().unwrap() => v1::Pile(maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) }),
                         "dir".parse().unwrap() => v1::Pile(maplit::hashmap! {
-                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                            RelativePath::try_from(PathBuf::from("file_2")).unwrap() => String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"),
-                            RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("797b373a9c4ec0d6de0a31a90b5bee8e"),
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
+                            RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
+                            RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap()),
                         })
                     }),
                 },
@@ -626,8 +628,8 @@ mod tests {
                     hoard: v1::Hoard::Named(maplit::hashmap! {
                         "single_file".parse().unwrap() => v1::Pile(HashMap::new()),
                         "dir".parse().unwrap() => v1::Pile(maplit::hashmap! {
-                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => String::from("1cfab2a192005a9a8bdc69106b4627e2"),
-                            RelativePath::try_from(PathBuf::from("file_3")).unwrap() => String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"),
+                            RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
+                            RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap()),
                         })
                     }),
                 },
@@ -640,18 +642,18 @@ mod tests {
                     files: Hoard::Named(maplit::hashmap! {
                         "single_file".parse().unwrap() => {
                             let mut pile = Pile::new();
-                            pile.add_created(RelativePath::none(), Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")));
+                            pile.add_created(RelativePath::none(), Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()));
                             pile
                         },
                         "dir".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_created(
                                 RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                                Checksum::MD5(String::from("ba9d332813a722b273a95fa13dd88d94"))
+                                Checksum::MD5("ba9d332813a722b273a95fa13dd88d94".parse().unwrap())
                             );
                             pile.add_created(
                                 RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
-                                Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"))
+                                Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap())
                             );
                             pile
                         }
@@ -664,22 +666,22 @@ mod tests {
                     files: Hoard::Named(maplit::hashmap! {
                         "single_file".parse().unwrap() => {
                             let mut pile = Pile::new();
-                            pile.add_unmodified(RelativePath::none(), Checksum::MD5(String::from("d3369a026ace494f56ead54d502a00dd")));
+                            pile.add_unmodified(RelativePath::none(), Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()));
                             pile
                         },
                         "dir".parse().unwrap() => {
                             let mut pile = Pile::new();
                             pile.add_modified(
                                 RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                                Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2"))
+                                Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap())
                             );
                             pile.add_unmodified(
                                 RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
-                                Checksum::MD5(String::from("92ed3b5f07b44bc4f70d0b24d5e1867c"))
+                                Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap())
                             );
                             pile.add_created(
                                 RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                                Checksum::MD5(String::from("797b373a9c4ec0d6de0a31a90b5bee8e"))
+                                Checksum::MD5("797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap())
                             );
                             pile
                         }
@@ -699,14 +701,14 @@ mod tests {
                             let mut pile = Pile::new();
                             pile.add_unmodified(
                                 RelativePath::try_from(PathBuf::from("file_1")).unwrap(),
-                                Checksum::MD5(String::from("1cfab2a192005a9a8bdc69106b4627e2"))
+                                Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap())
                             );
                             pile.add_deleted(
                                 RelativePath::try_from(PathBuf::from("file_2")).unwrap(),
                             );
                             pile.add_modified(
                                 RelativePath::try_from(PathBuf::from("file_3")).unwrap(),
-                                Checksum::MD5(String::from("1deb21ef3bb87be4ad71d73fff6bb8ec"))
+                                Checksum::MD5("1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap())
                             );
                             pile
                         }

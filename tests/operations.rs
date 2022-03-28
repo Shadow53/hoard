@@ -1,7 +1,8 @@
 use crate::common::base::{DefaultConfigTester, HOARD_ANON_FILE};
 use hoard::checkers::history::operation::{Operation, OperationImpl};
 use hoard::command::Command;
-use hoard::hoard_item::{Checksum, HoardItem};
+use hoard::checksum::Checksum;
+use hoard::hoard_item::HoardItem;
 use hoard::newtypes::PileName;
 
 mod common;

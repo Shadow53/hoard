@@ -16,7 +16,7 @@ pub mod v2;
 
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
-use crate::hoard_item::Checksum;
+use crate::checksum::Checksum;
 use crate::paths::{HoardPath, RelativePath};
 pub(crate) use util::cleanup_operations;
 use crate::newtypes::{HoardName, PileName};
