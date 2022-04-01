@@ -47,6 +47,8 @@ impl Checksum {
     /// # use hoard::checksum::{Checksum, ChecksumType};
     /// let checksum = Checksum::SHA256("50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c".parse().unwrap());
     /// assert_eq!(checksum.typ(), ChecksumType::SHA256);
+    /// let checksum = Checksum::MD5("ae2b1fca515949e5d54fb22b8ed95575".parse().unwrap());
+    /// assert_eq!(checksum.typ(), ChecksumType::MD5);
     /// ```
     #[must_use]
     pub fn typ(&self) -> ChecksumType {
@@ -63,5 +65,20 @@ impl fmt::Display for Checksum {
             Self::MD5(md5) => write!(f, "md5({})", md5),
             Self::SHA256(sha256) => write!(f, "sha256({})", sha256),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_checksum_display() {
+        let shasum = "50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c";
+        let checksum = Checksum::SHA256(shasum.parse().unwrap());
+        assert_eq!(format!("sha256({})", shasum), checksum.to_string());
+        let md5sum = "ae2b1fca515949e5d54fb22b8ed95575";
+        let checksum = Checksum::MD5(md5sum.parse().unwrap());
+        assert_eq!(format!("md5({})", md5sum), checksum.to_string());
     }
 }

@@ -174,16 +174,6 @@ where
     }
 }
 
-impl<T> From<Digest<T>> for String
-where
-    T: Digestable,
-    <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
-{
-    fn from(d: Digest<T>) -> Self {
-        d.to_string()
-    }
-}
-
 impl<T> FromStr for Digest<T>
 where
     T: Digestable,
@@ -192,17 +182,6 @@ where
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         T::digest_from_str(s).map(Digest)
-    }
-}
-
-impl<T> TryFrom<String> for Digest<T>
-where
-    T: Digestable,
-    <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
-{
-    type Error = Error;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        s.parse()
     }
 }
 
@@ -217,5 +196,149 @@ where
         D: AsRef<[u8]>,
     {
         Self(T::digest_to_array(data))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DATA: &str = "testing";
+
+    const MD5_STR: &str = "ae2b1fca515949e5d54fb22b8ed95575";
+    const MD5_ARR: [u8; 16] = [
+        0xae, 0x2b, 0x1f, 0xca, 0x51, 0x59, 0x49, 0xe5, 0xd5, 0x4f, 0xb2, 0x2b, 0x8e, 0xd9, 0x55, 0x75
+    ];
+
+    fn get_digest() -> MD5 {
+        MD5::from_data(DATA)
+    }
+
+    // TODO: Error conditions for digest_from_str()
+
+    mod md5 {
+        use super::*;
+        use ::md5::Md5;
+
+        #[test]
+        fn test_md5_output_size() {
+            assert_eq!(<Md5 as Digestable>::OutputSize::to_usize(), MD5_ARR.len());
+        }
+
+        #[test]
+        fn test_md5_digest_to_array() {
+            let result = Md5::digest_to_array(&DATA);
+            let expected = GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from_slice(&MD5_ARR);
+            assert_eq!(&result, expected);
+        }
+
+        #[test]
+        fn test_md5_digest_to_string() {
+            let result = Md5::digest_to_string(&DATA);
+            assert_eq!(&result, MD5_STR);
+        }
+
+        #[test]
+        fn test_md5_digest_from_str() {
+            let expected = Md5::digest_to_array(&DATA);
+            let result = Md5::digest_from_str(MD5_STR).unwrap();
+            assert_eq!(expected, result);
+        }
+    }
+
+    mod sha256 {
+        use super::*;
+        use ::sha2::Sha256;
+
+        const SHA256_STR: &str = "cf80cd8aed482d5d1527d7dc72fceff84e6326592848447d2dc0b0e87dfc9a90";
+        const SHA256_ARR: [u8; 32] = [
+            0xcf, 0x80, 0xcd, 0x8a, 0xed, 0x48, 0x2d, 0x5d, 0x15, 0x27, 0xd7, 0xdc, 0x72, 0xfc, 0xef, 0xf8,
+            0x4e, 0x63, 0x26, 0x59, 0x28, 0x48, 0x44, 0x7d, 0x2d, 0xc0, 0xb0, 0xe8, 0x7d, 0xfc, 0x9a, 0x90,
+        ];
+
+        #[test]
+        fn test_sha256_output_size() {
+            assert_eq!(<Sha256 as Digestable>::OutputSize::to_usize(), SHA256_ARR.len());
+        }
+
+        #[test]
+        fn test_sha256_digest_to_array() {
+            let result = Sha256::digest_to_array(&DATA);
+            let expected = GenericArray::<u8, <Sha256 as Digestable>::OutputSize>::from_slice(&SHA256_ARR);
+            assert_eq!(&result, expected);
+        }
+
+        #[test]
+        fn test_sha256_digest_to_string() {
+            let result = Sha256::digest_to_string(&DATA);
+            assert_eq!(&result, SHA256_STR);
+        }
+
+        #[test]
+        fn test_sha256_digest_from_str() {
+            let expected = Sha256::digest_to_array(&DATA);
+            let result = Sha256::digest_from_str(SHA256_STR).unwrap();
+            assert_eq!(expected, result);
+        }
+    }
+
+    mod digest {
+        use super::*;
+        use ::md5::Md5;
+        use serde_test::{assert_tokens, Token};
+
+        #[test]
+        fn test_from_str() {
+            let result = MD5::from_str(MD5_STR).unwrap();
+            let expected = Digest(GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from(MD5_ARR));
+            assert_eq!(expected, result);
+        }
+
+        #[test]
+        fn test_eq() {
+            // Last character differs between these strings
+            let first = MD5::from_str("ae2b1fca515949e5d54fb22b8ed95575").unwrap();
+            let second = MD5::from_str("ae2b1fca515949e5d54fb22b8ed95576").unwrap();
+
+            assert_eq!(first, first);
+            assert_eq!(second, second);
+            assert_ne!(first, second);
+        }
+
+        #[test]
+        fn test_ord() {
+            let first = MD5::from_str("ae2b1fca515949e5d54fb22b8ed95575").unwrap();
+            let second = MD5::from_str("ae2b1fca515949e5d54fb22b8ed95576").unwrap();
+
+            assert!(first < second);
+            assert!(second > first);
+        }
+
+        #[test]
+        fn test_clone() {
+            let digest = get_digest();
+            assert_eq!(digest, digest.clone());
+        }
+
+        #[test]
+        fn test_serde() {
+            let digest = get_digest();
+            assert_tokens(&digest, &[
+                Token::Str(MD5_STR)
+            ]);
+        }
+
+        #[test]
+        fn test_display() {
+            assert_eq!(MD5_STR, &format!("{}", get_digest()));
+        }
+
+        #[test]
+        fn test_from_data() {
+            assert_eq!(
+                MD5::from_data(DATA),
+                MD5::from_str(MD5_STR).unwrap(),
+            );
+        }
     }
 }
