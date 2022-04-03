@@ -1,6 +1,6 @@
-use std::{ops::Deref, fmt, str::FromStr};
+use std::{fmt, ops::Deref, str::FromStr};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::{validate_name, Error};
 
@@ -81,8 +81,14 @@ mod tests {
     fn test_from_str_and_try_from_string() {
         let inputs = vec![
             (String::from(""), Err(Error::InvalidName(String::from("")))),
-            (String::from("testing"), Ok(NonEmptyPileName(String::from("testing")))),
-            (String::from("config"), Err(Error::InvalidName(String::from("config")))),
+            (
+                String::from("testing"),
+                Ok(NonEmptyPileName(String::from("testing"))),
+            ),
+            (
+                String::from("config"),
+                Err(Error::InvalidName(String::from("config"))),
+            ),
         ];
 
         for (s, expected) in inputs {
@@ -90,21 +96,44 @@ mod tests {
             let try_from = NonEmptyPileName::try_from(s);
             match (&from_str, &try_from, &expected) {
                 (Ok(_), Err(_), _) | (Err(_), Ok(_), _) => {
-                    panic!("from_str ({:?}) and try_from_string ({:?}) returned different results", from_str, try_from)
-                },
+                    panic!(
+                        "from_str ({:?}) and try_from_string ({:?}) returned different results",
+                        from_str, try_from
+                    )
+                }
                 (Ok(result), Ok(_), Err(err)) => {
-                    panic!("conversion succeeded ({}) but expected to fail with {:?}", result, err);
+                    panic!(
+                        "conversion succeeded ({}) but expected to fail with {:?}",
+                        result, err
+                    );
                 }
                 (Err(err), Err(_), Ok(result)) => {
-                    panic!("conversion failed with {:?} but expected to succeed with {:?}", err, result);
+                    panic!(
+                        "conversion failed with {:?} but expected to succeed with {:?}",
+                        err, result
+                    );
                 }
                 (Ok(from_str), Ok(try_from), Ok(expected)) => {
-                    assert_eq!(from_str, try_from, "from_str and try_from_string returned different results");
-                    assert_eq!(from_str, expected, "expected {} but got {}", expected, from_str);
+                    assert_eq!(
+                        from_str, try_from,
+                        "from_str and try_from_string returned different results"
+                    );
+                    assert_eq!(
+                        from_str, expected,
+                        "expected {} but got {}",
+                        expected, from_str
+                    );
                 }
                 (Err(from_str), Err(try_from), Err(expected)) => {
-                    assert_eq!(from_str, try_from, "from_str and try_from_string returned different errors");
-                    assert_eq!(from_str, expected, "expected error {:?} but got {:?}", expected, from_str);
+                    assert_eq!(
+                        from_str, try_from,
+                        "from_str and try_from_string returned different errors"
+                    );
+                    assert_eq!(
+                        from_str, expected,
+                        "expected error {:?} but got {:?}",
+                        expected, from_str
+                    );
                 }
             }
         }

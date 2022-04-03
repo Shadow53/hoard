@@ -1,6 +1,6 @@
-use std::{str::FromStr, ops::Deref, fmt};
+use std::{fmt, ops::Deref, str::FromStr};
 
-use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 
 use super::{validate_name, Error};
 
@@ -59,8 +59,14 @@ mod tests {
     fn test_from_str() {
         let inputs = [
             (String::from(""), Err(Error::InvalidName(String::from("")))),
-            (String::from("config"), Err(Error::InvalidName(String::from("config")))),
-            (String::from("bad name"), Err(Error::InvalidName(String::from("bad name")))),
+            (
+                String::from("config"),
+                Err(Error::InvalidName(String::from("config"))),
+            ),
+            (
+                String::from("bad name"),
+                Err(Error::InvalidName(String::from("bad name"))),
+            ),
             (String::from("valid"), Ok(HoardName(String::from("valid")))),
         ];
 
@@ -69,14 +75,18 @@ mod tests {
             match (&result, &expected) {
                 (Ok(name), Err(err)) => panic!("expected error {:?}, got success {:?}", err, name),
                 (Err(err), Ok(name)) => panic!("expected success {:?}, got error {:?}", name, err),
-                (Ok(name), Ok(expected)) => assert_eq!(name, expected, "expected {} but got {}", expected, name),
-                (Err(err), Err(expected)) => assert_eq!(err, expected, "expected {:?} but got {:?}", expected, err),
+                (Ok(name), Ok(expected)) => {
+                    assert_eq!(name, expected, "expected {} but got {}", expected, name)
+                }
+                (Err(err), Err(expected)) => {
+                    assert_eq!(err, expected, "expected {:?} but got {:?}", expected, err)
+                }
             }
         }
     }
 
     #[test]
-        #[allow(clippy::explicit_deref_methods)]
+    #[allow(clippy::explicit_deref_methods)]
     fn test_as_ref_and_deref() {
         let s = "testing";
         let name: HoardName = s.parse().unwrap();
@@ -94,8 +104,6 @@ mod tests {
     #[test]
     fn test_serde() {
         let name: HoardName = "testing".parse().unwrap();
-        assert_tokens(&name, &[
-            Token::Str("testing"),
-        ]);
+        assert_tokens(&name, &[Token::Str("testing")]);
     }
 }

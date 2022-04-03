@@ -128,11 +128,11 @@ pub enum Error {
 }
 
 #[cfg(windows)]
-fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
+fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
     const EXTS: [&str; 5] = ["", ".exe", ".com", ".bat", ".cmd"];
 
     for ext in EXTS {
-        let file_name = format!("{}{}", file, ext);
+        let file_name = format!("{}{}", exe, ext);
         let files = [
             file_name.clone(),
             file_name.to_uppercase(),
@@ -259,14 +259,12 @@ mod tests {
 
     #[test]
     fn test_invalid_exe() {
-        let invalid = [
-            "has/subdir",
-            "../has_parent",
-        ];
+        let invalid = ["has/subdir", "../has_parent"];
 
         for path in invalid {
             let path = PathBuf::from(path);
-            let error = Executable::try_from(path.clone()).expect_err("path should be an invalid executable");
+            let error = Executable::try_from(path.clone())
+                .expect_err("path should be an invalid executable");
             assert!(matches!(error, InvalidPathError(other) if other == path));
         }
     }

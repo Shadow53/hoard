@@ -77,7 +77,7 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_test::{assert_de_tokens, assert_tokens, Token, assert_de_tokens_error};
+    use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, NamedTempFile};

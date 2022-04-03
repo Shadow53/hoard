@@ -84,7 +84,18 @@ mod tests {
 
     #[test]
     fn test_checksum_type() {
-        assert_eq!(ChecksumType::MD5, Checksum::MD5("ae2b1fca515949e5d54fb22b8ed95575".parse().unwrap()).typ());
-        assert_eq!(ChecksumType::SHA256, Checksum::SHA256("50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c".parse().unwrap()).typ());
+        assert_eq!(
+            ChecksumType::MD5,
+            Checksum::MD5("ae2b1fca515949e5d54fb22b8ed95575".parse().unwrap()).typ()
+        );
+        assert_eq!(
+            ChecksumType::SHA256,
+            Checksum::SHA256(
+                "50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c"
+                    .parse()
+                    .unwrap()
+            )
+            .typ()
+        );
     }
 }

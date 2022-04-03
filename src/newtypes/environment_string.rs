@@ -1,8 +1,8 @@
+use super::{EnvironmentName, Error};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::str::FromStr;
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
-use super::{EnvironmentName, Error};
 
 /// Newtype wrapper for `HashSet<EnvironmentName>` representing a list of environments.
 ///
@@ -58,8 +58,8 @@ impl fmt::Display for EnvironmentString {
 
 impl<'de> Deserialize<'de> for EnvironmentString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let inner = String::deserialize(deserializer)?;
         inner.parse().map_err(D::Error::custom)
@@ -68,8 +68,8 @@ impl<'de> Deserialize<'de> for EnvironmentString {
 
 impl Serialize for EnvironmentString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -99,8 +99,8 @@ impl EnvironmentString {
 
 #[cfg(test)]
 mod tests {
-    use serde_test::{assert_tokens, Token};
     use super::*;
+    use serde_test::{assert_tokens, Token};
 
     const NAME_1: &str = "3rd";
     const NAME_2: &str = "FIRST";
@@ -119,7 +119,9 @@ mod tests {
         let expected = expected();
         let result1 = format!("{}|{}|{}", NAME_1, NAME_2, NAME_3).parse().unwrap();
         // Order and repetition should not matter
-        let result2 = format!("{}|{}|{}|{}", NAME_2, NAME_3, NAME_1, NAME_2).parse().unwrap();
+        let result2 = format!("{}|{}|{}|{}", NAME_2, NAME_3, NAME_1, NAME_2)
+            .parse()
+            .unwrap();
 
         assert_eq!(expected, result1);
         assert_eq!(expected, result2);
@@ -139,9 +141,7 @@ mod tests {
             "2nd".parse().unwrap(),
             "LAST".parse().unwrap(),
         });
-        assert_tokens(&env_str, &[
-            Token::Str("2nd|LAST|first")
-        ]);
+        assert_tokens(&env_str, &[Token::Str("2nd|LAST|first")]);
     }
 
     #[test]
@@ -195,10 +195,18 @@ mod tests {
         for (s, expected) in inputs {
             let error = EnvironmentString::from_str(s).expect_err("input string should be invalid");
             match (expected, &error) {
-                (None, Error::EmptyName) => {},
-                (None, Error::InvalidName(_)) => panic!("expected Error::EmptyName, got {:?}", error),
-                (Some(s), Error::EmptyName) => panic!("expected Error::InvalidName(\"{}\"), got {:?}", s, error),
-                (Some(s1), Error::InvalidName(s2)) => assert_eq!(s1, s2, "expected invalid name to be \"{}\", got \"{}\"", s1, s2),
+                (None, Error::EmptyName) => {}
+                (None, Error::InvalidName(_)) => {
+                    panic!("expected Error::EmptyName, got {:?}", error)
+                }
+                (Some(s), Error::EmptyName) => {
+                    panic!("expected Error::InvalidName(\"{}\"), got {:?}", s, error)
+                }
+                (Some(s1), Error::InvalidName(s2)) => assert_eq!(
+                    s1, s2,
+                    "expected invalid name to be \"{}\", got \"{}\"",
+                    s1, s2
+                ),
             }
         }
     }

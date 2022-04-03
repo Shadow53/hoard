@@ -1,8 +1,8 @@
-use std::{str::FromStr, ops::Deref, fmt};
+use std::{fmt, ops::Deref, str::FromStr};
 
-use serde::{Serialize, Deserialize, Deserializer, de::Error as _};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 
-use super::{Error, validate_name};
+use super::{validate_name, Error};
 
 /// Newtype wrapper for `String` representing an [environment](https://hoard.rs/config/envs.html).
 ///
@@ -45,24 +45,39 @@ impl<'de> Deserialize<'de> for EnvironmentName {
 
 #[cfg(test)]
 mod tests {
-    use serde_test::{Token, assert_tokens};
     use super::*;
+    use serde_test::{assert_tokens, Token};
 
     #[test]
     fn test_from_str() {
         let inputs = [
             ("", Err(Error::InvalidName(String::from("")))),
-            ("invalid name", Err(Error::InvalidName(String::from("invalid name")))),
+            (
+                "invalid name",
+                Err(Error::InvalidName(String::from("invalid name"))),
+            ),
             ("valid", Ok(EnvironmentName(String::from("valid")))),
         ];
 
         for (s, expected) in inputs {
             let result = s.parse::<EnvironmentName>();
             match (result, expected) {
-                (Ok(result), Err(expected)) => panic!("expected error {:?} but got success {:?}", expected, result),
-                (Err(err), Ok(expected)) => panic!("expected success {:?} but got error {:?}", expected, err),
-                (Ok(result), Ok(expected)) => assert_eq!(result, expected, "expected {:?} but got {:?}", expected, result),
-                (Err(err), Err(expected)) => assert_eq!(err, expected, "expected error {:?} but got {:?}", expected, err),
+                (Ok(result), Err(expected)) => {
+                    panic!("expected error {:?} but got success {:?}", expected, result)
+                }
+                (Err(err), Ok(expected)) => {
+                    panic!("expected success {:?} but got error {:?}", expected, err)
+                }
+                (Ok(result), Ok(expected)) => assert_eq!(
+                    result, expected,
+                    "expected {:?} but got {:?}",
+                    expected, result
+                ),
+                (Err(err), Err(expected)) => assert_eq!(
+                    err, expected,
+                    "expected error {:?} but got {:?}",
+                    expected, err
+                ),
             }
         }
     }
@@ -85,8 +100,6 @@ mod tests {
     #[test]
     fn test_serde() {
         let name: EnvironmentName = "testing".parse().unwrap();
-        assert_tokens(&name, &[
-            Token::Str("testing"),
-        ]);
+        assert_tokens(&name, &[Token::Str("testing")]);
     }
 }

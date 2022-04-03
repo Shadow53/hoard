@@ -1,7 +1,7 @@
-use std::{fmt, ops::Deref};
-use std::str::FromStr;
-use serde::{de, Deserialize, Deserializer, Serialize};
 use super::{Error, NonEmptyPileName};
+use serde::{de, Deserialize, Deserializer, Serialize};
+use std::str::FromStr;
+use std::{fmt, ops::Deref};
 
 /// Newtype wrapper for `Option<String>` representing a pile name.
 ///
@@ -142,31 +142,44 @@ impl PileName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_test::{assert_tokens, assert_de_tokens, Token};
+    use serde_test::{assert_de_tokens, assert_tokens, Token};
 
     #[test]
     fn test_from_str() {
         let inputs = vec![
             ("", Err(Error::InvalidName(String::from("")))),
             ("name", Ok(PileName(Some("name".parse().unwrap())))),
-            ("invalid name", Err(Error::InvalidName(String::from("invalid name")))),
+            (
+                "invalid name",
+                Err(Error::InvalidName(String::from("invalid name"))),
+            ),
         ];
 
         for (s, expected) in inputs {
             let result = s.parse();
             match (expected, result) {
-                (Ok(name1), Ok(name2)) => assert_eq!(name1, name2, "expected {} but got {}", name1, name2),
+                (Ok(name1), Ok(name2)) => {
+                    assert_eq!(name1, name2, "expected {} but got {}", name1, name2)
+                }
                 (Err(err1), Err(err2)) => match (&err1, &err2) {
-                    (Error::EmptyName, Error::EmptyName) => {},
+                    (Error::EmptyName, Error::EmptyName) => {}
                     (Error::EmptyName, _) | (_, Error::EmptyName) => {
                         panic!("expected {:?}, got {:?}", err1, err2);
                     }
                     (Error::InvalidName(invalid1), Error::InvalidName(invalid2)) => {
-                        assert_eq!(invalid1, invalid2, "expected invalid string to be {}, was {}", invalid1, invalid2);
+                        assert_eq!(
+                            invalid1, invalid2,
+                            "expected invalid string to be {}, was {}",
+                            invalid1, invalid2
+                        );
                     }
                 },
-                (Ok(name), Err(err)) => panic!("expected successful parse {:?}, got error {:?}", name, err),
-                (Err(err), Ok(name)) => panic!("expected error {:?}, got success with {:?}", err, name),
+                (Ok(name), Err(err)) => {
+                    panic!("expected successful parse {:?}, got error {:?}", name, err)
+                }
+                (Err(err), Ok(name)) => {
+                    panic!("expected error {:?}, got success with {:?}", err, name)
+                }
             }
         }
     }
@@ -174,24 +187,20 @@ mod tests {
     #[test]
     fn test_serde_some() {
         let name: PileName = "name".parse().unwrap();
-        assert_tokens(&name, &[
-            Token::Some,
-            Token::Str("name"),
-        ]);
+        assert_tokens(&name, &[Token::Some, Token::Str("name")]);
     }
 
     #[test]
     fn test_serde_none() {
         let name = PileName::anonymous();
-        assert_tokens(&name, &[
-            Token::None,
-        ]);
+        assert_tokens(&name, &[Token::None]);
     }
 
     #[test]
     fn test_serde_empty_str() {
         serde_test::assert_de_tokens_error::<PileName>(
-            &[Token::Str("")], "invalid name: \"\": must contain only alphanumeric characters"
+            &[Token::Str("")],
+            "invalid name: \"\": must contain only alphanumeric characters",
         );
     }
 
@@ -204,7 +213,8 @@ mod tests {
     #[test]
     fn test_serde_invalid_type() {
         serde_test::assert_de_tokens_error::<PileName>(
-            &[Token::U8(5)], "invalid type: integer `5`, expected a valid pile name"
+            &[Token::U8(5)],
+            "invalid type: integer `5`, expected a valid pile name",
         );
     }
 
@@ -227,7 +237,10 @@ mod tests {
 
     #[test]
     fn test_into_option_non_empty_pile_name() {
-        assert_eq!(None, Option::<NonEmptyPileName>::from(PileName::anonymous()));
+        assert_eq!(
+            None,
+            Option::<NonEmptyPileName>::from(PileName::anonymous())
+        );
 
         let non_empty: NonEmptyPileName = "valid".parse().unwrap();
         let name = PileName::from(non_empty.clone());
@@ -241,7 +254,10 @@ mod tests {
         assert!(matches!(error, Error::EmptyName));
 
         let non_empty: NonEmptyPileName = "testing".parse().unwrap();
-        assert_eq!(non_empty.clone(), NonEmptyPileName::try_from(PileName::from(non_empty)).unwrap());
+        assert_eq!(
+            non_empty.clone(),
+            NonEmptyPileName::try_from(PileName::from(non_empty)).unwrap()
+        );
     }
 
     #[test]

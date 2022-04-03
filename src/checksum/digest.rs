@@ -207,7 +207,8 @@ mod tests {
 
     const MD5_STR: &str = "ae2b1fca515949e5d54fb22b8ed95575";
     const MD5_ARR: [u8; 16] = [
-        0xae, 0x2b, 0x1f, 0xca, 0x51, 0x59, 0x49, 0xe5, 0xd5, 0x4f, 0xb2, 0x2b, 0x8e, 0xd9, 0x55, 0x75
+        0xae, 0x2b, 0x1f, 0xca, 0x51, 0x59, 0x49, 0xe5, 0xd5, 0x4f, 0xb2, 0x2b, 0x8e, 0xd9, 0x55,
+        0x75,
     ];
 
     fn get_digest() -> MD5 {
@@ -228,7 +229,8 @@ mod tests {
         #[test]
         fn test_md5_digest_to_array() {
             let result = Md5::digest_to_array(&DATA);
-            let expected = GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from_slice(&MD5_ARR);
+            let expected =
+                GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from_slice(&MD5_ARR);
             assert_eq!(&result, expected);
         }
 
@@ -252,19 +254,24 @@ mod tests {
 
         const SHA256_STR: &str = "cf80cd8aed482d5d1527d7dc72fceff84e6326592848447d2dc0b0e87dfc9a90";
         const SHA256_ARR: [u8; 32] = [
-            0xcf, 0x80, 0xcd, 0x8a, 0xed, 0x48, 0x2d, 0x5d, 0x15, 0x27, 0xd7, 0xdc, 0x72, 0xfc, 0xef, 0xf8,
-            0x4e, 0x63, 0x26, 0x59, 0x28, 0x48, 0x44, 0x7d, 0x2d, 0xc0, 0xb0, 0xe8, 0x7d, 0xfc, 0x9a, 0x90,
+            0xcf, 0x80, 0xcd, 0x8a, 0xed, 0x48, 0x2d, 0x5d, 0x15, 0x27, 0xd7, 0xdc, 0x72, 0xfc,
+            0xef, 0xf8, 0x4e, 0x63, 0x26, 0x59, 0x28, 0x48, 0x44, 0x7d, 0x2d, 0xc0, 0xb0, 0xe8,
+            0x7d, 0xfc, 0x9a, 0x90,
         ];
 
         #[test]
         fn test_sha256_output_size() {
-            assert_eq!(<Sha256 as Digestable>::OutputSize::to_usize(), SHA256_ARR.len());
+            assert_eq!(
+                <Sha256 as Digestable>::OutputSize::to_usize(),
+                SHA256_ARR.len()
+            );
         }
 
         #[test]
         fn test_sha256_digest_to_array() {
             let result = Sha256::digest_to_array(&DATA);
-            let expected = GenericArray::<u8, <Sha256 as Digestable>::OutputSize>::from_slice(&SHA256_ARR);
+            let expected =
+                GenericArray::<u8, <Sha256 as Digestable>::OutputSize>::from_slice(&SHA256_ARR);
             assert_eq!(&result, expected);
         }
 
@@ -290,10 +297,16 @@ mod tests {
         #[test]
         fn test_from_str() {
             let result = MD5::from_str(MD5_STR).unwrap();
-            let expected = Digest(GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from(MD5_ARR));
+            let expected = Digest(GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from(
+                MD5_ARR,
+            ));
             assert_eq!(expected, result);
             let error = MD5::from_str("bad1").expect_err("\"bad1\" is an invalid MD5 checksum");
-            if let Error::InvalidLength { received_len, expected_len } = error {
+            if let Error::InvalidLength {
+                received_len,
+                expected_len,
+            } = error
+            {
                 // Each two characters is one byte
                 assert_eq!(received_len, 2);
                 assert_eq!(expected_len, <Md5 as Digestable>::OutputSize::to_usize());
@@ -320,7 +333,10 @@ mod tests {
 
             assert!(matches!(first.partial_cmp(&second), Some(Ordering::Less)));
             assert!(matches!(first.cmp(&second), Ordering::Less));
-            assert!(matches!(second.partial_cmp(&first), Some(Ordering::Greater)));
+            assert!(matches!(
+                second.partial_cmp(&first),
+                Some(Ordering::Greater)
+            ));
             assert!(matches!(second.cmp(&first), Ordering::Greater));
             assert!(matches!(first.partial_cmp(&first), Some(Ordering::Equal)));
             assert!(matches!(first.cmp(&first), Ordering::Equal));
@@ -335,9 +351,7 @@ mod tests {
         #[test]
         fn test_serde() {
             let digest = get_digest();
-            assert_tokens(&digest, &[
-                Token::Str(MD5_STR)
-            ]);
+            assert_tokens(&digest, &[Token::Str(MD5_STR)]);
         }
 
         #[test]
@@ -347,10 +361,7 @@ mod tests {
 
         #[test]
         fn test_from_data() {
-            assert_eq!(
-                MD5::from_data(DATA),
-                MD5::from_str(MD5_STR).unwrap(),
-            );
+            assert_eq!(MD5::from_data(DATA), MD5::from_str(MD5_STR).unwrap(),);
         }
     }
 }
