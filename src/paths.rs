@@ -473,7 +473,12 @@ mod tests {
                 RelativePath::try_from(Some(valid_path.clone())).unwrap(),
                 RelativePath(Some(valid_path))
             );
+            #[cfg(unix)]
             let invalid_path = PathBuf::from("/invalid/path");
+            #[cfg(windows)]
+            let invalid_path = PathBuf::from("//invalid/path");
+
+            assert!(invalid_path.is_absolute(), "invalid path must be absolute for this test.");
             let error = RelativePath::try_from(Some(invalid_path.clone()))
                 .expect_err("absolute path should error");
             assert_eq!(error, Error::InvalidRelativePath(invalid_path));
