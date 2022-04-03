@@ -72,7 +72,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 /// - No symbolic links are followed
 /// - No file or directory existence is checked
 /// - No other filesystem accesses are performed
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum Error {
     /// The path provided to [`HoardPath::try_from()`] was invalid.
     ///
@@ -343,6 +343,44 @@ impl RelativePath {
 mod tests {
     use super::*;
 
+    mod hoard_path {
+        use super::*;
+
+        #[test]
+        fn test_try_from_invalid() {
+            let path = PathBuf::from("/invalid/hoard/path");
+            let error = HoardPath::try_from(path.clone()).expect_err("invalid hoard path");
+            assert_eq!(error, Error::InvalidHoardPath(path));
+        }
+
+        #[test]
+        fn test_from_str_invalid() {
+            let path_str = "/invalid/hoard/path";
+            let path = PathBuf::from(&path_str);
+            let error = HoardPath::from_str(path_str).expect_err("invalid hoard path string");
+            assert_eq!(error, Error::InvalidHoardPath(path));
+        }
+
+        #[test]
+        fn test_from_str_valid() {
+            let valid_path = hoards_dir().join(&RelativePath::try_from(PathBuf::from("valid")).unwrap());
+            let valid_str = valid_path.as_ref().to_str().unwrap();
+            let path = HoardPath::from_str(&valid_str).unwrap();
+            assert_eq!(path, valid_path);
+        }
+    }
+
+    mod system_path {
+        use super::*;
+
+        #[test]
+        fn test_try_from_hoard_path() {
+            let hoard_path = hoards_dir().as_ref().join("test");
+            let error = SystemPath::try_from(hoard_path.clone()).expect_err("a hoard path cannot be a system path");
+            assert_eq!(error, Error::InvalidSystemPath(hoard_path));
+        }
+    }
+
     mod relative_path {
         use super::*;
 
@@ -423,6 +461,43 @@ mod tests {
                 RelativePath::try_from(path)
                     .expect_err("paths that access the grandparent are not valid");
             }
+        }
+
+        #[test]
+        fn test_try_from_option() {
+            assert_eq!(RelativePath::try_from(None).unwrap(), RelativePath(None));
+            let valid_path = PathBuf::from("valid/relative");
+            assert_eq!(RelativePath::try_from(Some(valid_path.clone())).unwrap(), RelativePath(Some(valid_path)));
+            let invalid_path = PathBuf::from("/invalid/path");
+            let error = RelativePath::try_from(Some(invalid_path.clone())).expect_err("absolute path should error");
+            assert_eq!(error, Error::InvalidRelativePath(invalid_path));
+        }
+
+        #[test]
+        fn test_as_ref() {
+            assert_eq!(RelativePath::none().as_ref(), &None);
+            assert_eq!(RelativePath::try_from(PathBuf::from("valid")).unwrap().as_ref(), &Some(PathBuf::from("valid")));
+        }
+
+        #[test]
+        fn test_to_string() {
+            assert_eq!(RelativePath::none().to_string(), "");
+            assert_eq!(RelativePath::try_from(PathBuf::from("valid")).unwrap().to_string(), "valid");
+        }
+
+        #[test]
+        fn test_from_pile_name() {
+            let pile_name = PileName::from_str("valid").unwrap();
+            let rel_path = RelativePath::from(&pile_name);
+            assert_eq!(rel_path, RelativePath::try_from(PathBuf::from("valid")).unwrap());
+        }
+
+        #[test]
+        fn test_as_path() {
+            let path = PathBuf::from("test");
+            let rel_path = RelativePath::try_from(path.clone()).unwrap();
+            assert_eq!(rel_path.as_path(), Some(path.as_path()));
+            assert_eq!(RelativePath::none().as_path(), None);
         }
     }
 }

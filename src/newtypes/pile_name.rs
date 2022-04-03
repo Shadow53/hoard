@@ -189,9 +189,23 @@ mod tests {
     }
 
     #[test]
+    fn test_serde_empty_str() {
+        serde_test::assert_de_tokens_error::<PileName>(
+            &[Token::Str("")], "invalid name: \"\": must contain only alphanumeric characters"
+        );
+    }
+
+    #[test]
     fn test_serde_non_empty_str() {
         let name = PileName::from_str("valid").unwrap();
         assert_de_tokens(&name, &[Token::Str("valid")]);
+    }
+
+    #[test]
+    fn test_serde_invalid_type() {
+        serde_test::assert_de_tokens_error::<PileName>(
+            &[Token::U8(5)], "invalid type: integer `5`, expected a valid pile name"
+        );
     }
 
     #[test]
@@ -199,6 +213,8 @@ mod tests {
         let op = Some("valid");
         let expected = PileName::from_str("valid").unwrap();
         assert_eq!(PileName::try_from(op).unwrap(), expected);
+        let none: Option<&str> = None;
+        assert_eq!(PileName::try_from(none).unwrap(), PileName::anonymous());
     }
 
     #[test]

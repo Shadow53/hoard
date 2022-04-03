@@ -292,6 +292,14 @@ mod tests {
             let result = MD5::from_str(MD5_STR).unwrap();
             let expected = Digest(GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from(MD5_ARR));
             assert_eq!(expected, result);
+            let error = MD5::from_str("bad1").expect_err("\"bad1\" is an invalid MD5 checksum");
+            if let Error::InvalidLength { received_len, expected_len } = error {
+                // Each two characters is one byte
+                assert_eq!(received_len, 2);
+                assert_eq!(expected_len, <Md5 as Digestable>::OutputSize::to_usize());
+            } else {
+                panic!("expected InvalidLength error, got {:?}", error);
+            }
         }
 
         #[test]
@@ -310,8 +318,12 @@ mod tests {
             let first = MD5::from_str("ae2b1fca515949e5d54fb22b8ed95575").unwrap();
             let second = MD5::from_str("ae2b1fca515949e5d54fb22b8ed95576").unwrap();
 
-            assert!(first < second);
-            assert!(second > first);
+            assert!(matches!(first.partial_cmp(&second), Some(Ordering::Less)));
+            assert!(matches!(first.cmp(&second), Ordering::Less));
+            assert!(matches!(second.partial_cmp(&first), Some(Ordering::Greater)));
+            assert!(matches!(second.cmp(&first), Ordering::Greater));
+            assert!(matches!(first.partial_cmp(&first), Some(Ordering::Equal)));
+            assert!(matches!(first.cmp(&first), Ordering::Equal));
         }
 
         #[test]

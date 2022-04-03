@@ -77,7 +77,7 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_test::{assert_de_tokens, assert_tokens, Token};
+    use serde_test::{assert_de_tokens, assert_tokens, Token, assert_de_tokens_error};
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, NamedTempFile};
@@ -138,6 +138,10 @@ mod tests {
         let path_str = "/test/path/example";
         let path = PathExists(Some(SystemPath::try_from(PathBuf::from(path_str)).unwrap()));
         assert_tokens(&path, &[Token::Some, Token::Str(path_str)]);
+
+        assert_de_tokens_error::<PathExists>(
+            &[Token::U8(5)], "invalid type: integer `5`, expected a path that may or may not contain environment variables"
+        );
     }
 
     #[test]

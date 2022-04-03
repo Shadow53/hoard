@@ -236,4 +236,45 @@ mod tests {
             .expect("failed to check if exe exists");
         assert!(!exists);
     }
+
+    #[test]
+    fn test_to_string() {
+        let result = ExeExists(PathBuf::from(EXE_NAMES[0]).try_into().unwrap()).to_string();
+        assert_eq!(result, format!("EXE \"{}\" EXISTS", EXE_NAMES[0]));
+    }
+
+    #[test]
+    fn test_convert_error_back_to_path() {
+        let path = PathBuf::from("/test/path");
+        let error = InvalidPathError(path.clone());
+        assert_eq!(path, PathBuf::from(error));
+    }
+
+    #[test]
+    fn test_exe_into_path() {
+        let path = PathBuf::from("/test/bin");
+        let exe = Executable(path.clone());
+        assert_eq!(path, PathBuf::from(exe));
+    }
+
+    #[test]
+    fn test_invalid_exe() {
+        let invalid = [
+            "has/subdir",
+            "../has_parent",
+        ];
+
+        for path in invalid {
+            let path = PathBuf::from(path);
+            let error = Executable::try_from(path.clone()).expect_err("path should be an invalid executable");
+            assert!(matches!(error, InvalidPathError(other) if other == path));
+        }
+    }
+
+    #[test]
+    fn test_error_to_string() {
+        let error = InvalidPathError(PathBuf::from("invalid/path"));
+        let expected = "expected an absolute path or lone file name, got invalid/path";
+        assert_eq!(expected, error.to_string());
+    }
 }
