@@ -2,13 +2,82 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-use std::fmt::Formatter;
+use std::fmt::Debug;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 use thiserror::Error;
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+
+/// The contained path was not a valid [`Executable`].
+///
+/// Use `error.into()` to convert the error into the bad [`PathBuf`].
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct InvalidPathError(PathBuf);
+
+impl fmt::Display for InvalidPathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "expected an absolute path or lone file name, got {}",
+            self.0.display()
+        )
+    }
+}
+
+impl From<InvalidPathError> for PathBuf {
+    fn from(error: InvalidPathError) -> PathBuf {
+        error.0
+    }
+}
+
+/// A wrapper for [`PathBuf`] that ensures it is either an absolute path or lone file name.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "PathBuf", into = "PathBuf")]
+#[repr(transparent)]
+pub struct Executable(PathBuf);
+
+impl AsRef<Path> for Executable {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Deref for Executable {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl fmt::Display for Executable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(&self.0.display(), f)
+    }
+}
+
+impl From<Executable> for PathBuf {
+    fn from(exe: Executable) -> Self {
+        exe.0
+    }
+}
+
+impl TryFrom<PathBuf> for Executable {
+    type Error = InvalidPathError;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        let is_lone_file_name = value.parent().map_or(false, |s| s.as_os_str().is_empty());
+        if value.is_absolute() || is_lone_file_name {
+            Ok(Self(value))
+        } else {
+            Err(InvalidPathError(value))
+        }
+    }
+}
 
 /// A conditional structure that tests if the given executable exists in the `$PATH` environment
 /// variable.
@@ -38,7 +107,7 @@ use std::os::unix::fs::MetadataExt;
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 #[allow(clippy::module_name_repetitions)]
-pub struct ExeExists(pub String);
+pub struct ExeExists(pub Executable);
 
 /// Errors that may occur while checking for an executable's existence.
 #[derive(Debug, Error)]
@@ -59,11 +128,11 @@ pub enum Error {
 }
 
 #[cfg(windows)]
-fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
+fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
     const EXTS: [&str; 5] = ["", ".exe", ".com", ".bat", ".cmd"];
 
     for ext in EXTS {
-        let file_name = format!("{}{}", file, ext);
+        let file_name = format!("{}{}", exe, ext);
         let files = [
             file_name.clone(),
             file_name.to_uppercase(),
@@ -88,8 +157,8 @@ fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
 }
 
 #[cfg(unix)]
-fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
-    let file = dir.map_or_else(|| PathBuf::from(&file), |dir| dir.join(&file));
+fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
+    let file = dir.map_or_else(|| exe.to_path_buf(), |dir| dir.join(&exe));
     if file.exists() {
         fs::metadata(&file)
             .map(|meta| {
@@ -102,14 +171,14 @@ fn is_executable(dir: Option<&Path>, file: &str) -> Result<bool, Error> {
     }
 }
 
-fn exe_in_path(name: &str) -> Result<bool, Error> {
-    let exe_path = PathBuf::from(name);
+fn exe_in_path(exe: &Executable) -> Result<bool, Error> {
+    let exe_path = exe.as_ref();
     if exe_path.is_absolute() {
-        is_executable(None, name)
+        is_executable(None, exe)
     } else {
         let path = std::env::var_os("PATH").ok_or(Error::NoPath)?;
         std::env::split_paths(&path)
-            .map(|path| is_executable(Some(&path), name))
+            .map(|path| is_executable(Some(&path), exe))
             .find(|result| matches!(result, Ok(true) | Err(_)))
             .unwrap_or(Ok(false))
     }
@@ -126,7 +195,7 @@ impl TryInto<bool> for ExeExists {
 }
 
 impl fmt::Display for ExeExists {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ExeExists(exe) = self;
         write!(f, "EXE {} EXISTS", exe)
     }
@@ -152,7 +221,7 @@ mod tests {
     fn test_exe_exists() {
         println!("{}", std::env::var("PATH").unwrap());
         for exe in &EXE_NAMES {
-            let exists: bool = ExeExists((*exe).to_string())
+            let exists: bool = ExeExists(PathBuf::from(exe).try_into().unwrap())
                 .try_into()
                 .expect("failed to check if exe exists");
 
@@ -162,9 +231,48 @@ mod tests {
 
     #[test]
     fn test_exe_does_not_exist() {
-        let exists: bool = ExeExists(String::from("HoardTestNotExist"))
+        let exists: bool = ExeExists(PathBuf::from("HoardTestNotExist").try_into().unwrap())
             .try_into()
             .expect("failed to check if exe exists");
         assert!(!exists);
+    }
+
+    #[test]
+    fn test_to_string() {
+        let result = ExeExists(PathBuf::from(EXE_NAMES[0]).try_into().unwrap()).to_string();
+        assert_eq!(result, format!("EXE {} EXISTS", EXE_NAMES[0]));
+    }
+
+    #[test]
+    fn test_convert_error_back_to_path() {
+        let path = PathBuf::from("/test/path");
+        let error = InvalidPathError(path.clone());
+        assert_eq!(path, PathBuf::from(error));
+    }
+
+    #[test]
+    fn test_exe_into_path() {
+        let path = PathBuf::from("/test/bin");
+        let exe = Executable(path.clone());
+        assert_eq!(path, PathBuf::from(exe));
+    }
+
+    #[test]
+    fn test_invalid_exe() {
+        let invalid = ["has/subdir", "../has_parent"];
+
+        for path in invalid {
+            let path = PathBuf::from(path);
+            let error = Executable::try_from(path.clone())
+                .expect_err("path should be an invalid executable");
+            assert!(matches!(error, InvalidPathError(other) if other == path));
+        }
+    }
+
+    #[test]
+    fn test_error_to_string() {
+        let error = InvalidPathError(PathBuf::from("invalid/path"));
+        let expected = "expected an absolute path or lone file name, got invalid/path";
+        assert_eq!(expected, error.to_string());
     }
 }

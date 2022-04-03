@@ -110,10 +110,10 @@ fn run_operation(
 
     match direction {
         Direction::Backup => tester.expect_command(Command::Backup {
-            hoards: vec![hoard.to_string()],
+            hoards: vec![hoard.parse().unwrap()],
         }),
         Direction::Restore => tester.expect_command(Command::Restore {
-            hoards: vec![hoard.to_string()],
+            hoards: vec![hoard.parse().unwrap()],
         }),
     }
 }
@@ -198,14 +198,14 @@ fn test_operation_cleanup() {
     common::create_file_with_random_data::<2048>(tester.named_file().system_path());
     tester
         .run_command(Command::Backup {
-            hoards: vec![HOARD_NAMED.to_string()],
+            hoards: vec![HOARD_NAMED.parse().unwrap()],
         })
         .expect_err("backing up named hoard should fail");
 
     tester.expect_command(Command::Backup {
-        hoards: vec![HOARD_ANON_DIR.to_string()],
+        hoards: vec![HOARD_ANON_DIR.parse().unwrap()],
     });
     tester.expect_command(Command::Backup {
-        hoards: vec![HOARD_ANON_FILE.to_string()],
+        hoards: vec![HOARD_ANON_FILE.parse().unwrap()],
     });
 }

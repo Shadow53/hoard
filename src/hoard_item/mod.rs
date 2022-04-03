@@ -1,75 +1,16 @@
 //! Types for working with files that are managed by Hoard.
 
+use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
+use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
 use std::path::Path;
-use std::{fmt, fs, io};
-
-/// The types of checksums supported by Hoard.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ChecksumType {
-    /// MD5 checksum -- provided for backwards compatibility with older versions of Hoard.
-    MD5,
-    /// SHA256 checksum -- currently the default.
-    SHA256,
-}
-
-impl Default for ChecksumType {
-    fn default() -> Self {
-        Self::SHA256
-    }
-}
-
-/// A file's checksum as a human-readable string.
-///
-/// If you have a choice of which variant to construct,
-/// prefer using [`HoardItem::system_checksum`] or [`HoardItem::hoard_checksum`] with the
-/// return value of [`ChecksumType::default()`]
-///
-/// # TODO
-///
-/// - Ensure that the contained values can never be invalid for the associated checksum type.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Checksum {
-    /// An MD5 checksum -- provided for backwards compatibility with older versions of Hoard.
-    MD5(String),
-    /// A SHA256 checksum -- currently the default.
-    SHA256(String),
-}
-
-impl Checksum {
-    /// Returns the [`ChecksumType`] for this `Checksum`.
-    ///
-    /// ```
-    /// # use hoard::hoard_item::{Checksum, ChecksumType};
-    /// let checksum = Checksum::SHA256(String::from("50d858e0985ecc7f60418aaf0cc5ab587f42c2570a884095a9e8ccacd0f6545c"));
-    /// assert_eq!(checksum.typ(), ChecksumType::SHA256);
-    /// ```
-    #[must_use]
-    pub fn typ(&self) -> ChecksumType {
-        match self {
-            Self::MD5(_) => ChecksumType::MD5,
-            Self::SHA256(_) => ChecksumType::SHA256,
-        }
-    }
-}
-
-impl fmt::Display for Checksum {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MD5(md5) => write!(f, "md5({})", md5),
-            Self::SHA256(sha256) => write!(f, "sha256({})", sha256),
-        }
-    }
-}
+use std::{fs, io};
 
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HoardItem {
-    pile_name: Option<String>,
+    pile_name: PileName,
     hoard_prefix: HoardPath,
     system_prefix: SystemPath,
     hoard_path: HoardPath,
@@ -89,7 +30,7 @@ impl HoardItem {
     ///   `relative_path` is `Some(dir/some_file)`. If `a_pile` is a file, `relative_path == None`.
     #[must_use]
     pub fn new(
-        pile_name: Option<String>,
+        pile_name: PileName,
         hoard_prefix: HoardPath,
         system_prefix: SystemPath,
         relative_path: RelativePath,
@@ -112,8 +53,8 @@ impl HoardItem {
 
     /// Returns the name of the pile this item belongs to, if any.
     #[must_use]
-    pub fn pile_name(&self) -> Option<&str> {
-        self.pile_name.as_deref()
+    pub fn pile_name(&self) -> &PileName {
+        &self.pile_name
     }
 
     /// Returns the relative path for this item.
@@ -139,7 +80,7 @@ impl HoardItem {
     /// If [`HoardItem::relative_path()`] is `None`, this is the same as
     /// [`HoardItem::hoard_prefix()`].
     #[must_use]
-    pub fn hoard_path(&self) -> &Path {
+    pub fn hoard_path(&self) -> &HoardPath {
         &self.hoard_path
     }
 
@@ -148,7 +89,7 @@ impl HoardItem {
     /// If [`HoardItem::relative_path()`] is `None`, this is the same as
     /// [`HoardItem::system_prefix()`].
     #[must_use]
-    pub fn system_path(&self) -> &Path {
+    pub fn system_path(&self) -> &SystemPath {
         &self.system_path
     }
 
@@ -291,14 +232,10 @@ impl HoardItem {
     }
 
     fn md5(content: &[u8]) -> Checksum {
-        let digest = <md5::Md5 as md5::Digest>::digest(content);
-        let hash = format!("{:x}", digest);
-        Checksum::MD5(hash)
+        Checksum::MD5(MD5::from_data(content))
     }
 
     fn sha256(content: &[u8]) -> Checksum {
-        let digest = <sha2::Sha256 as sha2::Digest>::digest(content);
-        let hash = format!("{:x}", digest);
-        Checksum::SHA256(hash)
+        Checksum::SHA256(SHA256::from_data(content))
     }
 }

@@ -19,6 +19,7 @@ pub(crate) use list::run_list;
 pub(crate) use status::run_status;
 pub(crate) use upgrade::run_upgrade;
 
+use crate::newtypes::HoardName;
 pub use backup_restore::Error as BackupRestoreError;
 pub use edit::Error as EditError;
 
@@ -71,12 +72,12 @@ pub enum Command {
     /// Back up the given hoard(s).
     Backup {
         /// The name(s) of the hoard(s) to back up. Will back up all hoards if empty.
-        hoards: Vec<String>,
+        hoards: Vec<HoardName>,
     },
     /// Restore the files from the given hoard to the filesystem.
     Restore {
         /// The name(s) of the hoard(s) to restore. Will restore all hoards if empty.
-        hoards: Vec<String>,
+        hoards: Vec<HoardName>,
     },
     /// List configured hoards.
     List,
@@ -86,7 +87,7 @@ pub enum Command {
     /// too.
     Diff {
         /// The name of the hoard to diff.
-        hoard: String,
+        hoard: HoardName,
         /// If true, prints unified diffs for text files.
         #[structopt(long, short)]
         verbose: bool,

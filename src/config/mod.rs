@@ -3,6 +3,7 @@
 pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,7 +22,7 @@ pub enum Error {
     Builder(#[from] builder::Error),
     /// The requested hoard does not exist.
     #[error("no such hoard is configured: {0}")]
-    NoSuchHoard(String),
+    NoSuchHoard(HoardName),
 }
 
 /// A (processed) configuration.
@@ -36,7 +37,7 @@ pub struct Config {
     /// Path to a configuration file.
     pub config_file: PathBuf,
     /// All of the configured hoards.
-    pub hoards: HashMap<String, Hoard>,
+    pub hoards: HashMap<HoardName, Hoard>,
     /// Whether to force the operation to continue despite possible inconsistencies.
     pub force: bool,
 }
@@ -91,29 +92,25 @@ impl Config {
 
     fn get_hoards<'a>(
         &'a self,
-        hoards: &'a [String],
-    ) -> Result<HashMap<&'a str, &'a Hoard>, Error> {
+        hoards: &'a [HoardName],
+    ) -> Result<HashMap<&'a HoardName, &'a Hoard>, Error> {
         if hoards.is_empty() {
             tracing::debug!("no hoard names provided, acting on all of them.");
-            Ok(self
-                .hoards
-                .iter()
-                .map(|(key, val)| (key.as_str(), val))
-                .collect())
+            Ok(self.hoards.iter().collect())
         } else {
             tracing::debug!("using hoard names provided on cli");
             tracing::trace!(?hoards);
             hoards
                 .iter()
-                .map(|key| self.get_hoard(key).map(|hoard| (key.as_str(), hoard)))
+                .map(|key| self.get_hoard(key).map(|hoard| (key, hoard)))
                 .collect()
         }
     }
 
-    fn get_hoard<'a>(&'a self, name: &'_ str) -> Result<&'a Hoard, Error> {
+    fn get_hoard<'a>(&'a self, name: &'_ HoardName) -> Result<&'a Hoard, Error> {
         self.hoards
             .get(name)
-            .ok_or_else(|| Error::NoSuchHoard(name.to_owned()))
+            .ok_or_else(|| Error::NoSuchHoard(name.clone()))
     }
 
     /// Run the stored [`Command`] using this [`Config`].
@@ -125,10 +122,7 @@ impl Config {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
-                let iter = self
-                    .hoards
-                    .iter()
-                    .map(|(name, hoard)| (name.as_str(), hoard));
+                let iter = self.hoards.iter();
                 command::run_status(&self.get_hoards_root_path(), iter)?;
             }
             Command::Diff { hoard, verbose } => {
@@ -146,7 +140,7 @@ impl Config {
                 tracing::info!("configuration is valid");
             }
             Command::List => {
-                command::run_list(self.hoards.keys().map(String::as_str));
+                command::run_list(self.hoards.keys());
             }
             Command::Cleanup => {
                 command::run_cleanup()?;

@@ -19,10 +19,10 @@ exclusivity = [
     env = [{ var = "CARGO" }]
 
 # Two unrelated envs that do not conflict with each other
-# should have the save score and cause these paths to conflict.
+# should have the same score and cause these paths to conflict.
 [hoards.test]
     "foo" = "/some/path"
-    "baz" = "/some/path"
+    "baz" = "/some/other/path"
 "#;
 
 #[test]
@@ -33,7 +33,7 @@ fn test_results_in_indecision() {
         BuildError::ProcessHoard(HoardError::EnvTrie(err)) => match err {
             TrieError::Indecision(left, right) => assert_eq!(
                 hashset! { left, right },
-                hashset! { "foo".into(), "baz".into() }
+                hashset! { "foo".parse().unwrap(), "baz".parse().unwrap() }
             ),
             _ => panic!("Unexpected error: {}", err),
         },

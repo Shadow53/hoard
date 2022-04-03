@@ -9,8 +9,9 @@
 //! used.
 
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
-use crate::env_vars::{expand_env_in_path, Error as EnvError};
+use crate::env_vars::{Error as EnvError, PathWithEnv};
 use crate::hoard::PileConfig;
+use crate::newtypes::{EnvironmentName, EnvironmentString, NonEmptyPileName};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
@@ -43,14 +44,14 @@ pub struct Pile {
     ///
     /// See [`expand_env_in_path`] for more on path format.
     #[serde(flatten)]
-    pub items: BTreeMap<String, String>,
+    pub items: BTreeMap<EnvironmentString, PathWithEnv>,
 }
 
 impl Pile {
     fn process_with(
         self,
-        envs: &BTreeMap<String, bool>,
-        exclusivity: &[Vec<String>],
+        envs: &BTreeMap<EnvironmentName, bool>,
+        exclusivity: &[Vec<EnvironmentName>],
     ) -> Result<ConfigSingle, Error> {
         let _span = tracing::debug_span!(
             "process_pile",
@@ -60,7 +61,11 @@ impl Pile {
 
         let Pile { config, items } = self;
         let trie = EnvTrie::new(&items, exclusivity)?;
-        let path = trie.get_path(envs)?.map(expand_env_in_path).transpose()?;
+        let path = trie
+            .get_path(envs)?
+            .cloned()
+            .map(PathWithEnv::process)
+            .transpose()?;
 
         Ok(ConfigSingle {
             config: config.unwrap_or_default(),
@@ -74,7 +79,7 @@ impl Pile {
 }
 
 /// A set of multiple related piles (i.e. in a single hoard).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MultipleEntries {
     /// Any custom configuration that applies to all contained files.
     ///
@@ -82,25 +87,20 @@ pub struct MultipleEntries {
     pub config: Option<PileConfig>,
     /// A mapping of pile name to not-yet-processed [`Pile`]s.
     #[serde(flatten)]
-    pub items: BTreeMap<String, Pile>,
+    pub items: BTreeMap<NonEmptyPileName, Pile>,
 }
 
 impl MultipleEntries {
     fn process_with(
         self,
-        envs: &BTreeMap<String, bool>,
-        exclusivity: &[Vec<String>],
+        envs: &BTreeMap<EnvironmentName, bool>,
+        exclusivity: &[Vec<EnvironmentName>],
     ) -> Result<ConfigMultiple, super::Error> {
         let MultipleEntries { config, items } = self;
         let items = items
             .into_iter()
             .map(|(pile, mut entry)| {
                 tracing::debug!(%pile, "processing pile");
-                if pile == super::CONFIG_KEY {
-                    return Err(super::Error::NameConfigNotAllowed(vec![
-                        super::CONFIG_KEY.to_string()
-                    ]));
-                }
                 entry.layer_config(config.as_ref());
                 let _span = tracing::debug_span!("processing_span_outer", name=%pile).entered();
                 let entry = entry
@@ -139,8 +139,8 @@ impl Hoard {
     /// Any [`enum@Error`] that occurs while evaluating the `Hoard`.
     pub fn process_with(
         self,
-        envs: &BTreeMap<String, bool>,
-        exclusivity: &[Vec<String>],
+        envs: &BTreeMap<EnvironmentName, bool>,
+        exclusivity: &[Vec<EnvironmentName>],
     ) -> Result<crate::config::hoard::Hoard, super::Error> {
         match self {
             Hoard::Single(single) => {
@@ -177,7 +177,7 @@ mod tests {
 
     mod config {
         use super::*;
-        use crate::hoard_item::ChecksumType;
+        use crate::checksum::ChecksumType;
 
         #[test]
         fn test_layer_configs_both_none() {
@@ -269,11 +269,11 @@ mod tests {
                 config: None,
                 #[cfg(unix)]
                 items: btreemap! {
-                    "foo".into() => "${HOME}/something".into()
+                    "foo".parse().unwrap() => "${HOME}/something".into()
                 },
                 #[cfg(windows)]
                 items: btreemap! {
-                    "foo".into() => "${USERPROFILE}/something".into()
+                    "foo".parse().unwrap() => "${USERPROFILE}/something".into()
                 },
             };
 
@@ -288,7 +288,7 @@ mod tests {
                 ),
             };
 
-            let envs = btreemap! { "foo".into() =>  true };
+            let envs = btreemap! { "foo".parse().unwrap() =>  true };
             let result = pile
                 .process_with(&envs, &[])
                 .expect("pile should process without issues");
@@ -299,7 +299,7 @@ mod tests {
 
     mod serde {
         use super::*;
-        use crate::hoard_item::ChecksumType;
+        use crate::checksum::ChecksumType;
         use maplit::btreemap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 
@@ -308,7 +308,7 @@ mod tests {
             let hoard = Hoard::Single(Pile {
                 config: None,
                 items: btreemap! {
-                    "bar_env|foo_env".to_string() => "/some/path".to_string()
+                    "bar_env|foo_env".parse().unwrap() => "/some/path".into()
                 },
             });
 
@@ -336,7 +336,7 @@ mod tests {
                     ignore: Vec::new(),
                 }),
                 items: btreemap! {
-                    "bar_env|foo_env".to_string() => "/some/path".to_string()
+                    "bar_env|foo_env".parse().unwrap() => "/some/path".into()
                 },
             });
 
@@ -383,10 +383,10 @@ mod tests {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: None,
                 items: btreemap! {
-                    "item1".to_string() => Pile {
+                    "item1".parse().unwrap() => Pile {
                         config: None,
                         items: btreemap! {
-                            "bar_env|foo_env".to_string() => "/some/path".to_string()
+                            "bar_env|foo_env".parse().unwrap() => "/some/path".into()
                         }
                     },
                 },
@@ -421,10 +421,10 @@ mod tests {
                     ignore: Vec::new(),
                 }),
                 items: btreemap! {
-                    "item1".to_string() => Pile {
+                    "item1".parse().unwrap() => Pile {
                         config: None,
                         items: btreemap! {
-                            "bar_env|foo_env".to_string() => "/some/path".to_string()
+                            "bar_env|foo_env".parse().unwrap() => "/some/path".into()
                         }
                     },
                 },

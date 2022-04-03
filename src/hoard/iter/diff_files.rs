@@ -8,6 +8,7 @@ use std::fs::Permissions;
 use std::{fmt, fs};
 use tracing::trace_span;
 
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -202,7 +203,7 @@ impl Ord for HoardFileDiff {
 
 pub(crate) struct HoardDiffIter {
     iterator: AllFilesIter,
-    hoard_name: String,
+    hoard_name: HoardName,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -218,7 +219,7 @@ struct ProcessedFile {
 impl HoardDiffIter {
     pub(crate) fn new(
         hoards_root: &HoardPath,
-        hoard_name: String,
+        hoard_name: HoardName,
         hoard: &Hoard,
     ) -> Result<Self, super::Error> {
         let _span = tracing::trace_span!("file_diffs_iterator").entered();
@@ -236,7 +237,10 @@ impl HoardDiffIter {
         self.filter(|diff| !matches!(diff, Ok(HoardFileDiff::Unchanged(_))))
     }
 
-    fn process_file(hoard_name: &str, file: &HoardItem) -> Result<ProcessedFile, super::Error> {
+    fn process_file(
+        hoard_name: &HoardName,
+        file: &HoardItem,
+    ) -> Result<ProcessedFile, super::Error> {
         let _span = tracing::trace_span!("process_file", ?file).entered();
         let has_same_permissions = {
             let hoard_perms = fs::File::open(file.hoard_path())
@@ -416,7 +420,7 @@ impl Iterator for HoardDiffIter {
                         system_perms,
                     }
                 }
-                Diff::LeftNotExists => {
+                Diff::HoardNotExists => {
                     // File not in hoard directory
                     if has_hoard_records {
                         // Used to exist in hoard directory
@@ -443,7 +447,7 @@ impl Iterator for HoardDiffIter {
                         }
                     }
                 }
-                Diff::RightNotExists => {
+                Diff::SystemNotExists => {
                     // File not on system
                     if has_hoard_records {
                         // File exists in the hoard

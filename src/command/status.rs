@@ -1,14 +1,15 @@
 use crate::hoard::iter::{DiffSource, HoardDiffIter, HoardFileDiff};
 use crate::hoard::Hoard;
+use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 
 pub(crate) fn run_status<'a>(
     hoards_root: &HoardPath,
-    hoards: impl IntoIterator<Item = (&'a str, &'a Hoard)>,
+    hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)>,
 ) -> Result<(), super::Error> {
     for (hoard_name, hoard) in hoards {
         let _span = tracing::error_span!("run_status", hoard=%hoard_name).entered();
-        let source = HoardDiffIter::new(hoards_root, hoard_name.to_string(), hoard)
+        let source = HoardDiffIter::new(hoards_root, hoard_name.clone(), hoard)
             .map_err(super::Error::Status)?
             .filter_map(|hoard_diff| {
                 let hoard_diff = match hoard_diff {

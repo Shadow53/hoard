@@ -6,6 +6,7 @@ use std::io::Read;
 use std::path::Path;
 use std::{fs, io};
 
+use crate::paths::{HoardPath, SystemPath};
 use similar::{ChangeTag, TextDiff};
 
 const CONTEXT_RADIUS: usize = 5;
@@ -45,9 +46,9 @@ pub(crate) enum Diff {
     /// Content is the same, but permissions differ.
     Permissions(fs::Permissions, fs::Permissions),
     /// The left path to diff_files did not exist, but the right path did.
-    LeftNotExists,
+    HoardNotExists,
     /// The left path to diff_paths existed, but the right path did not.
-    RightNotExists,
+    SystemNotExists,
 }
 
 fn content_and_meta_for(path: &Path) -> io::Result<(FileContent, Option<fs::Metadata>)> {
@@ -64,24 +65,28 @@ fn content_and_meta_for(path: &Path) -> io::Result<(FileContent, Option<fs::Meta
     }
 }
 
-pub(crate) fn diff_files(left_path: &Path, right_path: &Path) -> io::Result<Option<Diff>> {
-    let (left, left_meta) = content_and_meta_for(left_path)?;
-    let (right, right_meta) = content_and_meta_for(right_path)?;
+pub(crate) fn diff_files(
+    hoard_path: &HoardPath,
+    system_path: &SystemPath,
+) -> io::Result<Option<Diff>> {
+    let (hoard_content, hoard_meta) = content_and_meta_for(hoard_path)?;
+    let (system_content, system_meta) = content_and_meta_for(system_path)?;
 
-    let permissions_diff = if let (Some(left_meta), Some(right_meta)) = (left_meta, right_meta) {
-        let left_perms = left_meta.permissions();
-        let right_perms = right_meta.permissions();
-        (left_perms != right_perms).then(|| Diff::Permissions(left_perms, right_perms))
+    let permissions_diff = if let (Some(hoard_meta), Some(system_meta)) = (hoard_meta, system_meta)
+    {
+        let hoard_perms = hoard_meta.permissions();
+        let system_perms = system_meta.permissions();
+        (hoard_perms != system_perms).then(|| Diff::Permissions(hoard_perms, system_perms))
     } else {
         None
     };
 
-    let diff = match (left, right) {
+    let diff = match (hoard_content, system_content) {
         (FileContent::Missing, FileContent::Missing) => None,
-        (FileContent::Missing, _) => Some(Diff::LeftNotExists),
-        (_, FileContent::Missing) => Some(Diff::RightNotExists),
-        (FileContent::Text(left_text), FileContent::Text(right_text)) => {
-            let text_diff = TextDiff::from_lines(&left_text, &right_text);
+        (FileContent::Missing, _) => Some(Diff::HoardNotExists),
+        (_, FileContent::Missing) => Some(Diff::SystemNotExists),
+        (FileContent::Text(hoard_text), FileContent::Text(system_text)) => {
+            let text_diff = TextDiff::from_lines(&hoard_text, &system_text);
 
             let has_diff = text_diff
                 .iter_all_changes()
@@ -91,7 +96,10 @@ pub(crate) fn diff_files(left_path: &Path, right_path: &Path) -> io::Result<Opti
                 let udiff = text_diff
                     .unified_diff()
                     .context_radius(CONTEXT_RADIUS)
-                    .header(&left_path.to_string_lossy(), &right_path.to_string_lossy())
+                    .header(
+                        &hoard_path.to_string_lossy(),
+                        &system_path.to_string_lossy(),
+                    )
                     .to_string();
                 Some(Diff::Text(udiff))
             } else {
@@ -116,13 +124,15 @@ pub(crate) fn diff_files(left_path: &Path, right_path: &Path) -> io::Result<Opti
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::paths::RelativePath;
     use std::path::PathBuf;
 
     #[test]
     fn test_diff_non_existent_files() {
-        let left_path = PathBuf::from("/does/not/exist");
-        let right_path = PathBuf::from("/also/does/not/exist");
-        let diff = diff_files(&left_path, &right_path).expect("diff should not fail");
+        let hoard_path = crate::paths::hoards_dir()
+            .join(&RelativePath::try_from(PathBuf::from("does_not_exist")).unwrap());
+        let system_path = SystemPath::try_from(PathBuf::from("/also/does/not/exist")).unwrap();
+        let diff = diff_files(&hoard_path, &system_path).expect("diff should not fail");
 
         assert!(diff.is_none());
     }

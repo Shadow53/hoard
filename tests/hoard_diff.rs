@@ -2,6 +2,7 @@ mod common;
 
 use common::tester::Tester;
 use hoard::command::Command;
+use hoard::newtypes::HoardName;
 use paste::paste;
 use std::fs;
 #[cfg(unix)]
@@ -48,23 +49,30 @@ exclusivity = [
     "windows" = "${HOARD_TMP}/testdir"
 "#;
 
-fn no_op(_tester: &Tester, _path: &Path, _content: Option<Content>, _is_text: bool, _hoard: &str) {}
+fn no_op(
+    _tester: &Tester,
+    _path: &Path,
+    _content: Option<Content>,
+    _is_text: bool,
+    _hoard: &HoardName,
+) {
+}
 
 fn setup_modify(
     tester: &Tester,
     path: &Path,
     content: Option<Content>,
     is_text: bool,
-    hoard: &str,
+    hoard: &HoardName,
 ) {
     modify_file(path, content, is_text, hoard);
     tester.use_local_uuid();
     tester.expect_command(Command::Backup {
-        hoards: vec![hoard.to_string()],
+        hoards: vec![hoard.clone()],
     });
     tester.use_remote_uuid();
     tester.expect_command(Command::Restore {
-        hoards: vec![hoard.to_string()],
+        hoards: vec![hoard.clone()],
     });
 }
 
@@ -73,7 +81,7 @@ fn setup_permissions(
     path: &Path,
     content: Option<Content>,
     is_text: bool,
-    hoard: &str,
+    hoard: &HoardName,
 ) {
     modify_file(path, Some(Content::Data(DEFAULT_CONTENT)), is_text, hoard);
     setup_modify(tester, path, content, is_text, hoard);
@@ -84,16 +92,16 @@ fn setup_recreate(
     path: &Path,
     content: Option<Content>,
     is_text: bool,
-    hoard: &str,
+    hoard: &HoardName,
 ) {
     modify_file(path, content, is_text, hoard);
     tester.use_local_uuid();
     tester.expect_command(Command::Backup {
-        hoards: vec![hoard.to_string()],
+        hoards: vec![hoard.clone()],
     });
     modify_file(path, None, is_text, hoard);
     tester.expect_command(Command::Restore {
-        hoards: vec![hoard.to_string()],
+        hoards: vec![hoard.clone()],
     });
 }
 
@@ -101,7 +109,7 @@ fn is_writable(octet: u32) -> bool {
     octet & 0o000200 != 0
 }
 
-fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &str) {
+fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &HoardName) {
     match content {
         None => {
             if path.exists() {
@@ -158,7 +166,7 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &st
 
 fn assert_diff_contains(
     tester: &Tester,
-    hoard: &str,
+    hoard: &HoardName,
     content: String,
     is_partial: bool,
     invert: bool,
@@ -166,7 +174,7 @@ fn assert_diff_contains(
 ) {
     tester.use_local_uuid();
     tester.expect_command(Command::Diff {
-        hoard: hoard.to_string(),
+        hoard: hoard.clone(),
         verbose: is_verbose,
     });
     if invert {
@@ -182,7 +190,7 @@ fn assert_diff_contains(
 fn check_created_file(
     tester: &Tester,
     file: &File,
-    hoard: &str,
+    hoard: &HoardName,
     location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
@@ -249,7 +257,7 @@ fn get_full_diff(
 fn check_modified_file(
     tester: &Tester,
     file: &File,
-    hoard: &str,
+    hoard: &HoardName,
     location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
@@ -284,7 +292,7 @@ fn check_modified_file(
 fn check_modified_perms(
     tester: &Tester,
     file: &File,
-    hoard: &str,
+    hoard: &HoardName,
     _location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
@@ -337,7 +345,7 @@ fn check_modified_perms(
 fn check_deleted_file(
     tester: &Tester,
     file: &File,
-    hoard: &str,
+    hoard: &HoardName,
     location: &str,
     is_partial: bool,
     hoard_content: Option<Content>,
@@ -386,7 +394,7 @@ fn check_deleted_file(
 fn check_recreated_file(
     tester: &Tester,
     file: &File,
-    hoard: &str,
+    hoard: &HoardName,
     location: &str,
     is_partial: bool,
     _hoard_content: Option<Content>,
@@ -636,7 +644,7 @@ macro_rules! test_diffs {
 test_diffs! {
     tester,
     maplit::btreemap! {
-        String::from("anon_dir") => vec![
+        "anon_dir".parse().unwrap() => vec![
             File {
                 path: tester.home_dir().join("testdir").join("test.txt"),
                 hoard_path: Some(tester.data_dir().join("hoards").join("anon_dir").join("test.txt")),
@@ -656,7 +664,7 @@ test_diffs! {
                 ignored: true,
             },
         ],
-        String::from("anon_txt") => vec![
+        "anon_txt".parse().unwrap() => vec![
             File {
                 path: tester.home_dir().join("anon.txt"),
                 hoard_path: Some(tester.data_dir().join("hoards").join("anon_txt")),
@@ -664,7 +672,7 @@ test_diffs! {
                 is_text: true,
             },
         ],
-        String::from("named") => vec![
+        "named".parse().unwrap() => vec![
             File {
                 path: tester.home_dir().join("named.txt"),
                 hoard_path: Some(tester.data_dir().join("hoards").join("named").join("text")),

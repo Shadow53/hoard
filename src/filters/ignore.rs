@@ -12,6 +12,7 @@ use crate::hoard::PileConfig;
 use glob::{Pattern, PatternError};
 
 use super::Filter;
+use crate::paths::{RelativePath, SystemPath};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -39,12 +40,11 @@ impl Filter for IgnoreFilter {
         })
     }
 
-    fn keep(&self, prefix: &std::path::Path, path: &std::path::Path) -> bool {
-        let _span = tracing::trace_span!("ignore_filter", ?prefix, ?path).entered();
-        tracing::trace!("stripping {:?} from {:?}", prefix, path);
-        let rel_path = path.strip_prefix(prefix).unwrap_or(path);
+    fn keep(&self, prefix: &SystemPath, rel_path: &RelativePath) -> bool {
+        let _span = tracing::trace_span!("ignore_filter", ?prefix, ?rel_path).entered();
+        tracing::trace!("stripping {:?} from {:?}", prefix, rel_path);
         self.globs.iter().all(|glob| {
-            let matches = glob.matches_path(rel_path);
+            let matches = glob.matches_path(&rel_path.to_path_buf());
             tracing::trace!("{:?} matches glob {:?}: {}", rel_path, glob, matches);
             !matches
         })
@@ -54,7 +54,7 @@ impl Filter for IgnoreFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hoard_item::ChecksumType;
+    use crate::checksum::ChecksumType;
 
     #[test]
     fn test_filter_derives() {

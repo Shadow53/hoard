@@ -202,7 +202,7 @@ mod tests {
                 var: "TEST_VARIABLE".to_string(),
                 expected: None,
             };
-            let exe_exists = ExeExists("test".into());
+            let exe_exists = ExeExists(PathBuf::from("test").try_into().unwrap());
             let path_exists = PathExists(Some(
                 SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
             ));

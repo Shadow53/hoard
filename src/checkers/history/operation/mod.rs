@@ -5,7 +5,7 @@ use crate::checkers::Checker;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -16,7 +16,8 @@ pub mod v2;
 
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
-use crate::hoard_item::Checksum;
+use crate::checksum::Checksum;
+use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 pub(crate) use util::cleanup_operations;
 
@@ -44,6 +45,11 @@ pub enum Error {
     /// An error occurred in the file iterator.
     #[error("error while iterating files: {0}")]
     Iterator(#[from] crate::hoard::iter::Error),
+    /// Found a mix of empty/anonymous and actual pile names.
+    ///
+    /// This shouldn't happen in practice, but returning an error is preferred to panicking.
+    #[error("found mixed empty/anonymous and non-empty pile names")]
+    MixedPileNames,
 }
 
 /// Information logged about a single Hoard file inside of an Operation.
@@ -52,7 +58,7 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[allow(clippy::module_name_repetitions)]
 pub struct OperationFileInfo {
-    pile_name: Option<String>,
+    pile_name: PileName,
     relative_path: RelativePath,
     checksum: Option<Checksum>,
 }
@@ -73,17 +79,17 @@ pub trait OperationImpl {
     /// Whether the operation log contains the given file by pile name and relative path.
     fn contains_file(
         &self,
-        pile_name: Option<&str>,
+        pile_name: &PileName,
         rel_path: &RelativePath,
         only_modified: bool,
     ) -> bool;
     /// The timestamp for the logged operation.
     fn timestamp(&self) -> OffsetDateTime;
     /// The associated hoard name for this operation.
-    fn hoard_name(&self) -> &str;
+    fn hoard_name(&self) -> &HoardName;
     /// The checksum associated with the given file, or `None` if the file does not exist or was
     /// deleted.
-    fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum>;
+    fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum>;
     /// An iterator over all files that exist within this operation log, not including any that
     /// were deleted.
     fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a>;
@@ -99,7 +105,7 @@ impl OperationImpl for OperationVersion {
 
     fn contains_file(
         &self,
-        pile_name: Option<&str>,
+        pile_name: &PileName,
         rel_path: &RelativePath,
         only_modified: bool,
     ) -> bool {
@@ -116,14 +122,14 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn hoard_name(&self) -> &str {
+    fn hoard_name(&self) -> &HoardName {
         match &self {
             OperationVersion::V1(one) => one.hoard_name(),
             OperationVersion::V2(two) => two.hoard_name(),
         }
     }
 
-    fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum> {
+    fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
         match &self {
             OperationVersion::V1(one) => one.checksum_for(pile_name, rel_path),
             OperationVersion::V2(two) => two.checksum_for(pile_name, rel_path),
@@ -152,7 +158,7 @@ impl OperationImpl for Operation {
 
     fn contains_file(
         &self,
-        pile_name: Option<&str>,
+        pile_name: &PileName,
         rel_path: &RelativePath,
         only_modified: bool,
     ) -> bool {
@@ -163,11 +169,11 @@ impl OperationImpl for Operation {
         self.0.timestamp()
     }
 
-    fn hoard_name(&self) -> &str {
+    fn hoard_name(&self) -> &HoardName {
         self.0.hoard_name()
     }
 
-    fn checksum_for(&self, pile_name: Option<&str>, rel_path: &RelativePath) -> Option<Checksum> {
+    fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
         self.0.checksum_for(pile_name, rel_path)
     }
 
@@ -179,7 +185,7 @@ impl OperationImpl for Operation {
 impl Operation {
     fn new(
         hoards_root: &HoardPath,
-        name: &str,
+        name: &HoardName,
         hoard: &Hoard,
         direction: Direction,
     ) -> Result<Self, Error> {
@@ -262,8 +268,8 @@ impl Operation {
     ///   deleted at some point, it should be removed from this set.
     pub(crate) fn convert_to_latest_version(
         self,
-        file_checksums: &mut HashMap<(Option<String>, RelativePath), Option<Checksum>>,
-        file_set: &mut HashSet<(Option<String>, RelativePath)>,
+        file_checksums: &mut HashMap<(PileName, RelativePath), Option<Checksum>>,
+        file_set: &mut HashSet<(PileName, RelativePath)>,
     ) -> Self {
         // Conversion always modifies file_checksums and file_set with the contents of the Operation.
         let latest = match self.0 {
@@ -292,16 +298,16 @@ impl Operation {
     /// Returns the latest operation for the given hoard from a system history root directory.
     ///
     /// `path` must be relative to one of the hoard's piles.
-    fn latest_hoard_operation_from_system_dir(
-        dir: &Path,
-        hoard: &str,
-        path: Option<(Option<&str>, &RelativePath)>,
+    fn latest_hoard_operation_from_local_dir(
+        dir: &HoardPath,
+        hoard: &HoardName,
+        path: Option<(&PileName, &RelativePath)>,
         backups_only: bool,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::trace_span!("get_latest_hoard_operation", ?dir, %hoard).entered();
         tracing::trace!("getting latest operation log for hoard in dir");
-        let root = dir.join(hoard);
+        let root = dir.join(&RelativePath::from(hoard));
         if !root.exists() {
             tracing::trace!(dir=?root, "hoard dir does not exist, no logs found");
             return Ok(None);
@@ -344,14 +350,14 @@ impl Operation {
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
     pub fn latest_local(
-        hoard: &str,
-        file: Option<(Option<&str>, &RelativePath)>,
+        hoard: &HoardName,
+        file: Option<(&PileName, &RelativePath)>,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_local", %hoard).entered();
         tracing::trace!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid()?;
         let self_folder = super::get_history_dir_for_id(uuid);
-        Self::latest_hoard_operation_from_system_dir(&self_folder, hoard, file, false, false)
+        Self::latest_hoard_operation_from_local_dir(&self_folder, hoard, file, false, false)
     }
 
     /// Returns the latest backup operation recorded on any other machine (by UUID).
@@ -363,8 +369,8 @@ impl Operation {
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
     pub(crate) fn latest_remote_backup(
-        hoard: &str,
-        file: Option<(Option<&str>, &RelativePath)>,
+        hoard: &HoardName,
+        file: Option<(&PileName, &RelativePath)>,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
@@ -374,7 +380,7 @@ impl Operation {
         other_folders
             .into_iter()
             .map(|dir| {
-                Self::latest_hoard_operation_from_system_dir(&dir, hoard, file, true, only_modified)
+                Self::latest_hoard_operation_from_local_dir(&dir, hoard, file, true, only_modified)
             })
             .reduce(Self::reduce_option_latest)
             .transpose()
@@ -392,8 +398,8 @@ impl Operation {
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
     pub(crate) fn file_has_remote_changes(
-        hoard: &str,
-        pile_name: Option<&str>,
+        hoard: &HoardName,
+        pile_name: &PileName,
         file: &RelativePath,
     ) -> Result<bool, Error> {
         let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), true)?;
@@ -416,8 +422,8 @@ impl Operation {
     ///
     /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
     pub(crate) fn file_has_records(
-        hoard: &str,
-        pile_name: Option<&str>,
+        hoard: &HoardName,
+        pile_name: &PileName,
         file: &RelativePath,
     ) -> Result<bool, Error> {
         let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), false)?;
@@ -451,7 +457,7 @@ impl Checker for Operation {
 
     fn new(
         hoards_root: &HoardPath,
-        name: &str,
+        name: &HoardName,
         hoard: &Hoard,
         direction: Direction,
     ) -> Result<Self, Self::Error> {
@@ -505,13 +511,16 @@ impl Checker for Operation {
             tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name()).entered();
         let id = super::get_or_generate_uuid()?;
         let path = super::get_history_dir_for_id(id)
-            .join(self.hoard_name())
-            .join(format!(
-                "{}.log",
-                self.timestamp()
-                    .format(&TIME_FORMAT)
-                    .map_err(Error::FormatDatetime)?
-            ));
+            .join(&RelativePath::from(self.hoard_name()))
+            .join(
+                &RelativePath::try_from(PathBuf::from(format!(
+                    "{}.log",
+                    self.timestamp()
+                        .format(&TIME_FORMAT)
+                        .map_err(Error::FormatDatetime)?
+                )))
+                .expect("file name is always a valid RelativePath"),
+            );
         tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
         path.parent().map(fs::create_dir_all).transpose()?;
         let file = fs::File::create(path)?;

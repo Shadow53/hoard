@@ -17,14 +17,13 @@ use crate::CONFIG_FILE_STEM;
 
 use super::Config;
 use crate::hoard::PileConfig;
+use crate::newtypes::{EnvironmentName, HoardName};
 use crate::paths::{hoards_dir, HoardPath};
 
 pub mod environment;
 pub mod envtrie;
 pub mod hoard;
 
-const CONFIG_KEY: &str = "config";
-const HOARDS_KEY: &str = "hoards";
 const DEFAULT_CONFIG_EXT: &str = "toml";
 /// The items are listed in descending order of precedence
 const SUPPORTED_CONFIG_EXTS: [&str; 3] = ["toml", "yaml", "yml"];
@@ -47,12 +46,6 @@ pub enum Error {
     /// Error while determining which paths to use for configured hoards.
     #[error("failed to process hoard configuration: {0}")]
     ProcessHoard(#[from] hoard::Error),
-    /// The item "config" is not allowed at the given config location.
-    #[error("the name \"config\" is not allowed at: {0:?}")]
-    NameConfigNotAllowed(Vec<String>),
-    /// The item "config" is allowed but was not the expected type.
-    #[error("expected \"config\" to be a pile config: at {0:?}")]
-    ConfigWrongType(Vec<String>),
     /// The given file has no or invalid file extension
     #[error("configuration file must have file extension \".toml\", \".yaml\", or \".yml\": {0}")]
     InvalidExtension(PathBuf),
@@ -66,9 +59,9 @@ pub enum Error {
 pub struct Builder {
     #[structopt(skip)]
     #[serde(rename = "envs")]
-    environments: Option<BTreeMap<String, Environment>>,
+    environments: Option<BTreeMap<EnvironmentName, Environment>>,
     #[structopt(skip)]
-    exclusivity: Option<Vec<Vec<String>>>,
+    exclusivity: Option<Vec<Vec<EnvironmentName>>>,
     #[structopt(short, long)]
     hoards_root: Option<HoardPath>,
     #[structopt(short, long)]
@@ -81,7 +74,7 @@ pub struct Builder {
     #[structopt(short, long)]
     force: bool,
     #[structopt(skip)]
-    hoards: Option<BTreeMap<String, Hoard>>,
+    hoards: Option<BTreeMap<HoardName, Hoard>>,
     #[structopt(skip)]
     #[serde(rename = "config")]
     global_config: Option<PileConfig>,
@@ -264,7 +257,7 @@ impl Builder {
 
     /// Set the hoards map.
     #[must_use]
-    pub fn set_hoards(mut self, hoards: BTreeMap<String, Hoard>) -> Self {
+    pub fn set_hoards(mut self, hoards: BTreeMap<HoardName, Hoard>) -> Self {
         tracing::trace!(?hoards, "setting hoards");
         self.hoards = Some(hoards);
         self
@@ -287,7 +280,10 @@ impl Builder {
     ///
     /// The map associates an environment name with the [`Environment`] definition.
     #[must_use]
-    pub fn set_environments(mut self, environments: BTreeMap<String, Environment>) -> Self {
+    pub fn set_environments(
+        mut self,
+        environments: BTreeMap<EnvironmentName, Environment>,
+    ) -> Self {
         // grcov: ignore-start
         tracing::trace!(?environments, "setting environments");
         // grcov: ignore-end
@@ -333,16 +329,9 @@ impl Builder {
     /// # Errors
     ///
     /// Any error that occurs while evaluating the environments.
-    fn evaluated_environments(&self) -> Result<BTreeMap<String, bool>, Error> {
+    fn evaluated_environments(&self) -> Result<BTreeMap<EnvironmentName, bool>, Error> {
         let _span = tracing::trace_span!("eval_env").entered();
         if let Some(envs) = &self.environments {
-            if envs.contains_key(CONFIG_KEY) {
-                return Err(Error::NameConfigNotAllowed(vec![
-                    String::from("envs"),
-                    CONFIG_KEY.to_string(),
-                ]));
-            }
-
             for (key, env) in envs {
                 tracing::trace!(%key, %env);
             }
@@ -395,22 +384,9 @@ impl Builder {
             .into_iter()
             .map(|(name, hoard)| {
                 let _span = tracing::debug_span!("processing_hoard", %name).entered();
-
-                if name == CONFIG_KEY {
-                    Err(Error::NameConfigNotAllowed(vec![
-                        HOARDS_KEY.to_string(),
-                        CONFIG_KEY.to_string(),
-                    ]))
-                } else {
-                    match hoard.process_with(&environments, &exclusivity) {
-                        Err(Error::NameConfigNotAllowed(old_list)) => {
-                            let mut list = vec![HOARDS_KEY.to_string(), name];
-                            list.extend(old_list);
-                            Err(Error::NameConfigNotAllowed(list))
-                        }
-                        result => result.map(|hoard| (name, hoard)),
-                    }
-                }
+                hoard
+                    .process_with(&environments, &exclusivity)
+                    .map(|hoard| (name, hoard))
             })
             .collect::<Result<_, Error>>()?;
         tracing::debug!("processed hoards");
@@ -454,7 +430,7 @@ mod tests {
                 ),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 command: Some(Command::Restore {
-                    hoards: vec!["test".into()],
+                    hoards: vec!["test".parse().unwrap()],
                 }),
                 environments: None,
                 exclusivity: None,
@@ -584,82 +560,6 @@ mod tests {
             assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
             assert_eq!(Some(config.command), builder.command);
-        }
-    }
-
-    mod test_invalid_items_named_config {
-        use super::super::hoard::{MultipleEntries, Pile};
-        use super::*;
-
-        #[test]
-        fn test_env_named_config() {
-            let builder = Builder {
-                environments: Some(
-                    maplit::btreemap! { String::from("config") => Environment::default() },
-                ),
-                ..Builder::default()
-            };
-
-            let error = builder.build().expect_err(
-                "expected building to fail because an environment called \"config\" was defined",
-            );
-
-            match error {
-                Error::NameConfigNotAllowed(list) => {
-                    assert_eq!(list, vec![String::from("envs"), String::from("config")]);
-                }
-                _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
-            }
-        }
-
-        #[test]
-        fn test_hoard_named_config() {
-            let builder = Builder {
-                hoards: Some(maplit::btreemap! {
-                    String::from("config") => Hoard::Single(Pile { config: None, items: BTreeMap::new() })
-                }),
-                ..Builder::default()
-            };
-
-            let error = builder.build().expect_err(
-                "expected building to fail because a hoard called \"config\" was defined",
-            );
-
-            match error {
-                Error::NameConfigNotAllowed(list) => {
-                    assert_eq!(list, vec![String::from("hoards"), String::from("config")]);
-                }
-                _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
-            }
-        }
-
-        #[test]
-        fn test_pile_named_config() {
-            let builder = Builder {
-                hoards: Some(maplit::btreemap! {
-                    String::from("invalid_pile") => Hoard::Multiple(MultipleEntries {
-                        config: None,
-                        items: maplit::btreemap! { String::from("config") => Pile { config: None, items: BTreeMap::new() }}
-                    })
-                }),
-                ..Builder::default()
-            };
-
-            let error = builder.build().expect_err(
-                "expected building to fail because a hoard called \"config\" was defined",
-            );
-
-            match error {
-                Error::NameConfigNotAllowed(list) => assert_eq!(
-                    list,
-                    vec![
-                        String::from("hoards"),
-                        String::from("invalid_pile"),
-                        String::from("config")
-                    ]
-                ),
-                _ => panic!("expected NameConfigNotAllowed, got {:?}", error),
-            }
         }
     }
 }

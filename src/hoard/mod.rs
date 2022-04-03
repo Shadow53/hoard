@@ -7,6 +7,7 @@ pub(crate) mod pile_config;
 
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::Error as FilterError;
+use crate::newtypes::NonEmptyPileName;
 use crate::paths::SystemPath;
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
@@ -87,7 +88,7 @@ pub struct Pile {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MultipleEntries {
     /// The named [`Pile`]s in the hoard.
-    pub piles: HashMap<String, Pile>,
+    pub piles: HashMap<NonEmptyPileName, Pile>,
 }
 
 /// A configured hoard. May contain one or more [`Pile`]s.

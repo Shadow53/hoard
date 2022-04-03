@@ -52,7 +52,7 @@ fn setup_no_changes(tester: &Tester) {
     fs::write(&path, DEFAULT_CONTENT).expect("writing to file should succeed");
     tester.use_local_uuid();
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_NO_CHANGES.to_string()],
+        hoards: vec![HOARD_NO_CHANGES.parse().unwrap()],
     });
 }
 
@@ -61,11 +61,11 @@ fn setup_local_changes(tester: &Tester) {
     fs::write(&path, DEFAULT_CONTENT).expect("writing to file should succeed");
     tester.use_remote_uuid();
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_LOCAL_CHANGES.to_string()],
+        hoards: vec![HOARD_LOCAL_CHANGES.parse().unwrap()],
     });
     tester.use_local_uuid();
     tester.expect_forced_command(Command::Restore {
-        hoards: vec![HOARD_LOCAL_CHANGES.to_string()],
+        hoards: vec![HOARD_LOCAL_CHANGES.parse().unwrap()],
     });
     fs::write(&path, CHANGED_CONTENT).expect("writing to file should succeed");
 }
@@ -75,15 +75,15 @@ fn setup_remote_changes(tester: &Tester) {
     fs::write(&path, DEFAULT_CONTENT).expect("writing to file should succeed");
     tester.use_local_uuid();
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_REMOTE_CHANGES.to_string()],
+        hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
     });
     tester.use_remote_uuid();
     tester.expect_forced_command(Command::Restore {
-        hoards: vec![HOARD_REMOTE_CHANGES.to_string()],
+        hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
     });
     fs::write(&path, CHANGED_CONTENT).expect("writing to file should succeed");
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_REMOTE_CHANGES.to_string()],
+        hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
     });
     fs::write(&path, DEFAULT_CONTENT).expect("writing to file should succeed");
 }
@@ -93,12 +93,12 @@ fn setup_mixed_changes(tester: &Tester) {
     tester.use_local_uuid();
     fs::write(&path, DEFAULT_CONTENT).expect("writing to file should succeed");
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_MIXED_CHANGES.to_string()],
+        hoards: vec![HOARD_MIXED_CHANGES.parse().unwrap()],
     });
     tester.use_remote_uuid();
     fs::write(&path, CHANGED_CONTENT).expect("writing to file should succeed");
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_MIXED_CHANGES.to_string()],
+        hoards: vec![HOARD_MIXED_CHANGES.parse().unwrap()],
     });
     tester.use_local_uuid();
     fs::write(&path, OTHER_CONTENT).expect("writing to file should succeed");
@@ -110,7 +110,7 @@ fn setup_unexpected_changes(tester: &Tester) {
     tester.use_local_uuid();
     fs::write(&path, DEFAULT_CONTENT).expect("writing to file should succeed");
     tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_UNEXPECTED_CHANGES.to_string()],
+        hoards: vec![HOARD_UNEXPECTED_CHANGES.parse().unwrap()],
     });
     fs::write(&hoard_path, CHANGED_CONTENT).expect("writing to file should succeed");
 }

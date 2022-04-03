@@ -42,9 +42,9 @@ fn test_toml_takes_precedence() {
     let toml_path = tester.config_dir().join("config.toml");
 
     let toml_config = Builder::new()
-        .set_environments(maplit::btreemap! { String::from("toml") => Environment::default() });
+        .set_environments(maplit::btreemap! { "toml".parse().unwrap() => Environment::default() });
     let yaml_config = Builder::new()
-        .set_environments(maplit::btreemap! { String::from("yaml") => Environment::default() });
+        .set_environments(maplit::btreemap! { "yaml".parse().unwrap() => Environment::default() });
     {
         let mut file = fs::File::create(&toml_path).expect("failed to create TOML config file");
         let toml_bytes = toml::to_vec(&toml_config).expect("failed to serialize TOML");

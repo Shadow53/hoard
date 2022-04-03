@@ -66,6 +66,7 @@
 pub use config::Config;
 
 pub mod checkers;
+pub mod checksum;
 pub mod combinator;
 pub mod command;
 pub mod config;
@@ -76,6 +77,7 @@ pub mod filters;
 pub mod hoard;
 pub mod hoard_item;
 pub mod logging;
+pub mod newtypes;
 pub mod paths;
 
 /// The default file stem of the configuration file (i.e. without file extension).

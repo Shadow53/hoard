@@ -1,7 +1,7 @@
 //! Provides filters for determining whether a path should be backed up or not.
 
 use crate::hoard::PileConfig;
-use std::path::Path;
+use crate::paths::{RelativePath, SystemPath};
 use thiserror::Error;
 
 pub(crate) mod ignore;
@@ -17,7 +17,7 @@ pub trait Filter: Sized {
     /// Any errors that may occur while creating the new filter.
     fn new(pile_config: &PileConfig) -> Result<Self, Self::Error>;
     /// Whether or not the file should be kept (backed up).
-    fn keep(&self, prefix: &Path, path: &Path) -> bool;
+    fn keep(&self, prefix: &SystemPath, path: &RelativePath) -> bool;
 }
 
 /// Any errors that may occur while filtering.
@@ -42,7 +42,7 @@ impl Filter for Filters {
         Ok(Self { ignore })
     }
 
-    fn keep(&self, prefix: &Path, path: &Path) -> bool {
+    fn keep(&self, prefix: &SystemPath, path: &RelativePath) -> bool {
         let _span = tracing::trace_span!("run_filters", ?prefix, ?path).entered();
         self.ignore.keep(prefix, path)
     }
@@ -51,7 +51,7 @@ impl Filter for Filters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hoard_item::ChecksumType;
+    use crate::checksum::ChecksumType;
 
     #[test]
     fn test_filters_derives() {
