@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn test_to_string() {
         let result = ExeExists(PathBuf::from(EXE_NAMES[0]).try_into().unwrap()).to_string();
-        assert_eq!(result, format!("EXE \"{}\" EXISTS", EXE_NAMES[0]));
+        assert_eq!(result, format!("EXE {} EXISTS", EXE_NAMES[0]));
     }
 
     #[test]
