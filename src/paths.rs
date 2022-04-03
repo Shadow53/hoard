@@ -476,7 +476,7 @@ mod tests {
             #[cfg(unix)]
             let invalid_path = PathBuf::from("/invalid/path");
             #[cfg(windows)]
-            let invalid_path = PathBuf::from("//invalid/path");
+            let invalid_path = PathBuf::from("C:\\\\invalid\\path");
 
             assert!(
                 invalid_path.is_absolute(),
