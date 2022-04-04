@@ -5,7 +5,8 @@ use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OperationType {
+#[allow(clippy::module_name_repetitions)]
+pub enum ItemOperation {
     Create(HoardItem),
     Modify(HoardItem),
     Delete(HoardItem),
@@ -33,7 +34,7 @@ impl OperationIter {
 }
 
 impl Iterator for OperationIter {
-    type Item = Result<OperationType, super::Error>;
+    type Item = Result<ItemOperation, super::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // For the purposes of this, Mixed counts for both local (backup) and remote (restore)
@@ -44,35 +45,35 @@ impl Iterator for OperationIter {
             let op = match diff? {
                 HoardFileDiff::BinaryModified { file, .. }
                 | HoardFileDiff::TextModified { file, .. }
-                | HoardFileDiff::PermissionsModified { file, .. } => OperationType::Modify(file),
+                | HoardFileDiff::PermissionsModified { file, .. } => ItemOperation::Modify(file),
                 HoardFileDiff::Created {
                     file, diff_source, ..
                 }
                 | HoardFileDiff::Recreated {
                     file, diff_source, ..
                 } => match (self.direction, diff_source) {
-                    (_, DiffSource::Mixed) => OperationType::Create(file),
-                    (Direction::Backup, DiffSource::Local) => OperationType::Create(file),
+                    (_, DiffSource::Mixed) => ItemOperation::Create(file),
+                    (Direction::Backup, DiffSource::Local) => ItemOperation::Create(file),
                     (Direction::Backup, DiffSource::Remote | DiffSource::Unknown) => {
-                        OperationType::Delete(file)
+                        ItemOperation::Delete(file)
                     }
                     (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => {
-                        OperationType::Create(file)
+                        ItemOperation::Create(file)
                     }
-                    (Direction::Restore, DiffSource::Local) => OperationType::Delete(file),
+                    (Direction::Restore, DiffSource::Local) => ItemOperation::Delete(file),
                 },
                 HoardFileDiff::Deleted {
                     file, diff_source, ..
                 } => match (self.direction, diff_source) {
-                    (_, DiffSource::Mixed) => OperationType::Delete(file),
+                    (_, DiffSource::Mixed) => ItemOperation::Delete(file),
                     (Direction::Backup, DiffSource::Local)
                     | (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => {
-                        OperationType::Delete(file)
+                        ItemOperation::Delete(file)
                     }
                     (Direction::Backup, DiffSource::Remote | DiffSource::Unknown)
-                    | (Direction::Restore, DiffSource::Local) => OperationType::Create(file),
+                    | (Direction::Restore, DiffSource::Local) => ItemOperation::Create(file),
                 },
-                HoardFileDiff::Unchanged(file) => OperationType::Nothing(file),
+                HoardFileDiff::Unchanged(file) => ItemOperation::Nothing(file),
             };
             Ok(op)
         })

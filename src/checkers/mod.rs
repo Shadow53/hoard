@@ -114,4 +114,8 @@ impl Checkers {
         }
         Ok(())
     }
+
+    pub(crate) fn get_operation_for<'a>(&'a self, hoard_name: &HoardName) -> Option<&'a Operation> {
+        self.operations.get(hoard_name)
+    }
 }
