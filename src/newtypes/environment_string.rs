@@ -116,6 +116,9 @@ mod tests {
 
     #[test]
     fn test_from_str() {
+        let result = EnvironmentString::from_str("test").unwrap();
+        assert_eq!(result.to_string(), "test");
+
         let expected = expected();
         let result1 = format!("{}|{}|{}", NAME_1, NAME_2, NAME_3).parse().unwrap();
         // Order and repetition should not matter
