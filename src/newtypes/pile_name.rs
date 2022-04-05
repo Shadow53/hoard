@@ -159,7 +159,7 @@ mod tests {
             let result = s.parse();
             match (expected, result) {
                 (Ok(name1), Ok(name2)) => {
-                    assert_eq!(name1, name2, "expected {} but got {}", name1, name2)
+                    assert_eq!(name1, name2, "expected {} but got {}", name1, name2);
                 }
                 (Err(err1), Err(err2)) => match (&err1, &err2) {
                     (Error::EmptyName, Error::EmptyName) => {}
@@ -175,10 +175,10 @@ mod tests {
                     }
                 },
                 (Ok(name), Err(err)) => {
-                    panic!("expected successful parse {:?}, got error {:?}", name, err)
+                    panic!("expected successful parse {:?}, got error {:?}", name, err);
                 }
                 (Err(err), Ok(name)) => {
-                    panic!("expected error {:?}, got success with {:?}", err, name)
+                    panic!("expected error {:?}, got success with {:?}", err, name);
                 }
             }
         }

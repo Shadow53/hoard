@@ -18,7 +18,6 @@ use crate::CONFIG_FILE_STEM;
 use super::Config;
 use crate::hoard::PileConfig;
 use crate::newtypes::{EnvironmentName, HoardName};
-use crate::paths::{hoards_dir, HoardPath};
 
 pub mod environment;
 pub mod envtrie;
@@ -62,9 +61,10 @@ pub struct Builder {
     environments: Option<BTreeMap<EnvironmentName, Environment>>,
     #[clap(skip)]
     exclusivity: Option<Vec<Vec<EnvironmentName>>>,
-    /// The root directory of the hoards collection.
-    #[clap(short, long)]
-    hoards_root: Option<HoardPath>,
+    #[clap(long)]
+    data_dir: Option<PathBuf>,
+    #[clap(long)]
+    config_dir: Option<PathBuf>,
     /// Override the configuration file used.
     #[clap(short, long)]
     #[serde(skip)]
@@ -96,12 +96,6 @@ impl Builder {
         crate::dirs::config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
     }
 
-    /// Returns the default location for storing hoards.
-    fn default_hoard_root() -> HoardPath {
-        tracing::debug!("getting default hoard root");
-        hoards_dir()
-    }
-
     /// Create a new `Builder`.
     ///
     /// If [`build`](Builder::build) is immediately called on this, the returned
@@ -111,7 +105,8 @@ impl Builder {
         tracing::trace!("creating new config builder");
         Self {
             hoards: None,
-            hoards_root: None,
+            config_dir: None,
+            data_dir: None,
             config_file: None,
             command: None,
             environments: None,
@@ -241,8 +236,12 @@ impl Builder {
         )
         .entered();
 
-        if let Some(path) = other.hoards_root {
-            self = self.set_hoards_root(path);
+        if let Some(path) = other.config_dir {
+            self = self.set_config_dir(path);
+        }
+
+        if let Some(path) = other.data_dir {
+            self = self.set_data_dir(path);
         }
 
         if let Some(path) = other.config_file {
@@ -258,24 +257,27 @@ impl Builder {
         self
     }
 
+    /// Set the config directory.
+    #[must_use]
+    pub fn set_config_dir(mut self, config_dir: PathBuf) -> Self {
+        tracing::trace!(?config_dir, "setting config dir");
+        self.config_dir = Some(config_dir);
+        self
+    }
+
+    /// Set the data directory.
+    #[must_use]
+    pub fn set_data_dir(mut self, data_dir: PathBuf) -> Self {
+        tracing::trace!(?data_dir, "setting data dir");
+        self.data_dir = Some(data_dir);
+        self
+    }
+
     /// Set the hoards map.
     #[must_use]
     pub fn set_hoards(mut self, hoards: BTreeMap<HoardName, Hoard>) -> Self {
         tracing::trace!(?hoards, "setting hoards");
         self.hoards = Some(hoards);
-        self
-    }
-
-    /// Set the directory that will contain all game save data.
-    #[must_use]
-    pub fn set_hoards_root(mut self, path: HoardPath) -> Self {
-        // grcov: ignore-start
-        tracing::trace!(
-            hoards_root = ?path,
-            "setting hoards root",
-        );
-        // grcov: ignore-end
-        self.hoards_root = Some(path);
         self
     }
 
@@ -364,14 +366,20 @@ impl Builder {
         tracing::debug!(?environments);
         let exclusivity = self.exclusivity.unwrap_or_default();
         tracing::debug!(?exclusivity);
-        let hoards_root = self.hoards_root.unwrap_or_else(Self::default_hoard_root);
-        tracing::debug!(?hoards_root);
         let config_file = self.config_file.unwrap_or_else(Self::default_config_file);
         tracing::debug!(?config_file);
         let command = self.command.unwrap_or_default();
         tracing::debug!(?command);
         let force = self.force;
         tracing::debug!(?force);
+
+        if let Some(path) = self.config_dir {
+            crate::dirs::set_config_dir(&path);
+        }
+
+        if let Some(path) = self.data_dir {
+            crate::dirs::set_data_dir(&path);
+        }
 
         if let Some(hoards) = &mut self.hoards {
             tracing::debug!("layering global config onto hoards");
@@ -396,7 +404,6 @@ impl Builder {
 
         Ok(Config {
             command,
-            hoards_root,
             config_file,
             hoards,
             force,
@@ -410,13 +417,13 @@ mod tests {
 
     mod builder {
         use super::*;
-        use crate::paths::RelativePath;
 
         fn get_default_populated_builder() -> Builder {
             Builder {
-                hoards_root: Some(Builder::default_hoard_root()),
                 config_file: Some(Builder::default_config_file()),
                 command: Some(Command::Validate),
+                config_dir: Some(PathBuf::from("/config/dir")),
+                data_dir: Some(PathBuf::from("/data/dir")),
                 environments: None,
                 exclusivity: None,
                 hoards: None,
@@ -427,10 +434,8 @@ mod tests {
 
         fn get_non_default_populated_builder() -> Builder {
             Builder {
-                hoards_root: Some(
-                    hoards_dir()
-                        .join(&RelativePath::try_from(PathBuf::from("testing/saves")).unwrap()),
-                ),
+                config_dir: Some(PathBuf::from("/other/config/dir")),
+                data_dir: Some(PathBuf::from("/other/data/dir")),
                 config_file: Some(PathBuf::from("/testing/config.toml")),
                 command: Some(Command::Restore {
                     hoards: vec!["test".parse().unwrap()],
@@ -451,7 +456,8 @@ mod tests {
         #[test]
         fn new_builder_is_all_none() {
             let expected = Builder {
-                hoards_root: None,
+                config_dir: None,
+                data_dir: None,
                 config_file: None,
                 command: None,
                 environments: None,
@@ -505,20 +511,6 @@ mod tests {
         }
 
         #[test]
-        fn builder_saves_root_sets_correctly() {
-            let mut builder = Builder::new();
-            assert_eq!(None, builder.hoards_root, "saves_root should start as None");
-            let path =
-                hoards_dir().join(&RelativePath::try_from(PathBuf::from("testing/saves")).unwrap());
-            builder = builder.set_hoards_root(path.clone());
-            assert_eq!(
-                Some(path),
-                builder.hoards_root,
-                "saves_root should now be set"
-            );
-        }
-
-        #[test]
         fn builder_config_file_sets_correctly() {
             let mut builder = Builder::new();
             assert_eq!(
@@ -550,7 +542,6 @@ mod tests {
             let builder = get_default_populated_builder();
             let config = Builder::new().build().expect("failed to build config");
 
-            assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
             assert_eq!(Some(config.command), builder.command);
         }
@@ -560,7 +551,6 @@ mod tests {
             let builder = get_non_default_populated_builder();
             let config = builder.clone().build().expect("failed to build config");
 
-            assert_eq!(Some(config.hoards_root), builder.hoards_root);
             assert_eq!(Some(config.config_file), builder.config_file);
             assert_eq!(Some(config.command), builder.command);
         }

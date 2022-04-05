@@ -4,7 +4,6 @@ pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
 use crate::newtypes::HoardName;
-use crate::paths::HoardPath;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -32,8 +31,6 @@ pub enum Error {
 pub struct Config {
     /// The command to run.
     pub command: Command,
-    /// The root directory to backup/restore hoards from.
-    pub hoards_root: HoardPath,
     /// Path to a configuration file.
     pub config_file: PathBuf,
     /// All of the configured hoards.
@@ -84,12 +81,6 @@ impl Config {
         self.config_file.clone()
     }
 
-    /// The path to the configured hoards root.
-    #[must_use]
-    pub fn get_hoards_root_path(&self) -> HoardPath {
-        self.hoards_root.clone()
-    }
-
     fn get_hoards<'a>(
         &'a self,
         hoards: &'a [HoardName],
@@ -123,13 +114,13 @@ impl Config {
         match &self.command {
             Command::Status => {
                 let iter = self.hoards.iter();
-                command::run_status(&self.get_hoards_root_path(), iter)?;
+                command::run_status(&crate::paths::hoards_dir(), iter)?;
             }
             Command::Diff { hoard, verbose } => {
                 command::run_diff(
                     self.get_hoard(hoard)?,
                     hoard,
-                    &self.get_hoards_root_path(),
+                    &crate::paths::hoards_dir(),
                     *verbose,
                 )?;
             }
@@ -146,14 +137,14 @@ impl Config {
                 command::run_cleanup()?;
             }
             Command::Backup { hoards } => {
-                let hoards_root = self.get_hoards_root_path();
+                let data_dir = crate::paths::hoards_dir();
                 let hoards = self.get_hoards(hoards)?;
-                command::run_backup(&hoards_root, hoards, self.force)?;
+                command::run_backup(&data_dir, hoards, self.force)?;
             }
             Command::Restore { hoards } => {
-                let hoards_root = self.get_hoards_root_path();
+                let data_dir = crate::paths::hoards_dir();
                 let hoards = self.get_hoards(hoards)?;
-                command::run_restore(&hoards_root, hoards, self.force)?;
+                command::run_restore(&data_dir, hoards, self.force)?;
             }
             Command::Upgrade => {
                 command::run_upgrade()?;
@@ -193,16 +184,6 @@ mod tests {
             config.get_config_file_path(),
             config.config_file,
             "should return config file path"
-        );
-    }
-
-    #[test]
-    fn test_config_get_saves_root_returns_saves_root_path() {
-        let config = Config::default();
-        assert_eq!(
-            config.get_hoards_root_path(),
-            config.hoards_root,
-            "should return saves root path"
         );
     }
 }

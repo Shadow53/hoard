@@ -5,7 +5,8 @@ Flags can be used with any subcommand and must be specified *before* any subcomm
 - `--help`: View the program's help message.
 - `-V/--version`: Print the installed version of `hoard`.
 - `-c/--config-file`: Path to (non-default) configuration file.
-- `-h/--hoards-root`: Path to (non-default) hoards root directory.
+- `--data-dir`: Path to (non-default) hoards data directory.
+- `--config-dir`: Path to (non-default) hoards config directory.
 
 # Subcommands
 
