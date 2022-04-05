@@ -4,7 +4,6 @@ pub use self::builder::Builder;
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
 use crate::newtypes::HoardName;
-use crate::paths::HoardPath;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -82,12 +81,6 @@ impl Config {
         self.config_file.clone()
     }
 
-    /// The path to the configured hoards root.
-    #[must_use]
-    pub fn get_hoards_root_path(&self) -> HoardPath {
-        crate::paths::hoards_dir()
-    }
-
     fn get_hoards<'a>(
         &'a self,
         hoards: &'a [HoardName],
@@ -121,13 +114,13 @@ impl Config {
         match &self.command {
             Command::Status => {
                 let iter = self.hoards.iter();
-                command::run_status(&self.get_hoards_root_path(), iter)?;
+                command::run_status(&crate::paths::hoards_dir(), iter)?;
             }
             Command::Diff { hoard, verbose } => {
                 command::run_diff(
                     self.get_hoard(hoard)?,
                     hoard,
-                    &self.get_hoards_root_path(),
+                    &crate::paths::hoards_dir(),
                     *verbose,
                 )?;
             }
@@ -144,12 +137,12 @@ impl Config {
                 command::run_cleanup()?;
             }
             Command::Backup { hoards } => {
-                let data_dir = self.get_hoards_root_path();
+                let data_dir = crate::paths::hoards_dir();
                 let hoards = self.get_hoards(hoards)?;
                 command::run_backup(&data_dir, hoards, self.force)?;
             }
             Command::Restore { hoards } => {
-                let data_dir = self.get_hoards_root_path();
+                let data_dir = crate::paths::hoards_dir();
                 let hoards = self.get_hoards(hoards)?;
                 command::run_restore(&data_dir, hoards, self.force)?;
             }

@@ -366,7 +366,7 @@ mod tests {
             let valid_path =
                 hoards_dir().join(&RelativePath::try_from(PathBuf::from("valid")).unwrap());
             let valid_str = valid_path.as_ref().to_str().unwrap();
-            let path = HoardPath::from_str(&valid_str).unwrap();
+            let path = HoardPath::from_str(valid_str).unwrap();
             assert_eq!(path, valid_path);
         }
     }

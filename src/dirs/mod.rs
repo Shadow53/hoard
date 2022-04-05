@@ -1,5 +1,5 @@
 //! Functions to determine special folders for Hoard to work with on different platforms.
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 mod unix;
