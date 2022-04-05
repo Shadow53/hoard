@@ -83,3 +83,31 @@ pub fn set_config_dir(path: &Path) {
 pub fn set_data_dir(path: &Path) {
     std::env::set_var(DATA_DIR_ENV, path);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_env_config_dir() {
+        env::remove_var(CONFIG_DIR_ENV);
+        let original = config_dir();
+        let new_path = PathBuf::from("/env/config/dir");
+        assert_ne!(original, new_path);
+        set_config_dir(&new_path);
+        assert_eq!(new_path.as_os_str(), env::var_os(CONFIG_DIR_ENV).unwrap());
+        assert_eq!(new_path, config_dir());
+    }
+
+    #[test]
+    fn test_env_data_dir() {
+        env::remove_var(DATA_DIR_ENV);
+        let original = data_dir();
+        let new_path = PathBuf::from("/env/data/dir");
+        assert_ne!(original, new_path);
+        set_data_dir(&new_path);
+        assert_eq!(new_path.as_os_str(), env::var_os(DATA_DIR_ENV).unwrap());
+        assert_eq!(new_path, data_dir());
+    }
+}
