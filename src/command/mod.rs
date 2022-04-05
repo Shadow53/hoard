@@ -8,7 +8,7 @@ mod list;
 mod status;
 mod upgrade;
 
-use structopt::StructOpt;
+use clap::Parser;
 use thiserror::Error;
 
 pub(crate) use backup_restore::{run_backup, run_restore};
@@ -28,7 +28,7 @@ pub use edit::Error as EditError;
 pub enum Error {
     /// Error occurred while printing the help message.
     #[error("error while printing help message: {0}")]
-    PrintHelp(#[from] structopt::clap::Error),
+    PrintHelp(#[from] clap::Error),
     /// Error occurred while backing up a hoard.
     #[error("failed to back up: {0}")]
     Backup(#[source] BackupRestoreError),
@@ -62,7 +62,7 @@ pub enum Error {
 }
 
 /// The possible subcommands for `hoard`.
-#[derive(Clone, PartialEq, Debug, StructOpt)]
+#[derive(Clone, PartialEq, Debug, Parser)]
 pub enum Command {
     /// Loads all configuration for validation.
     /// If the configuration loads and builds, this command succeeds.
@@ -89,7 +89,7 @@ pub enum Command {
         /// The name of the hoard to diff.
         hoard: HoardName,
         /// If true, prints unified diffs for text files.
-        #[structopt(long, short)]
+        #[clap(long, short)]
         verbose: bool,
     },
     /// Provides a summary of which hoards have changes and if the diffs can be resolved
