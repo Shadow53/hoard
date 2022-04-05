@@ -33,7 +33,7 @@ const DISALLOWED_NAMES: [&str; 2] = ["", "config"];
 fn validate_name(name: String) -> Result<String, Error> {
     if name
         .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
         && DISALLOWED_NAMES
             .iter()
             .all(|disallowed| &name != disallowed)
