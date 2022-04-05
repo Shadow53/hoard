@@ -5,8 +5,8 @@ use std::convert::TryInto;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use clap::Parser;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 use thiserror::Error;
 
 use self::hoard::Hoard;
@@ -52,30 +52,33 @@ pub enum Error {
 }
 
 /// Intermediate data structure to build a [`Config`](crate::config::Config).
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, StructOpt)]
-#[structopt(rename_all = "kebab")]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Parser)]
+#[clap(author, version, about, long_about = None, rename_all = "kebab")]
 #[serde(rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]
 pub struct Builder {
-    #[structopt(skip)]
+    #[clap(skip)]
     #[serde(rename = "envs")]
     environments: Option<BTreeMap<EnvironmentName, Environment>>,
-    #[structopt(skip)]
+    #[clap(skip)]
     exclusivity: Option<Vec<Vec<EnvironmentName>>>,
-    #[structopt(short, long)]
+    /// The root directory of the hoards collection.
+    #[clap(short, long)]
     hoards_root: Option<HoardPath>,
-    #[structopt(short, long)]
+    /// Override the configuration file used.
+    #[clap(short, long)]
     #[serde(skip)]
     config_file: Option<PathBuf>,
     #[serde(skip)]
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Option<Command>,
+    /// Force commands to run (skips consistency checks).
     #[serde(skip)]
-    #[structopt(short, long)]
+    #[clap(short, long)]
     force: bool,
-    #[structopt(skip)]
+    #[clap(skip)]
     hoards: Option<BTreeMap<HoardName, Hoard>>,
-    #[structopt(skip)]
+    #[clap(skip)]
     #[serde(rename = "config")]
     global_config: Option<PileConfig>,
 }
@@ -207,7 +210,7 @@ impl Builder {
     /// See [`Builder::from_file`]
     pub fn from_args_then_file() -> Result<Self, Error> {
         tracing::debug!("loading configuration from cli arguments");
-        let from_args = Self::from_args();
+        let from_args = Self::parse();
 
         tracing::trace!("attempting to get configuration file from cli arguments or use default");
         let from_file =
