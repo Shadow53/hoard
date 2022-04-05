@@ -2,6 +2,7 @@
 
 use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::Checker;
+use crate::hoard::iter::ItemOperation;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -93,6 +94,19 @@ pub trait OperationImpl {
     /// An iterator over all files that exist within this operation log, not including any that
     /// were deleted.
     fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a>;
+    /// Returns an iterator of the file operations represented by this operation object.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UpgradeRequired`] if the operation version is too old to support this
+    /// function.
+    fn hoard_operations_iter<'a>(
+        &'a self,
+        _hoard_path: &HoardPath,
+        _hoard: &Hoard,
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+        Err(Error::UpgradeRequired)
+    }
 }
 
 impl OperationImpl for OperationVersion {
@@ -142,6 +156,17 @@ impl OperationImpl for OperationVersion {
             OperationVersion::V2(two) => two.all_files_with_checksums(),
         }
     }
+
+    fn hoard_operations_iter<'a>(
+        &'a self,
+        hoard_root: &HoardPath,
+        hoard: &Hoard,
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+        match &self {
+            OperationVersion::V1(v1) => v1.hoard_operations_iter(hoard_root, hoard),
+            OperationVersion::V2(v2) => v2.hoard_operations_iter(hoard_root, hoard),
+        }
+    }
 }
 
 /// A wrapper struct for any supported operation log version.
@@ -179,6 +204,14 @@ impl OperationImpl for Operation {
 
     fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         self.0.all_files_with_checksums()
+    }
+
+    fn hoard_operations_iter<'a>(
+        &'a self,
+        hoard_root: &HoardPath,
+        hoard: &Hoard,
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+        self.0.hoard_operations_iter(hoard_root, hoard)
     }
 }
 

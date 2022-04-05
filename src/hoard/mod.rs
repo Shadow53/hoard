@@ -7,8 +7,8 @@ pub(crate) mod pile_config;
 
 use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::Error as FilterError;
-use crate::newtypes::NonEmptyPileName;
-use crate::paths::SystemPath;
+use crate::newtypes::{NonEmptyPileName, PileName};
+use crate::paths::{HoardPath, RelativePath, SystemPath};
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -104,7 +104,7 @@ pub enum Hoard {
 impl Hoard {
     /// Returns a [`HoardPaths`] based on this `Hoard`.
     #[must_use]
-    pub fn get_paths(&self) -> HoardPaths {
+    pub fn get_last_paths(&self) -> HoardPaths {
         match self {
             Hoard::Anonymous(pile) => pile.path.clone().into(),
             Hoard::Named(piles) => piles
@@ -113,6 +113,32 @@ impl Hoard {
                 .filter_map(|(key, val)| val.path.clone().map(|path| (key.clone(), path)))
                 .collect::<HashMap<_, _>>()
                 .into(),
+        }
+    }
+
+    /// Returns an iterator over all piles with associates paths.
+    ///
+    /// The [`HoardPath`] and [`SystemPath`] represent the relevant prefix/root path for the given pile.
+    #[must_use]
+    pub fn get_paths(
+        &self,
+        hoards_root: HoardPath,
+    ) -> Box<dyn Iterator<Item = (PileName, HoardPath, SystemPath)>> {
+        match self {
+            Hoard::Anonymous(pile) => match pile.path.clone() {
+                None => Box::new(std::iter::empty()),
+                Some(path) => Box::new(std::iter::once({
+                    (PileName::anonymous(), hoards_root, path)
+                })),
+            },
+            Hoard::Named(named) => Box::new(named.piles.clone().into_iter().filter_map(
+                move |(name, pile)| {
+                    pile.path.map(|path| {
+                        let pile_hoard_root = hoards_root.join(&RelativePath::from(&name));
+                        (name.into(), pile_hoard_root, path)
+                    })
+                },
+            )),
         }
     }
 }

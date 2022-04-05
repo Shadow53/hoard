@@ -1,8 +1,8 @@
-use crate::checkers::{Checkers, Error as ConsistencyError};
-use crate::hoard::iter::{Error as IterError, OperationIter, OperationType};
+use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
+use crate::hoard::iter::{Error as IterError, ItemOperation};
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
-use crate::paths::HoardPath;
+use crate::paths::{HoardPath, RelativePath};
 use std::fs;
 use thiserror::Error;
 
@@ -59,11 +59,17 @@ fn backup_or_restore<'a>(
             Direction::Restore => tracing::info!(hoard=%name, "restoring"),
         }
 
-        for operation in OperationIter::new(hoards_root, name.clone(), hoard, direction)? {
-            let operation = operation?;
+        let hoard_prefix = hoards_root.join(&RelativePath::from(name));
+        let op = checkers
+            .get_operation_for(name)
+            .expect("operation should exist for hoard");
+        let iter = op
+            .hoard_operations_iter(&hoard_prefix, hoard)
+            .map_err(ConsistencyError::Operation)?;
+        for operation in iter {
             tracing::trace!("found operation: {:?}", operation);
             match operation {
-                OperationType::Create(file) | OperationType::Modify(file) => {
+                ItemOperation::Create(file) | ItemOperation::Modify(file) => {
                     let (src, dest) = match direction {
                         Direction::Backup => {
                             (file.system_path().as_ref(), file.hoard_path().as_ref())
@@ -94,7 +100,7 @@ fn backup_or_restore<'a>(
                         return Err(Error::IO(err));
                     }
                 }
-                OperationType::Delete(file) => {
+                ItemOperation::Delete(file) => {
                     let to_remove = match direction {
                         Direction::Backup => file.hoard_path().as_ref(),
                         Direction::Restore => file.system_path().as_ref(),
@@ -105,7 +111,7 @@ fn backup_or_restore<'a>(
                         return Err(Error::IO(err));
                     }
                 }
-                OperationType::Nothing(file) => {
+                ItemOperation::Nothing(file) => {
                     tracing::debug!("file {} is unchanged", file.system_path().display());
                 }
             }
