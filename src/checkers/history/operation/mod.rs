@@ -101,7 +101,9 @@ pub trait OperationImpl {
     /// Returns [`Error::UpgradeRequired`] if the operation version is too old to support this
     /// function.
     fn hoard_operations_iter<'a>(
-        &'a self, _hoard_path: &HoardPath, _hoard: &Hoard,
+        &'a self,
+        _hoard_path: &HoardPath,
+        _hoard: &Hoard,
     ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
         Err(Error::UpgradeRequired)
     }
@@ -155,7 +157,11 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn hoard_operations_iter<'a>(&'a self, hoard_root: &HoardPath, hoard: &Hoard) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    fn hoard_operations_iter<'a>(
+        &'a self,
+        hoard_root: &HoardPath,
+        hoard: &Hoard,
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
         match &self {
             OperationVersion::V1(v1) => v1.hoard_operations_iter(hoard_root, hoard),
             OperationVersion::V2(v2) => v2.hoard_operations_iter(hoard_root, hoard),
@@ -200,7 +206,11 @@ impl OperationImpl for Operation {
         self.0.all_files_with_checksums()
     }
 
-    fn hoard_operations_iter<'a>(&'a self, hoard_root: &HoardPath, hoard: &Hoard) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    fn hoard_operations_iter<'a>(
+        &'a self,
+        hoard_root: &HoardPath,
+        hoard: &Hoard,
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
         self.0.hoard_operations_iter(hoard_root, hoard)
     }
 }

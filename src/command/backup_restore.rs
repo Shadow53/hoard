@@ -1,4 +1,4 @@
-use crate::checkers::{Checkers, Error as ConsistencyError, history::operation::OperationImpl};
+use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
 use crate::hoard::iter::{Error as IterError, ItemOperation};
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
@@ -60,8 +60,12 @@ fn backup_or_restore<'a>(
         }
 
         let hoard_prefix = hoards_root.join(&RelativePath::from(name));
-        let op = checkers.get_operation_for(name).expect("operation should exist for hoard");
-        let iter = op.hoard_operations_iter(&hoard_prefix, hoard).map_err(ConsistencyError::Operation)?;
+        let op = checkers
+            .get_operation_for(name)
+            .expect("operation should exist for hoard");
+        let iter = op
+            .hoard_operations_iter(&hoard_prefix, hoard)
+            .map_err(ConsistencyError::Operation)?;
         for operation in iter {
             tracing::trace!("found operation: {:?}", operation);
             match operation {

@@ -10,7 +10,7 @@
 use super::Error;
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
 use crate::checksum::{Checksum, ChecksumType};
-use crate::hoard::iter::{OperationIter, ItemOperation};
+use crate::hoard::iter::{ItemOperation, OperationIter};
 use crate::hoard::{Direction, Hoard as ConfigHoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
@@ -196,52 +196,55 @@ impl OperationImpl for OperationV2 {
         }
     }
 
-    fn hoard_operations_iter<'a>(&'a self, hoard_root: &HoardPath, hoard: &crate::hoard::Hoard) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
-        let iter = hoard.get_paths(hoard_root.clone())
+    fn hoard_operations_iter<'a>(
+        &'a self,
+        hoard_root: &HoardPath,
+        hoard: &crate::hoard::Hoard,
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+        let iter = hoard
+            .get_paths(hoard_root.clone())
             .filter_map(|(pile_name, hoard_path, system_path)| {
                 println!("pile_name: \"{}\", files: {:?}", pile_name, self.files);
                 let pile = self.files.get_pile(&pile_name)?;
 
-                let (c_pile_name, c_hoard_path, c_system_path) = (pile_name.clone(), hoard_path.clone(), system_path.clone());
+                let (c_pile_name, c_hoard_path, c_system_path) =
+                    (pile_name.clone(), hoard_path.clone(), system_path.clone());
                 let created = pile.created.keys().cloned().map(move |rel_path| {
-                    ItemOperation::Create(
-                        HoardItem::new(
-                            // Clone here because the values may be used by the closure being
-                            // called multiple times.
-                            c_pile_name.clone(),
-                            c_hoard_path.clone(),
-                            c_system_path.clone(),
-                            rel_path
-                        )
-                    )
+                    ItemOperation::Create(HoardItem::new(
+                        // Clone here because the values may be used by the closure being
+                        // called multiple times.
+                        c_pile_name.clone(),
+                        c_hoard_path.clone(),
+                        c_system_path.clone(),
+                        rel_path,
+                    ))
                 });
 
-                let (m_pile_name, m_hoard_path, m_system_path) = (pile_name.clone(), hoard_path.clone(), system_path.clone());
+                let (m_pile_name, m_hoard_path, m_system_path) =
+                    (pile_name.clone(), hoard_path.clone(), system_path.clone());
                 let modified = pile.modified.keys().cloned().map(move |rel_path| {
-                    ItemOperation::Modify(
-                        HoardItem::new(
-                            m_pile_name.clone(),
-                            m_hoard_path.clone(),
-                            m_system_path.clone(),
-                            rel_path
-                        )
-                    )
+                    ItemOperation::Modify(HoardItem::new(
+                        m_pile_name.clone(),
+                        m_hoard_path.clone(),
+                        m_system_path.clone(),
+                        rel_path,
+                    ))
                 });
 
-                let (d_pile_name, d_hoard_path, d_system_path) = (pile_name, hoard_path, system_path);
+                let (d_pile_name, d_hoard_path, d_system_path) =
+                    (pile_name, hoard_path, system_path);
                 let deleted = pile.deleted.iter().cloned().map(move |rel_path| {
-                    ItemOperation::Delete(
-                        HoardItem::new(
-                            d_pile_name.clone(),
-                            d_hoard_path.clone(),
-                            d_system_path.clone(),
-                            rel_path
-                        )
-                    )
+                    ItemOperation::Delete(HoardItem::new(
+                        d_pile_name.clone(),
+                        d_hoard_path.clone(),
+                        d_system_path.clone(),
+                        rel_path,
+                    ))
                 });
 
                 Some(created.chain(modified).chain(deleted))
-            }).flatten();
+            })
+            .flatten();
         Ok(Box::new(iter))
     }
 }

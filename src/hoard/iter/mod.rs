@@ -10,7 +10,7 @@ mod operation;
 pub(crate) use crate::hoard_item::HoardItem;
 pub(crate) use diff_files::{DiffSource, HoardDiffIter, HoardFileDiff};
 use macros::propagate_error;
-pub(crate) use operation::{OperationIter, ItemOperation};
+pub(crate) use operation::{ItemOperation, OperationIter};
 
 mod macros {
     macro_rules! propagate_error {
