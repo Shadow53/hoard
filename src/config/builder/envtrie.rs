@@ -308,6 +308,8 @@ fn get_weighted_map(
 
     for list in exclusive_list {
         for (score, item) in list.iter().rev().enumerate() {
+            // Scores should start a 1, not 0
+            let score = score + 1;
             let weight =
                 weighted_map
                     .get(item)
@@ -409,7 +411,7 @@ impl EnvTrie {
                     None => return Err(Error::NoEnvironments),
                     Some(name) => Node {
                         name,
-                        score: 0,
+                        score: 1,
                         tree: None,
                         value: Some(path.clone()),
                     },
