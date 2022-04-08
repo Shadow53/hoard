@@ -130,7 +130,7 @@ impl HoardItem {
             Ok(content) => Ok(Some(content)),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Ok(None),
-                _ => Err(err),
+                _ => Err(err), // grcov: ignore
             },
         }
     }
@@ -237,5 +237,169 @@ impl HoardItem {
 
     fn sha256(content: &[u8]) -> Checksum {
         Checksum::SHA256(SHA256::from_data(content))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::test::Tester;
+
+    const CONTENT_A: &str = "content A";
+    const MD5_CONTENT_A: &str = "4f4e99c2da696a47de3b455758bff316";
+    const SHA256_CONTENT_A: &str = "49114a9a2b7d46ec27be62ae3eade12f78d46cf5a99c52cd4f80381d723eed6e";
+    const FILE_NAME: &str = "hoard_item.txt";
+
+    fn hoard_item(tester: &Tester) -> HoardItem {
+        HoardItem::new(
+            PileName::anonymous(),
+            HoardPath::try_from(tester.data_dir().to_path_buf()).unwrap(),
+            SystemPath::try_from(tester.config_dir().to_path_buf()).unwrap(),
+            RelativePath::try_from(PathBuf::from(FILE_NAME)).unwrap(),
+        )
+    }
+
+    #[test]
+    fn test_system_methods() {
+        let tester = Tester::new().unwrap();
+        let item = hoard_item(&tester);
+
+        assert_eq!(item.system_content().unwrap(), None);
+        assert_eq!(item.system_md5().unwrap(), None);
+        assert_eq!(item.system_checksum(ChecksumType::MD5).unwrap(), None);
+        assert_eq!(item.system_sha256().unwrap(), None);
+        assert_eq!(item.system_checksum(ChecksumType::SHA256).unwrap(), None);
+
+        fs::write(item.system_path(), CONTENT_A).unwrap();
+
+        assert_eq!(item.system_content().unwrap(), Some(CONTENT_A.as_bytes().to_vec()));
+        assert_eq!(item.system_md5().unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
+        assert_eq!(item.system_checksum(ChecksumType::MD5).unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
+        assert_eq!(item.system_sha256().unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
+        assert_eq!(item.system_checksum(ChecksumType::SHA256).unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
+    }
+
+    #[test]
+    fn test_hoard_methods() {
+        let tester = Tester::new().unwrap();
+        let item = hoard_item(&tester);
+
+        assert_eq!(item.hoard_content().unwrap(), None);
+        assert_eq!(item.hoard_md5().unwrap(), None);
+        assert_eq!(item.hoard_checksum(ChecksumType::MD5).unwrap(), None);
+        assert_eq!(item.hoard_sha256().unwrap(), None);
+        assert_eq!(item.hoard_checksum(ChecksumType::SHA256).unwrap(), None);
+
+        fs::write(item.hoard_path(), CONTENT_A).unwrap();
+
+        assert_eq!(item.hoard_content().unwrap(), Some(CONTENT_A.as_bytes().to_vec()));
+        assert_eq!(item.hoard_md5().unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
+        assert_eq!(item.hoard_checksum(ChecksumType::MD5).unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
+        assert_eq!(item.hoard_sha256().unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
+        assert_eq!(item.hoard_checksum(ChecksumType::SHA256).unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
+    }
+
+    mod is_file_is_dir {
+        use super::*;
+
+        macro_rules! test_is_file_is_dir {
+            (name: $name:ident, system: $system_is_file:expr, hoard: $hoard_is_file:expr, expect_file: $expected_file:literal, expect_dir: $expected_dir:literal) => {
+                #[test]
+                #[allow(clippy::bool_assert_comparison)]
+                fn $name() {
+                    let tester = Tester::new().unwrap();
+                    let item = hoard_item(&tester);
+
+                    match $system_is_file {
+                        Some(true) => fs::write(item.system_path(), CONTENT_A).unwrap(),
+                        Some(false) => fs::create_dir_all(item.system_path()).unwrap(),
+                        None => {},
+                    }
+
+                    match $hoard_is_file {
+                        Some(true) => fs::write(item.hoard_path(), CONTENT_A).unwrap(),
+                        Some(false) => fs::create_dir_all(item.hoard_path()).unwrap(),
+                        None => {},
+                    }
+
+                    assert_eq!($expected_file, item.is_file());
+                    assert_eq!($expected_dir, item.is_dir());
+                }
+            };
+        }
+
+        test_is_file_is_dir! {
+            name: test_neither_exists,
+            system: None,
+            hoard: None,
+            expect_file: false,
+            expect_dir: false
+        }
+
+        test_is_file_is_dir! {
+            name: test_system_is_file,
+            system: Some(true),
+            hoard: None,
+            expect_file: true,
+            expect_dir: false
+        }
+
+        test_is_file_is_dir! {
+            name: test_system_is_dir,
+            system: Some(false),
+            hoard: None,
+            expect_file: false,
+            expect_dir: true
+        }
+
+        test_is_file_is_dir! {
+            name: test_hoard_is_file,
+            system: None,
+            hoard: Some(true),
+            expect_file: true,
+            expect_dir: false
+        }
+
+        test_is_file_is_dir! {
+            name: test_hoard_is_dir,
+            system: None,
+            hoard: Some(false),
+            expect_file: false,
+            expect_dir: true
+        }
+
+        test_is_file_is_dir! {
+            name: test_both_are_file,
+            system: Some(true),
+            hoard: Some(true),
+            expect_file: true,
+            expect_dir: false
+        }
+
+        test_is_file_is_dir! {
+            name: test_both_are_dir,
+            system: Some(false),
+            hoard: Some(false),
+            expect_file: false,
+            expect_dir: true
+        }
+
+        test_is_file_is_dir! {
+            name: test_system_is_file_hoard_is_dir,
+            system: Some(true),
+            hoard: Some(false),
+            expect_file: false,
+            expect_dir: false
+        }
+
+        test_is_file_is_dir! {
+            name: test_system_is_dir_hoard_is_file,
+            system: Some(false),
+            hoard: Some(true),
+            expect_file: false,
+            expect_dir: false
+        }
     }
 }

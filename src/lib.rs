@@ -79,6 +79,7 @@ pub mod hoard_item;
 pub mod logging;
 pub mod newtypes;
 pub mod paths;
+pub mod test;
 
 /// The default file stem of the configuration file (i.e. without file extension).
 pub const CONFIG_FILE_STEM: &str = "config";
