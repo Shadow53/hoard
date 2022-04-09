@@ -8,7 +8,7 @@
 //! was the last one to touch a file.
 
 use super::Error;
-use crate::checkers::history::operation::{OperationFileInfo, OperationImpl};
+use crate::checkers::history::operation::{OperationFileInfo, OperationImpl, OperationType};
 use crate::checksum::{Checksum, ChecksumType};
 use crate::hoard::iter::{ItemOperation, OperationIter};
 use crate::hoard::{Direction, Hoard as ConfigHoard};
@@ -247,6 +247,18 @@ impl OperationImpl for OperationV2 {
             .flatten();
         Ok(Box::new(iter))
     }
+
+    fn file_operation(&self, pile_name: &PileName, rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
+        match (pile_name.as_ref(), &self.files) {
+            (Some(_), Hoard::Anonymous(_)) | (None, Hoard::Named(_)) => Ok(None),
+            (None, Hoard::Anonymous(pile)) => pile.file_operation(rel_path),
+            (Some(name), Hoard::Named(map)) => map.get(name)
+                .map_or_else(
+                    || Ok(None),
+                    |pile| pile.file_operation(rel_path)
+                )
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -439,6 +451,18 @@ impl Pile {
         let deleted = self.deleted.iter().map(|path| (path, None));
 
         created.chain(modified).chain(unmodified).chain(deleted)
+    }
+
+    fn file_operation(&self, rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
+        if self.created.contains_key(rel_path) {
+            Ok(Some(OperationType::Create))
+        } else if self.deleted.contains(rel_path) {
+            Ok(Some(OperationType::Delete))
+        } else if self.modified.contains_key(rel_path) {
+            Ok(Some(OperationType::Modify))
+        } else {
+            Ok(None)
+        }
     }
 }
 

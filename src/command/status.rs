@@ -23,7 +23,6 @@ pub(crate) fn run_status<'a>(
                     HoardFileDiff::TextModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::PermissionsModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Created { diff_source, .. } => Some(diff_source),
-                    HoardFileDiff::Recreated { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Deleted { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Unchanged(_) => return None,
                 };

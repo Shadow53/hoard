@@ -48,9 +48,6 @@ impl Iterator for OperationIter {
                 | HoardFileDiff::PermissionsModified { file, .. } => ItemOperation::Modify(file),
                 HoardFileDiff::Created {
                     file, diff_source, ..
-                }
-                | HoardFileDiff::Recreated {
-                    file, diff_source, ..
                 } => match (self.direction, diff_source) {
                     (_, DiffSource::Mixed) => ItemOperation::Create(file),
                     (Direction::Backup, DiffSource::Local) => ItemOperation::Create(file),

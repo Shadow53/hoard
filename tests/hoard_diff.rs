@@ -196,7 +196,7 @@ fn check_created_file(
     hoard_content: Option<Content>,
     system_content: Option<Content>,
 ) {
-    let summary = format!("{}: created {}\n", file.path.display(), location);
+    let summary = format!("{}: (re)created {}\n", file.path.display(), location);
     let full_diff = get_full_diff(file, hoard_content, system_content);
     assert_diff_contains(
         tester,
@@ -391,33 +391,6 @@ fn check_deleted_file(
     );
 }
 
-fn check_recreated_file(
-    tester: &Tester,
-    file: &File,
-    hoard: &HoardName,
-    location: &str,
-    is_partial: bool,
-    _hoard_content: Option<Content>,
-    _system_content: Option<Content>,
-) {
-    assert_diff_contains(
-        tester,
-        hoard,
-        format!("{}: recreated {}\n", file.path.display(), location),
-        is_partial,
-        file.ignored,
-        false,
-    );
-    assert_diff_contains(
-        tester,
-        hoard,
-        format!("{}: recreated {}\n", file.path.display(), location),
-        is_partial,
-        file.ignored,
-        true,
-    );
-}
-
 struct File {
     path: PathBuf,
     hoard_path: Option<PathBuf>,
@@ -493,10 +466,11 @@ macro_rules! test_diff_type {
                     for file in &files {
                         $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
                     }
+                    $tester.use_remote_uuid();
+                    $tester.expect_command(Command::Restore { hoards: vec![hoard.clone()] });
                     for file in &files {
                         $modify_fn(&file.path, $changed_content_a, file.is_text, &hoard);
                     }
-                    $tester.use_remote_uuid();
                     $tester.expect_command(Command::Backup { hoards: vec![hoard.clone()] });
                     for file in &files {
                         $modify_fn(&file.path, $default_content, file.is_text, &hoard);
@@ -518,10 +492,11 @@ macro_rules! test_diff_type {
                     for file in &files {
                         $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
                     }
+                    $tester.use_remote_uuid();
+                    $tester.expect_command(Command::Restore { hoards: vec![hoard.clone()] });
                     for file in &files {
                         $modify_fn(&file.path, $changed_content_a, file.is_text, &hoard);
                     }
-                    $tester.use_remote_uuid();
                     $tester.expect_command(Command::Backup { hoards: vec![hoard.clone()] });
                     $tester.use_local_uuid();
                     for file in &files {
@@ -623,20 +598,20 @@ macro_rules! test_diffs {
                 setup: setup_modify,
                 modify: modify_file,
                 check: check_deleted_file
+            },
+            {
+                name: recreate,
+                tester: $tester,
+                hoard_files: $files,
+                contents: {
+                    default: None,
+                    changed_a: Some(Content::Data(DEFAULT_CONTENT.clone())),
+                    changed_b: Some(Content::Data(CHANGED_CONTENT_A.clone()))
+                },
+                setup: setup_recreate,
+                modify: modify_file,
+                check: check_created_file
             }
-            //{
-            //    name: recreate,
-            //    tester: $tester,
-            //    hoard_files: $files,
-            //    contents: {
-            //        default: None,
-            //        changed_a: Some(Content::Data(DEFAULT_CONTENT.clone())),
-            //        changed_b: Some(Content::Data(CHANGED_CONTENT_A.clone()))
-            //    },
-            //    setup: setup_recreate,
-            //    modify: modify_file,
-            //    check: check_created_file
-            //}
         }
     };
 }
