@@ -105,6 +105,7 @@ fn setup_recreate(
     });
 }
 
+#[cfg(windows)]
 fn is_writable(octet: u32) -> bool {
     octet & 0o000200 != 0
 }

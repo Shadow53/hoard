@@ -15,29 +15,28 @@ fn ignored_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
         tester
             .home_dir()
             .join("first_anon_dir")
-            .join("global_ignore"),
+            .join(GLOBAL_FILE),
         tester
             .home_dir()
             .join("first_named_dir1")
-            .join("global_ignore"),
+            .join(GLOBAL_FILE),
         tester
             .home_dir()
             .join("first_named_dir2")
-            .join("global_ignore"),
+            .join(GLOBAL_FILE),
         tester
             .home_dir()
             .join("first_named_dir1")
-            .join("ignore_for_hoard"),
+            .join(HOARD_FILE),
         tester
             .home_dir()
             .join("first_named_dir2")
-            .join("ignore_for_hoard"),
-        tester.home_dir().join("first_named_dir1").join("spilem"),
+            .join(HOARD_FILE),
+        tester.home_dir().join("first_named_dir1").join(PILE_FILE),
         tester
             .home_dir()
             .join("first_named_dir2")
-            .join("nested_dir")
-            .join(".hidden"),
+            .join(NESTED_FILE),
     ]
 }
 

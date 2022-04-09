@@ -305,6 +305,7 @@ impl ProcessedFile {
 
         let file = self.file.clone();
 
+        #[allow(clippy::match_same_arms)]
         match (has_logs, local_op_type, remote_op_type, self.diff.clone()) {
             (_, _, _, None) => HoardFileDiff::Unchanged(file),
             (_, None, None, Some(Diff::Permissions(hoard_perms, system_perms))) => HoardFileDiff::PermissionsModified { file, hoard_perms, system_perms, diff_source: DiffSource::Unknown },

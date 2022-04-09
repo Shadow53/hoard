@@ -453,6 +453,7 @@ impl Pile {
         created.chain(modified).chain(unmodified).chain(deleted)
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn file_operation(&self, rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
         if self.created.contains_key(rel_path) {
             Ok(Some(OperationType::Create))
