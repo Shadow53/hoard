@@ -130,7 +130,11 @@ pub trait OperationImpl {
     ///
     /// Returns [`Error::UpgradeRequired`] in the case when the operation log format is too old to
     /// contain information about the operation performed on a given file.
-    fn file_operation(&self, _pile_name: &PileName, _rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
+    fn file_operation(
+        &self,
+        _pile_name: &PileName,
+        _rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
         Err(Error::UpgradeRequired)
     }
 }
@@ -194,7 +198,11 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn file_operation(&self, pile_name: &PileName, rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
+    fn file_operation(
+        &self,
+        pile_name: &PileName,
+        rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
         match &self {
             OperationVersion::V1(v1) => v1.file_operation(pile_name, rel_path),
             OperationVersion::V2(v2) => v2.file_operation(pile_name, rel_path),
@@ -247,7 +255,11 @@ impl OperationImpl for Operation {
         self.0.hoard_operations_iter(hoard_root, hoard)
     }
 
-    fn file_operation(&self, pile_name: &PileName, rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
+    fn file_operation(
+        &self,
+        pile_name: &PileName,
+        rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
         self.0.file_operation(pile_name, rel_path)
     }
 }

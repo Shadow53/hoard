@@ -249,7 +249,8 @@ mod tests {
 
     const CONTENT_A: &str = "content A";
     const MD5_CONTENT_A: &str = "4f4e99c2da696a47de3b455758bff316";
-    const SHA256_CONTENT_A: &str = "49114a9a2b7d46ec27be62ae3eade12f78d46cf5a99c52cd4f80381d723eed6e";
+    const SHA256_CONTENT_A: &str =
+        "49114a9a2b7d46ec27be62ae3eade12f78d46cf5a99c52cd4f80381d723eed6e";
     const FILE_NAME: &str = "hoard_item.txt";
 
     fn hoard_item(tester: &Tester) -> HoardItem {
@@ -274,11 +275,30 @@ mod tests {
 
         fs::write(item.system_path(), CONTENT_A).unwrap();
 
-        assert_eq!(item.system_content().unwrap(), Some(CONTENT_A.as_bytes().to_vec()));
-        assert_eq!(item.system_md5().unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
-        assert_eq!(item.system_checksum(ChecksumType::MD5).unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
-        assert_eq!(item.system_sha256().unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
-        assert_eq!(item.system_checksum(ChecksumType::SHA256).unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
+        assert_eq!(
+            item.system_content().unwrap(),
+            Some(CONTENT_A.as_bytes().to_vec())
+        );
+        assert_eq!(
+            item.system_md5().unwrap(),
+            Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
+        );
+        assert_eq!(
+            item.system_checksum(ChecksumType::MD5).unwrap(),
+            Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
+        );
+        assert_eq!(
+            item.system_sha256().unwrap(),
+            Some(Checksum::SHA256(
+                SHA256_CONTENT_A.parse::<SHA256>().unwrap()
+            ))
+        );
+        assert_eq!(
+            item.system_checksum(ChecksumType::SHA256).unwrap(),
+            Some(Checksum::SHA256(
+                SHA256_CONTENT_A.parse::<SHA256>().unwrap()
+            ))
+        );
     }
 
     #[test]
@@ -294,11 +314,30 @@ mod tests {
 
         fs::write(item.hoard_path(), CONTENT_A).unwrap();
 
-        assert_eq!(item.hoard_content().unwrap(), Some(CONTENT_A.as_bytes().to_vec()));
-        assert_eq!(item.hoard_md5().unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
-        assert_eq!(item.hoard_checksum(ChecksumType::MD5).unwrap(), Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap())));
-        assert_eq!(item.hoard_sha256().unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
-        assert_eq!(item.hoard_checksum(ChecksumType::SHA256).unwrap(), Some(Checksum::SHA256(SHA256_CONTENT_A.parse::<SHA256>().unwrap())));
+        assert_eq!(
+            item.hoard_content().unwrap(),
+            Some(CONTENT_A.as_bytes().to_vec())
+        );
+        assert_eq!(
+            item.hoard_md5().unwrap(),
+            Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
+        );
+        assert_eq!(
+            item.hoard_checksum(ChecksumType::MD5).unwrap(),
+            Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
+        );
+        assert_eq!(
+            item.hoard_sha256().unwrap(),
+            Some(Checksum::SHA256(
+                SHA256_CONTENT_A.parse::<SHA256>().unwrap()
+            ))
+        );
+        assert_eq!(
+            item.hoard_checksum(ChecksumType::SHA256).unwrap(),
+            Some(Checksum::SHA256(
+                SHA256_CONTENT_A.parse::<SHA256>().unwrap()
+            ))
+        );
     }
 
     mod is_file_is_dir {
@@ -315,13 +354,13 @@ mod tests {
                     match $system_is_file {
                         Some(true) => fs::write(item.system_path(), CONTENT_A).unwrap(),
                         Some(false) => fs::create_dir_all(item.system_path()).unwrap(),
-                        None => {},
+                        None => {}
                     }
 
                     match $hoard_is_file {
                         Some(true) => fs::write(item.hoard_path(), CONTENT_A).unwrap(),
                         Some(false) => fs::create_dir_all(item.hoard_path()).unwrap(),
-                        None => {},
+                        None => {}
                     }
 
                     assert_eq!($expected_file, item.is_file());

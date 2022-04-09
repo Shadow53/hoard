@@ -81,7 +81,11 @@ pub(crate) fn run_diff(
                 diff_source,
                 unified_diff,
             } => {
-                tracing::info!("{}: (re)created {}", file.system_path().display(), diff_source);
+                tracing::info!(
+                    "{}: (re)created {}",
+                    file.system_path().display(),
+                    diff_source
+                );
                 if let (true, Some(unified_diff)) = (verbose, unified_diff) {
                     tracing::info!("{}", unified_diff);
                 }

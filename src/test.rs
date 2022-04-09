@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use std::{path::{Path, PathBuf}, fs, io};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 use tempfile::TempDir;
 use thiserror::Error;
@@ -40,7 +43,10 @@ impl Tester {
         std::env::set_var("HOARD_DATA_DIR", data_dir.path());
         std::env::set_var("HOARD_CONFIG_DIR", config_dir.path());
 
-        Ok(Self { config_dir, data_dir })
+        Ok(Self {
+            config_dir,
+            data_dir,
+        })
     }
 
     /// Returns the overridden config directory.

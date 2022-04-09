@@ -248,15 +248,17 @@ impl OperationImpl for OperationV2 {
         Ok(Box::new(iter))
     }
 
-    fn file_operation(&self, pile_name: &PileName, rel_path: &RelativePath) -> Result<Option<OperationType>, Error> {
+    fn file_operation(
+        &self,
+        pile_name: &PileName,
+        rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
         match (pile_name.as_ref(), &self.files) {
             (Some(_), Hoard::Anonymous(_)) | (None, Hoard::Named(_)) => Ok(None),
             (None, Hoard::Anonymous(pile)) => pile.file_operation(rel_path),
-            (Some(name), Hoard::Named(map)) => map.get(name)
-                .map_or_else(
-                    || Ok(None),
-                    |pile| pile.file_operation(rel_path)
-                )
+            (Some(name), Hoard::Named(map)) => map
+                .get(name)
+                .map_or_else(|| Ok(None), |pile| pile.file_operation(rel_path)),
         }
     }
 }
