@@ -297,4 +297,15 @@ impl Tester {
     pub fn set_uuid(&self, content: &str) -> io::Result<()> {
         fs::write(self.uuid_path(), content)
     }
+
+    pub fn clear_data_dir(&self) {
+        for entry in fs::read_dir(self.data_dir()).unwrap() {
+            let entry = entry.unwrap();
+            if entry.path().is_file() {
+                fs::remove_file(entry.path()).unwrap();
+            } else  if entry.path().is_dir() {
+                fs::remove_dir_all(entry.path()).unwrap();
+            }
+        }
+    }
 }

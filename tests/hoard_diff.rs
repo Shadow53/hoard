@@ -1,5 +1,6 @@
 mod common;
 
+use std::collections::BTreeMap;
 use common::tester::Tester;
 use hoard::command::Command;
 use hoard::newtypes::HoardName;
@@ -49,68 +50,54 @@ exclusivity = [
     "windows" = "${HOARD_TMP}/testdir"
 "#;
 
-fn no_op(
-    _tester: &Tester,
-    _path: &Path,
-    _content: Option<Content>,
-    _is_text: bool,
-    _hoard: &HoardName,
-) {
+fn get_hoards(tester: &Tester) -> BTreeMap<HoardName, Vec<File>> {
+    maplit::btreemap! {
+        "anon_dir".parse().unwrap() => vec![
+            File {
+                path: tester.home_dir().join("testdir").join("test.txt"),
+                hoard_path: Some(tester.data_dir().join("hoards").join("anon_dir").join("test.txt")),
+                ignored: false,
+                is_text: true,
+            },
+            File {
+                path: tester.home_dir().join("testdir").join("test.bin"),
+                hoard_path: Some(tester.data_dir().join("hoards").join("anon_dir").join("test.bin")),
+                ignored: false,
+                is_text: true,
+            },
+            File {
+                path: tester.home_dir().join("testdir").join("ignore.txt"),
+                hoard_path: None,
+                is_text: true,
+                ignored: true,
+            },
+        ],
+        "anon_txt".parse().unwrap() => vec![
+            File {
+                path: tester.home_dir().join("anon.txt"),
+                hoard_path: Some(tester.data_dir().join("hoards").join("anon_txt")),
+                ignored: false,
+                is_text: true,
+            },
+        ],
+        "named".parse().unwrap() => vec![
+            File {
+                path: tester.home_dir().join("named.txt"),
+                hoard_path: Some(tester.data_dir().join("hoards").join("named").join("text")),
+                ignored: false,
+                is_text: true,
+            },
+            File {
+                path: tester.home_dir().join("named.bin"),
+                hoard_path: Some(tester.data_dir().join("hoards").join("named").join("binary")),
+                ignored: false,
+                is_text: true,
+            },
+        ],
+    }
 }
 
-fn setup_modify(
-    tester: &Tester,
-    path: &Path,
-    content: Option<Content>,
-    is_text: bool,
-    hoard: &HoardName,
-) {
-    modify_file(path, content, is_text, hoard);
-    tester.use_local_uuid();
-    tester.expect_command(Command::Backup {
-        hoards: vec![hoard.clone()],
-    });
-    tester.use_remote_uuid();
-    tester.expect_command(Command::Restore {
-        hoards: vec![hoard.clone()],
-    });
-}
-
-fn setup_permissions(
-    tester: &Tester,
-    path: &Path,
-    content: Option<Content>,
-    is_text: bool,
-    hoard: &HoardName,
-) {
-    modify_file(path, Some(Content::Data(DEFAULT_CONTENT)), is_text, hoard);
-    setup_modify(tester, path, content, is_text, hoard);
-}
-
-fn setup_recreate(
-    tester: &Tester,
-    path: &Path,
-    content: Option<Content>,
-    is_text: bool,
-    hoard: &HoardName,
-) {
-    modify_file(path, content, is_text, hoard);
-    tester.use_local_uuid();
-    tester.expect_command(Command::Backup {
-        hoards: vec![hoard.clone()],
-    });
-    modify_file(path, None, is_text, hoard);
-    tester.expect_command(Command::Restore {
-        hoards: vec![hoard.clone()],
-    });
-}
-
-#[cfg(windows)]
-fn is_writable(octet: u32) -> bool {
-    octet & 0o000200 != 0
-}
-
-fn modify_file(path: &Path, content: Option<Content>, is_text: bool, _hoard: &HoardName) {
+fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
     match content {
         None => {
             if path.exists() {
@@ -188,35 +175,6 @@ fn assert_diff_contains(
     }
 }
 
-fn check_created_file(
-    tester: &Tester,
-    file: &File,
-    hoard: &HoardName,
-    location: &str,
-    is_partial: bool,
-    hoard_content: Option<Content>,
-    system_content: Option<Content>,
-) {
-    let summary = format!("{}: (re)created {}\n", file.path.display(), location);
-    let full_diff = get_full_diff(file, hoard_content, system_content);
-    assert_diff_contains(
-        tester,
-        hoard,
-        summary.clone(),
-        is_partial,
-        file.ignored,
-        false,
-    );
-    assert_diff_contains(
-        tester,
-        hoard,
-        format!("{}{}", summary, full_diff),
-        is_partial,
-        file.ignored,
-        true,
-    );
-}
-
 fn get_full_diff(
     file: &File,
     hoard_content: Option<Content>,
@@ -234,7 +192,7 @@ fn get_full_diff(
         Some(_) => panic!("expected text, not permissions"),
     };
 
-    if file.is_text && file.hoard_path.is_some() {
+    if file.is_text && file.hoard_path.is_some() && hoard_content != system_content {
         format!(
             r#"--- {}
 +++ {}
@@ -255,143 +213,6 @@ fn get_full_diff(
     }
 }
 
-fn check_modified_file(
-    tester: &Tester,
-    file: &File,
-    hoard: &HoardName,
-    location: &str,
-    is_partial: bool,
-    hoard_content: Option<Content>,
-    system_content: Option<Content>,
-) {
-    let file_type = if file.is_text { "text" } else { "binary" };
-    let summary = format!(
-        "{}: {} file changed {}\n",
-        file.path.display(),
-        file_type,
-        location
-    );
-    let full_diff = get_full_diff(file, hoard_content, system_content);
-    assert_diff_contains(
-        tester,
-        hoard,
-        summary.clone(),
-        is_partial,
-        file.ignored,
-        false,
-    );
-    assert_diff_contains(
-        tester,
-        hoard,
-        format!("{}{}", summary, full_diff),
-        is_partial,
-        file.ignored,
-        true,
-    );
-}
-
-fn check_modified_perms(
-    tester: &Tester,
-    file: &File,
-    hoard: &HoardName,
-    _location: &str,
-    is_partial: bool,
-    hoard_content: Option<Content>,
-    system_content: Option<Content>,
-) {
-    let hoard_perms = match hoard_content.expect("expected permissions") {
-        Content::Data(_) => panic!("expected permissions, not data"),
-        Content::Perms(perms) => perms,
-    };
-
-    let system_perms = match system_content.expect("expected permissions") {
-        Content::Data(_) => panic!("expected permissions, not data"),
-        Content::Perms(perms) => perms,
-    };
-
-    #[cfg(unix)]
-    let (hoard_perms, system_perms) = (format!("{:o}", hoard_perms), format!("{:o}", system_perms));
-
-    #[cfg(windows)]
-    let hoard_perms = if is_writable(hoard_perms) {
-        "writable"
-    } else {
-        "readonly"
-    };
-
-    #[cfg(windows)]
-    let system_perms = if is_writable(system_perms) {
-        "writable"
-    } else {
-        "readonly"
-    };
-
-    for verbose in [true, false] {
-        assert_diff_contains(
-            tester,
-            hoard,
-            format!(
-                "{}: permissions changed: hoard ({}), system ({})\n",
-                file.path.display(),
-                hoard_perms,
-                system_perms
-            ),
-            is_partial,
-            file.ignored,
-            verbose,
-        );
-    }
-}
-
-fn check_deleted_file(
-    tester: &Tester,
-    file: &File,
-    hoard: &HoardName,
-    location: &str,
-    is_partial: bool,
-    hoard_content: Option<Content>,
-    system_content: Option<Content>,
-) {
-    let system_deleted = system_content.is_none();
-    let hoard_deleted = hoard_content.is_none() && file.hoard_path.is_some();
-
-    if system_deleted {
-        assert!(
-            !file.path.exists() || file.ignored,
-            "{} was not deleted",
-            file.path.display()
-        );
-    }
-
-    if hoard_deleted {
-        assert!(
-            !file.hoard_path.as_ref().unwrap().exists() || file.ignored,
-            "{} was not deleted",
-            file.hoard_path.as_ref().unwrap().display()
-        );
-    }
-
-    // If file does not exist in either place, file will not appear in the iterator.
-    let invert = file.ignored || location == "locally and remotely";
-    assert_diff_contains(
-        tester,
-        hoard,
-        format!("{}: deleted {}\n", file.path.display(), location),
-        is_partial,
-        invert,
-        false,
-    );
-
-    assert_diff_contains(
-        tester,
-        hoard,
-        format!("{}: deleted {}\n", file.path.display(), location),
-        is_partial,
-        invert,
-        true,
-    );
-}
-
 struct File {
     path: PathBuf,
     hoard_path: Option<PathBuf>,
@@ -399,20 +220,35 @@ struct File {
     ignored: bool,
 }
 
+#[derive(Clone)]
 enum Content {
     Data((&'static str, [u8; 5])),
     Perms(u32),
 }
 
-const DEFAULT_CONTENT: (&str, [u8; 5]) = ("This is a text file", [0x12, 0xFB, 0x3D, 0x00, 0x3A]);
-const CHANGED_CONTENT_A: (&str, [u8; 5]) = (
-    "This is different text content",
-    [0x12, 0xFB, 0x45, 0x00, 0x3A],
-);
-const CHANGED_CONTENT_B: (&str, [u8; 5]) = (
-    "This is yet other text content",
-    [0x12, 0xFB, 0x91, 0x00, 0x3A],
-);
+impl Content {
+    fn default() -> Option<Self> {
+        Some(Content::Data(("This is a text file", [0x12, 0xFB, 0x3D, 0x00, 0x3A])))
+    }
+
+    fn changed_a() -> Option<Self> {
+        Some(Content::Data((
+            "This is different text content",
+            [0x12, 0xFB, 0x45, 0x00, 0x3A],
+        )))
+    }
+
+    fn changed_b() -> Option<Self> {
+       Some(Content::Data((
+           "This is yet other text content",
+           [0x12, 0xFB, 0x91, 0x00, 0x3A],
+       )))
+    }
+
+    fn none() -> Option<Self> {
+        None
+    }
+}
 
 macro_rules! test_diff_type {
     ($({
@@ -617,50 +453,395 @@ macro_rules! test_diffs {
     };
 }
 
-test_diffs! {
-    tester,
-    maplit::btreemap! {
-        "anon_dir".parse().unwrap() => vec![
-            File {
-                path: tester.home_dir().join("testdir").join("test.txt"),
-                hoard_path: Some(tester.data_dir().join("hoards").join("anon_dir").join("test.txt")),
-                ignored: false,
-                is_text: true,
-            },
-            File {
-                path: tester.home_dir().join("testdir").join("test.bin"),
-                hoard_path: Some(tester.data_dir().join("hoards").join("anon_dir").join("test.bin")),
-                ignored: false,
-                is_text: true,
-            },
-            File {
-                path: tester.home_dir().join("testdir").join("ignore.txt"),
-                hoard_path: None,
-                is_text: true,
-                ignored: true,
-            },
-        ],
-        "anon_txt".parse().unwrap() => vec![
-            File {
-                path: tester.home_dir().join("anon.txt"),
-                hoard_path: Some(tester.data_dir().join("hoards").join("anon_txt")),
-                ignored: false,
-                is_text: true,
-            },
-        ],
-        "named".parse().unwrap() => vec![
-            File {
-                path: tester.home_dir().join("named.txt"),
-                hoard_path: Some(tester.data_dir().join("hoards").join("named").join("text")),
-                ignored: false,
-                is_text: true,
-            },
-            File {
-                path: tester.home_dir().join("named.bin"),
-                hoard_path: Some(tester.data_dir().join("hoards").join("named").join("binary")),
-                ignored: false,
-                is_text: true,
-            },
-        ],
+// SITUATIONS LEFT TO HANDLE:
+// Unexpected -- File created locally and in hoard with different text
+// Unexpected -- Same modification to binary in system and hoard
+// Unexpected -- Different modification to binary in system and hoard
+// Unexpected -- Local deleted, binary modified in hoard
+// Unexpected -- No records, create in hoard
+// Unexpected -- No local changes, log created remotely, deleted in hoard
+// Unexpected -- No local changes, log modified remotely, deleted in hoard
+// Expected -- Log created and deleted, created locally
+// Unexpected -- Locally modified, deleted in hoard
+// Unexpected -- Log created remotely, deleted in hoard
+// Unexpected -- Log modified remotely, deleted in hoard
+// Expected -- Log deleted locally, Log created and deleted remotely, created locally
+// Unexpected -- Log deleted locally, log created and deleted remotely, created in hoard
+// Unexpected -- Log deleted Remotely, delete locally and create in hoard
+// Expected -- Delete and recreate binary remotely
+// Expected -- Modify binary remotely
+// Unexpected -- Log deleted remotely, recreate in hoard with different binary content
+// Unexpected -- Log deleted, create locally and in hoard with different binary content
+// Expected -- Log delete and create remotely, modify locally (binary)
+// Unexpected -- Exists locally, Log deleted remotely, recreate with different binary content in hoard
+// Unexpected -- No records, create in hoard (ln 610)
+// Unexpected -- Log create and delete, create locally, create in hoard with different text content
+// Unexpectd -- Log delete remotely, recreate in hoard with different text content
+// Expected -- Create locally, log create and modify remotely, different text content
+// Unexpected -- No records, Create locally and in hoard with different text content
+
+// Permissions?
+
+macro_rules! test_diff_inner {
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {}
+    ) => {};
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {backup; $($ops:tt)*}
+    ) => {
+        $hoard_content = $system_content.clone();
+        $tester.expect_command(Command::Backup { hoards: vec![$hoard_name.clone()] });
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+    };
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {restore; $($ops:tt)*}
+    ) => {
+        $system_content = $hoard_content.clone();
+        $tester.expect_command(Command::Restore { hoards: vec![$hoard_name.clone()] });
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+    };
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {local; $($ops:tt)*}
+    ) => {
+        $tester.use_local_uuid();
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+    };
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {remote; $($ops:tt)*}
+    ) => {
+        $tester.use_remote_uuid();
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+    };
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {set_system_content: $content:expr; $($ops:tt)*}
+    ) => {
+        $system_content = $content;
+        modify_file(&$file.path, $content, $file.is_text);
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+    };
+    (
+        tester: $tester:ident,
+        hoard_name: $hoard_name:ident,
+        hoard_content: $hoard_content:ident,
+        system_content: $system_content:ident,
+        file: $file:ident,
+        setup: {set_hoard_content: $content:expr; $($ops:tt)*}
+    ) => {
+        if let Some(hoard_path) = $file.hoard_path.as_deref() {
+            $hoard_content = $content;
+            modify_file(hoard_path, $content, $file.is_text);
+            test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+        }
+    };
+}
+
+macro_rules! test_diff {
+    (
+        name: $fn_name: ident,
+        diff_type: $diff_type:ident,
+        location: $location:ident,
+        setup: {$($ops:tt)*}
+    ) => {
+        #[test]
+        fn $fn_name() {
+            let tester = Tester::new(DIFF_TOML);
+            let hoards = get_hoards(&tester);
+
+            for (hoard_name, files) in hoards {
+                for file in files {
+                    let mut system_content = None;
+                    let mut hoard_content = None;
+
+                    test_diff_inner! {
+                        tester: tester,
+                        hoard_name: hoard_name,
+                        hoard_content: hoard_content,
+                        system_content: system_content,
+                        file: file,
+                        setup: {$($ops)*}
+                    }
+
+                    let diff_str = match $diff_type {
+                        CREATED | DELETED => format!("{} {}", $diff_type, $location),
+                        MODIFIED => format!(
+                            "{} file {} {}",
+                            if file.is_text { "text" } else { "binary" },
+                            $diff_type,
+                            $location
+                        ),
+                        PERMS => {
+                            let hoard_perms = match hoard_content.clone().expect("expected permissions") {
+                                Content::Data(_) => panic!("expected permissions, not data"),
+                                Content::Perms(perms) => perms,
+                            };
+
+                            let system_perms = match system_content.clone().expect("expected permissions") {
+                                Content::Data(_) => panic!("expected permissions, not data"),
+                                Content::Perms(perms) => perms,
+                            };
+
+                            #[cfg(unix)]
+                            let (hoard_perms, system_perms) = (format!("{:o}", hoard_perms), format!("{:o}", system_perms));
+
+                            #[cfg(windows)]
+                            let hoard_perms = if is_writable(hoard_perms) {
+                                "writable"
+                            } else {
+                                "readonly"
+                            };
+
+                            #[cfg(windows)]
+                            let system_perms = if is_writable(system_perms) {
+                                "writable"
+                            } else {
+                                "readonly"
+                            };
+                            format!("permissions changed: hoard({}), system ({})", hoard_perms, system_perms)
+                        },
+                        _ => panic!("unexpected diff type: {}", $diff_type),
+                    };
+
+                    let expected = format!(
+                        "{}: {}\n",
+                        file.path.display(),
+                        diff_str
+                    );
+
+                    let expected_verbose = if file.is_text && system_content.is_some() && hoard_content.is_some() {
+                        format!(
+                            "{}{}",
+                            expected,
+                            get_full_diff(&file, hoard_content, system_content),
+                        )
+                    } else {
+                        expected.clone()
+                    };
+
+                    tester.use_local_uuid();
+
+                    assert_diff_contains(
+                        &tester,
+                        &hoard_name,
+                        expected,
+                        false,
+                        file.ignored,
+                        false,
+                    );
+
+                    assert_diff_contains(
+                        &tester,
+                        &hoard_name,
+                        expected_verbose,
+                        false,
+                        file.ignored,
+                        true,
+                    );
+
+                    tester.clear_data_dir();
+                    if file.path.exists() {
+                        fs::remove_file(&file.path).unwrap();
+                    }
+                }
+            }
+        }
     }
+}
+
+const CREATED: &str = "(re)created";
+const MODIFIED: &str = "changed";
+const PERMS: &str = "permissions changed";
+const DELETED: &str = "deleted";
+
+const LOCAL: &str = "locally";
+const REMOTE: &str = "remotely";
+const MIXED: &str = "locally and remotely";
+const UNKNOWN: &str = "out-of-band";
+
+mod create {
+    use super::*;
+
+    test_diff! {
+        name: test_local,
+        diff_type: CREATED,
+        location: LOCAL,
+        setup:  {
+            local;
+            set_system_content: Content::default();
+        }
+    }
+
+    test_diff! {
+        name: test_remote,
+        diff_type: CREATED,
+        location: REMOTE,
+        setup: {
+            remote;
+            set_system_content: Content::default();
+            backup;
+            set_system_content: Content::none();
+        }
+    }
+
+    test_diff! {
+        name: test_mixed_same_content,
+        diff_type: CREATED,
+        location: MIXED,
+        setup: {
+            remote;
+            set_system_content: Content::default();
+            backup;
+            // Test switches to local, so local will automatically have same content
+        }
+    }
+
+    test_diff! {
+        name: test_mixed_different_content,
+        diff_type: CREATED,
+        location: MIXED,
+        setup: {
+            remote;
+            set_system_content: Content::default();
+            backup;
+            set_system_content: Content::changed_a();
+        }
+    }
+
+    test_diff! {
+        name: test_out_of_band_only,
+        diff_type: CREATED,
+        location: UNKNOWN,
+        setup: {
+            set_hoard_content: Content::default();
+        }
+    }
+
+    test_diff! {
+        name: test_out_of_band_and_local_same_content,
+        diff_type: CREATED,
+        location: UNKNOWN,
+        setup: {
+            set_hoard_content: Content::default();
+            set_system_content: Content::default();
+        }
+    }
+
+    test_diff! {
+        name: test_out_of_band_and_local_different_content,
+        diff_type: CREATED,
+        location: UNKNOWN,
+        setup: {
+            set_hoard_content: Content::default();
+            set_system_content: Content::changed_a();
+        }
+    }
+}
+
+mod recreate {
+    use super::*;
+
+    mod local {
+        use super::*;
+
+        test_diff! {
+            name: test_recreate_local_only,
+            diff_type: CREATED,
+            location: LOCAL,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_a();
+            }
+        }
+
+                test_diff! {
+            name: test_delete_and_recreate_local_with_remote_create,
+            diff_type: CREATED,
+            location: LOCAL,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_a();
+            }
+        }
+    }
+}
+
+mod modify {
+    use super::*;
+
+    mod local {
+        use super::*;
+        test_diff! {
+            name: test_modify_local_only,
+            diff_type: MODIFIED,
+            location: LOCAL,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: test_modify_locally_from_remote_create,
+            diff_type: MODIFIED,
+            location: LOCAL,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::changed_a();
+            }
+        }
+    }
+}
+
+mod permissions {
+    use super::*;
+
+}
+
+mod delete {
+    use super::*;
 }
