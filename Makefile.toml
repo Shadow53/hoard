@@ -68,7 +68,7 @@
         RUSTUP_TOOLCHAIN="stable"
         HOARD_LOG="trace"
         EXCLUDE_DERIVE="#\\[derive\\("
-        EXCLUDE_PANICS="panic!|todo!|unimplemented!"
+        EXCLUDE_PANICS="panic!|todo!|unimplemented!|unreachable!"
         EXCLUDE_TRACING="tracing::(error|warn|info|debug|trace)(_span)?"
         EXCLUDE_PROPAGATE_ERROR="(return|(Err\\(err(or)?\\)|err(or)?) =>) (Some\\()?Err\\(err(or)?(\\.into\\(\\))?\\)"
         EXCLUDE_MANUAL="grcov: ignore"
