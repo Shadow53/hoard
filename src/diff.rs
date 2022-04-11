@@ -11,8 +11,9 @@ use similar::{ChangeTag, TextDiff};
 
 const CONTEXT_RADIUS: usize = 5;
 
+/// Represents the existing file content for a given file.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum FileContent {
+pub enum FileContent {
     Text(String),
     Binary(Vec<u8>),
     Missing,

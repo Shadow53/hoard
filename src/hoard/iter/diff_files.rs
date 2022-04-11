@@ -1,7 +1,7 @@
 use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
 use crate::diff::{diff_files, Diff};
 use crate::hoard::iter::all_files::AllFilesIter;
-use crate::hoard::iter::HoardItem;
+use crate::hoard_item::CachedHoardItem;
 use crate::hoard::Hoard;
 use std::cmp::Ordering;
 use std::fmt;
@@ -36,30 +36,30 @@ impl fmt::Display for DiffSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum HoardFileDiff {
     BinaryModified {
-        file: HoardItem,
+        file: CachedHoardItem,
         diff_source: DiffSource,
     },
     TextModified {
-        file: HoardItem,
+        file: CachedHoardItem,
         unified_diff: String,
         diff_source: DiffSource,
     },
     PermissionsModified {
-        file: HoardItem,
+        file: CachedHoardItem,
         hoard_perms: Permissions,
         system_perms: Permissions,
         diff_source: DiffSource,
     },
     Created {
-        file: HoardItem,
+        file: CachedHoardItem,
         unified_diff: Option<String>,
         diff_source: DiffSource,
     },
     Deleted {
-        file: HoardItem,
+        file: CachedHoardItem,
         diff_source: DiffSource,
     },
-    Unchanged(HoardItem),
+    Unchanged(CachedHoardItem),
 }
 
 #[cfg(unix)]
@@ -183,7 +183,7 @@ pub(crate) struct HoardDiffIter {
 }
 
 struct ProcessedFile {
-    file: HoardItem,
+    file: CachedHoardItem,
     diff: Option<Diff>,
     local_log_is_latest: bool,
     hoard_checksum: Option<Checksum>,
@@ -195,7 +195,7 @@ struct ProcessedFile {
 }
 
 impl ProcessedFile {
-    fn process(hoard_name: &HoardName, file: HoardItem) -> Result<Self, super::Error> {
+    fn process(hoard_name: &HoardName, file: CachedHoardItem) -> Result<Self, super::Error> {
         let diff = diff_files(file.hoard_path(), file.system_path()).map_err(|err| {
             tracing::error!(
                 "failed to diff {} and {}: {}",
@@ -243,7 +243,7 @@ impl ProcessedFile {
             .as_ref()
             .map(Checksum::typ)
             .unwrap_or_default();
-        let hoard_checksum = file.hoard_checksum(hoard_checksum_type)?;
+        let hoard_checksum = file.hoard_checksum(hoard_checksum_type);
 
         let (expected_system_checksum, system_checksum_type) = if local_log_is_latest {
             (expected_hoard_checksum.clone(), hoard_checksum_type)
@@ -258,7 +258,7 @@ impl ProcessedFile {
             (expected_system_checksum, system_checksum_type)
         };
 
-        let system_checksum = file.system_checksum(system_checksum_type)?;
+        let system_checksum = file.system_checksum(system_checksum_type);
 
         Ok(Self {
             file,
@@ -769,7 +769,7 @@ impl Iterator for HoardDiffIter {
     #[allow(clippy::too_many_lines)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(result) = self.iterator.by_ref().next() {
-            let file: HoardItem = super::propagate_error!(result.map_err(super::Error::IO));
+            let file: CachedHoardItem = super::propagate_error!(result.map_err(super::Error::IO));
             let _span = trace_span!("diff_iterator_next", ?file);
             let processed: ProcessedFile =
                 super::propagate_error!(ProcessedFile::process(&self.hoard_name, file));

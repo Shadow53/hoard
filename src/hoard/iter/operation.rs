@@ -45,32 +45,32 @@ impl Iterator for OperationIter {
             let op = match diff? {
                 HoardFileDiff::BinaryModified { file, .. }
                 | HoardFileDiff::TextModified { file, .. }
-                | HoardFileDiff::PermissionsModified { file, .. } => ItemOperation::Modify(file),
+                | HoardFileDiff::PermissionsModified { file, .. } => ItemOperation::Modify(file.into()),
                 HoardFileDiff::Created {
                     file, diff_source, ..
                 } => match (self.direction, diff_source) {
-                    (_, DiffSource::Mixed) => ItemOperation::Create(file),
-                    (Direction::Backup, DiffSource::Local) => ItemOperation::Create(file),
+                    (_, DiffSource::Mixed) => ItemOperation::Create(file.into()),
+                    (Direction::Backup, DiffSource::Local) => ItemOperation::Create(file.into()),
                     (Direction::Backup, DiffSource::Remote | DiffSource::Unknown) => {
-                        ItemOperation::Delete(file)
+                        ItemOperation::Delete(file.into())
                     }
                     (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => {
-                        ItemOperation::Create(file)
+                        ItemOperation::Create(file.into())
                     }
-                    (Direction::Restore, DiffSource::Local) => ItemOperation::Delete(file),
+                    (Direction::Restore, DiffSource::Local) => ItemOperation::Delete(file.into()),
                 },
                 HoardFileDiff::Deleted {
                     file, diff_source, ..
                 } => match (self.direction, diff_source) {
-                    (_, DiffSource::Mixed) => ItemOperation::Delete(file),
+                    (_, DiffSource::Mixed) => ItemOperation::Delete(file.into()),
                     (Direction::Backup, DiffSource::Local)
                     | (Direction::Restore, DiffSource::Remote | DiffSource::Unknown) => {
-                        ItemOperation::Delete(file)
+                        ItemOperation::Delete(file.into())
                     }
                     (Direction::Backup, DiffSource::Remote | DiffSource::Unknown)
-                    | (Direction::Restore, DiffSource::Local) => ItemOperation::Create(file),
+                    | (Direction::Restore, DiffSource::Local) => ItemOperation::Create(file.into()),
                 },
-                HoardFileDiff::Unchanged(file) => ItemOperation::Nothing(file),
+                HoardFileDiff::Unchanged(file) => ItemOperation::Nothing(file.into()),
             };
             Ok(op)
         })
