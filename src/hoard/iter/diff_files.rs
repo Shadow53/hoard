@@ -41,7 +41,7 @@ pub(crate) enum HoardFileDiff {
     },
     TextModified {
         file: CachedHoardItem,
-        unified_diff: String,
+        unified_diff: Option<String>,
         diff_source: DiffSource,
     },
     PermissionsModified {
@@ -348,7 +348,7 @@ impl ProcessedFile {
                 Some(HoardFileDiff::TextModified {
                     file: self.file.clone(),
                     diff_source,
-                    unified_diff: unified_diff.clone(),
+                    unified_diff: Some(unified_diff.clone()),
                 })
             }
             (Some(OperationType::Modify), Some(Diff::HoardNotExists)) => unreachable!(""),
@@ -623,7 +623,7 @@ impl ProcessedFile {
                 Some(Diff::Text(unified_diff)),
             ) => HoardFileDiff::TextModified {
                 file,
-                unified_diff,
+                unified_diff: Some(unified_diff),
                 diff_source: DiffSource::Remote,
             },
             (true, Some(OperationType::Create), None, Some(Diff::Text(_))) => {
@@ -636,7 +636,7 @@ impl ProcessedFile {
             (true, Some(OperationType::Modify), None, Some(Diff::Text(unified_diff))) => {
                 HoardFileDiff::TextModified {
                     file,
-                    unified_diff,
+                    unified_diff: Some(unified_diff),
                     diff_source: DiffSource::Local,
                 }
             }
@@ -662,7 +662,7 @@ impl ProcessedFile {
                 Some(Diff::Text(unified_diff)),
             ) => HoardFileDiff::TextModified {
                 file,
-                unified_diff,
+                unified_diff: Some(unified_diff),
                 diff_source: DiffSource::Mixed,
             },
             (
@@ -682,7 +682,7 @@ impl ProcessedFile {
                 Some(Diff::Text(unified_diff)),
             ) => HoardFileDiff::TextModified {
                 file,
-                unified_diff,
+                unified_diff: Some(unified_diff),
                 diff_source: DiffSource::Mixed,
             },
             (false, _, None, Some(Diff::Text(unified_diff))) => HoardFileDiff::Created {
@@ -703,10 +703,17 @@ impl ProcessedFile {
                 file,
                 diff_source: DiffSource::Unknown,
             },
-            // TODO: detect if text or binary
-            (true, Some(OperationType::Modify), None, None) => HoardFileDiff::BinaryModified {
-                file,
-                diff_source: DiffSource::Unknown,
+            (true, Some(OperationType::Modify), None, None) => if file.is_text() {
+                HoardFileDiff::TextModified {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown
+                }
+            } else {
+                HoardFileDiff::BinaryModified {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
             },
             (true, Some(OperationType::Create), Some(OperationType::Create), None) => {
                 HoardFileDiff::Created {
@@ -729,10 +736,15 @@ impl ProcessedFile {
             (true, Some(OperationType::Delete), Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
                 file, diff_source: DiffSource::Mixed
             },
-            // TODO: Text or binary?
             // Deleted and recreated (or just modified) remotely, but with the same modifications as local
-            (true, Some(OperationType::Modify), Some(OperationType::Create | OperationType::Modify), None) => HoardFileDiff::BinaryModified {
-                file, diff_source: DiffSource::Mixed
+            (true, Some(OperationType::Modify), Some(OperationType::Create | OperationType::Modify), None) => if file.is_text() {
+                HoardFileDiff::TextModified {
+                    file, unified_diff: None, diff_source: DiffSource::Mixed
+                }
+            } else {
+                HoardFileDiff::BinaryModified {
+                    file, diff_source: DiffSource::Mixed
+                }
             },
             (true, Some(OperationType::Modify), Some(OperationType::Delete), None) => HoardFileDiff::Created {
                 file, unified_diff: None, diff_source: DiffSource::Unknown

@@ -43,7 +43,7 @@ pub(crate) fn run_diff(
                     file.system_path().display(),
                     diff_source
                 );
-                if verbose {
+                if let (true, Some(unified_diff)) = (verbose, unified_diff) {
                     tracing::info!("{}", unified_diff);
                 }
             }
