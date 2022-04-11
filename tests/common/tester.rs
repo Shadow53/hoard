@@ -4,6 +4,7 @@ use std::{
     ops::Deref,
     path::{Path, PathBuf},
 };
+use std::io::ErrorKind;
 
 use super::test_subscriber::MemorySubscriber;
 use hoard::dirs::{COMPANY, PROJECT, TLD};
@@ -292,6 +293,16 @@ impl Tester {
 
     pub fn get_uuid(&self) -> io::Result<String> {
         fs::read_to_string(self.uuid_path())
+    }
+
+    pub fn current_uuid(&self) -> Option<uuid::Uuid> {
+        match self.get_uuid() {
+            Ok(s) => s.parse().ok(),
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => None,
+                _ => panic!("unexpected error while reading UUID: {}", err),
+            }
+        }
     }
 
     pub fn set_uuid(&self, content: &str) -> io::Result<()> {

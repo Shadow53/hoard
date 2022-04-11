@@ -6,6 +6,7 @@ use hoard::command::Command;
 use hoard::newtypes::HoardName;
 use paste::paste;
 use std::fs;
+use std::io::ErrorKind;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -152,6 +153,37 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
     }
 }
 
+fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
+    let file_content = match fs::read(path) {
+        Ok(bytes) => Some(bytes),
+        Err(err) => match err.kind() {
+            ErrorKind::NotFound => None,
+            _ => panic!("failed to read contents of {}: {}", path.display(), err),
+        }
+    };
+
+    match (content, file_content) {
+        (None, None) => {},
+        (None, Some(_)) => {
+            panic!("expected {} to not exist, but it does", path.display());
+        }
+        (Some(_), None) => {
+            panic!("expected {} to exist, but it does not", path.display());
+        }
+        (Some(Content::Data((text, binary))), Some(current_data)) => {
+            if is_text {
+                let current_text = String::from_utf8(current_data).unwrap();
+                assert_eq!(current_text, text, "expected file to contain right value, but had left value instead");
+            } else {
+                assert_eq!(current_data, binary, "expected file to contain right value, but had left value instead");
+            }
+        }
+        (Some(Content::Perms(perms)), Some(_)) => {
+            unimplemented!("permissions checking is not implemented yet");
+        }
+    }
+}
+
 fn assert_diff_contains(
     tester: &Tester,
     hoard: &HoardName,
@@ -250,209 +282,6 @@ impl Content {
     }
 }
 
-macro_rules! test_diff_type {
-    ($({
-        name: $name:ident,
-        tester: $tester:ident,
-        hoard_files: $files:expr,
-        contents: {
-            default: $default_content:expr,
-            changed_a: $changed_content_a:expr,
-            changed_b: $changed_content_b:expr
-        },
-        setup: $setup_fn:ident,
-        modify: $modify_fn:ident,
-        check: $check_fn:ident
-    }),*) => {
-        $(paste! {
-            #[test]
-            fn [<test_ $name _local>]() {
-                const LOCATION: &str = "locally";
-
-                for do_backup in [true, false] {
-                    let $tester = Tester::new(DIFF_TOML);
-                    let hoard_files = $files;
-                    for (hoard, files) in &hoard_files {
-                        for file in files {
-                            $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
-                        }
-
-                        if do_backup {
-                            $tester.use_remote_uuid();
-                            $tester.expect_command(Command::Backup { hoards: vec![hoard.clone()] });
-                            $tester.use_local_uuid();
-                            $tester.expect_command(Command::Restore { hoards: vec![hoard.clone()] });
-                        }
-
-                        $tester.use_local_uuid();
-                        for file in files {
-                            $modify_fn(&file.path, $changed_content_a, file.is_text, &hoard);
-                            $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $default_content, $changed_content_a);
-                        }
-                    }
-                }
-            }
-
-            #[test]
-            fn [<test_ $name _remote>]() {
-                const LOCATION: &str = "remotely";
-                let $tester = Tester::new(DIFF_TOML);
-
-                let hoard_files = $files;
-                for (hoard, files) in hoard_files {
-                    for file in &files {
-                        $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
-                    }
-                    $tester.use_remote_uuid();
-                    $tester.expect_command(Command::Restore { hoards: vec![hoard.clone()] });
-                    for file in &files {
-                        $modify_fn(&file.path, $changed_content_a, file.is_text, &hoard);
-                    }
-                    $tester.expect_command(Command::Backup { hoards: vec![hoard.clone()] });
-                    for file in &files {
-                        $modify_fn(&file.path, $default_content, file.is_text, &hoard);
-                    }
-                    $tester.use_local_uuid();
-                    for file in &files {
-                        $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $changed_content_a, $default_content);
-                    }
-                }
-            }
-
-            #[test]
-            fn [<test_ $name _mixed>]() {
-                const LOCATION: &str = "locally and remotely";
-                let $tester = Tester::new(DIFF_TOML);
-
-                let hoard_files = $files;
-                for (hoard, files) in hoard_files {
-                    for file in &files {
-                        $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
-                    }
-                    $tester.use_remote_uuid();
-                    $tester.expect_command(Command::Restore { hoards: vec![hoard.clone()] });
-                    for file in &files {
-                        $modify_fn(&file.path, $changed_content_a, file.is_text, &hoard);
-                    }
-                    $tester.expect_command(Command::Backup { hoards: vec![hoard.clone()] });
-                    $tester.use_local_uuid();
-                    for file in &files {
-                        $modify_fn(&file.path, $changed_content_b, file.is_text, &hoard);
-                        $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $changed_content_a, $changed_content_b);
-                    }
-                }
-            }
-
-            #[test]
-            fn [<test_ $name _unexpected>]() {
-                const LOCATION: &str = "out-of-band";
-                let $tester = Tester::new(DIFF_TOML);
-
-                let hoard_files = $files;
-                for (hoard, files) in hoard_files {
-                    for file in &files {
-                        $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
-                    }
-                    for file in &files {
-                        if let Some(hoard_path) = file.hoard_path.as_ref() {
-                            $modify_fn(hoard_path, $changed_content_a, file.is_text, &hoard);
-                        }
-                        $check_fn(&$tester, &file, &hoard, LOCATION, files.len() > 1, $changed_content_a, $default_content);
-                    }
-                }
-            }
-
-            #[test]
-            fn [<test_ $name _unchanged>]() {
-                let $tester = Tester::new(DIFF_TOML);
-
-                let hoard_files = $files;
-                for (hoard, files) in hoard_files {
-                    for file in &files {
-                        $setup_fn(&$tester, &file.path, $default_content, file.is_text, &hoard);
-                    }
-                    $tester.use_local_uuid();
-                    $tester.expect_command(Command::Backup { hoards: vec![hoard.clone()] });
-                    $tester.expect_command(Command::Diff { hoard: hoard.clone(), verbose: false });
-                    assert_eq!($tester.output(), "")
-                }
-            }
-        })*
-    }
-}
-
-macro_rules! test_diffs {
-    ($tester:ident, $files:expr) => {
-        test_diff_type! {
-            {
-                name: create,
-                tester: $tester,
-                hoard_files: $files,
-                contents: {
-                    default: None,
-                    changed_a: Some(Content::Data(DEFAULT_CONTENT.clone())),
-                    changed_b: Some(Content::Data(CHANGED_CONTENT_A.clone()))
-                },
-                setup: no_op,
-                modify: modify_file,
-                check: check_created_file
-            },
-            {
-                name: modify,
-                tester: $tester,
-                hoard_files: $files,
-                contents: {
-                    default: Some(Content::Data(DEFAULT_CONTENT.clone())),
-                    changed_a: Some(Content::Data(CHANGED_CONTENT_A.clone())),
-                    changed_b: Some(Content::Data(CHANGED_CONTENT_B.clone()))
-                },
-                setup: setup_modify,
-                modify: modify_file,
-                check: check_modified_file
-            },
-            {
-                name: permissions,
-                tester: $tester,
-                hoard_files: $files,
-                contents: {
-                    default: Some(Content::Perms(0o100644)),
-                    changed_a: Some(Content::Perms(0o100444)),
-                    changed_b: Some(Content::Perms(0o100755))
-                },
-                setup: setup_permissions,
-                modify: modify_file,
-                check: check_modified_perms
-            },
-            {
-                name: deleted,
-                tester: $tester,
-                hoard_files: $files,
-                contents: {
-                    default: Some(Content::Data(DEFAULT_CONTENT.clone())),
-                    changed_a: None,
-                    changed_b: None
-                },
-                setup: setup_modify,
-                modify: modify_file,
-                check: check_deleted_file
-            },
-            {
-                name: recreate,
-                tester: $tester,
-                hoard_files: $files,
-                contents: {
-                    default: None,
-                    changed_a: Some(Content::Data(DEFAULT_CONTENT.clone())),
-                    changed_b: Some(Content::Data(CHANGED_CONTENT_A.clone()))
-                },
-                setup: setup_recreate,
-                modify: modify_file,
-                check: check_created_file
-            }
-        }
-    };
-}
-
 // SITUATIONS LEFT TO HANDLE:
 // Unexpected -- File created locally and in hoard with different text
 // Unexpected -- Same modification to binary in system and hoard
@@ -488,6 +317,7 @@ macro_rules! test_diff_inner {
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {}
     ) => {};
@@ -496,71 +326,91 @@ macro_rules! test_diff_inner {
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {backup; $($ops:tt)*}
     ) => {
         $hoard_content = $system_content.clone();
         $tester.expect_command(Command::Backup { hoards: vec![$hoard_name.clone()] });
-        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+        if let Some(hoard_path) = $file.hoard_path.as_deref() {
+            assert_content(hoard_path, $hoard_content.clone(), $file.is_text);
+        }
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
         tester: $tester:ident,
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {restore; $($ops:tt)*}
     ) => {
         $system_content = $hoard_content.clone();
         $tester.expect_command(Command::Restore { hoards: vec![$hoard_name.clone()] });
-        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+        if $file.hoard_path.is_some() {
+            assert_content(&$file.path, $system_content.clone(), $file.is_text);
+        }
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
         tester: $tester:ident,
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {local; $($ops:tt)*}
     ) => {
+        if $tester.current_uuid().as_ref() == Some($tester.remote_uuid()) {
+            ::std::mem::swap(&mut $system_content, &mut $other_content);
+            modify_file(&$file.path, $system_content.clone(), $file.is_text);
+        }
         $tester.use_local_uuid();
-        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
         tester: $tester:ident,
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {remote; $($ops:tt)*}
     ) => {
+        if $tester.current_uuid().as_ref() == Some($tester.local_uuid()) {
+            ::std::mem::swap(&mut $system_content, &mut $other_content);
+            modify_file(&$file.path, $system_content.clone(), $file.is_text);
+        }
         $tester.use_remote_uuid();
-        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
         tester: $tester:ident,
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {set_system_content: $content:expr; $($ops:tt)*}
     ) => {
         $system_content = $content;
         modify_file(&$file.path, $content, $file.is_text);
-        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+        test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
         tester: $tester:ident,
         hoard_name: $hoard_name:ident,
         hoard_content: $hoard_content:ident,
         system_content: $system_content:ident,
+        other_content: $other_content:ident,
         file: $file:ident,
         setup: {set_hoard_content: $content:expr; $($ops:tt)*}
     ) => {
         if let Some(hoard_path) = $file.hoard_path.as_deref() {
             $hoard_content = $content;
             modify_file(hoard_path, $content, $file.is_text);
-            test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, file: $file, setup: {$($ops)*} }
+            test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
         }
     };
 }
@@ -581,14 +431,16 @@ macro_rules! test_diff {
                 for file in files {
                     let mut system_content = None;
                     let mut hoard_content = None;
+                    let mut other_system_content = None;
 
                     test_diff_inner! {
                         tester: tester,
                         hoard_name: hoard_name,
                         hoard_content: hoard_content,
                         system_content: system_content,
+                        other_content: other_system_content,
                         file: file,
-                        setup: {$($ops)*}
+                        setup: {$($ops)* local; }
                     }
 
                     let diff_str = match $diff_type {
@@ -646,8 +498,6 @@ macro_rules! test_diff {
                     } else {
                         expected.clone()
                     };
-
-                    tester.use_local_uuid();
 
                     assert_diff_contains(
                         &tester,
@@ -708,7 +558,6 @@ mod create {
             remote;
             set_system_content: Content::default();
             backup;
-            set_system_content: Content::none();
         }
     }
 
@@ -720,7 +569,8 @@ mod create {
             remote;
             set_system_content: Content::default();
             backup;
-            // Test switches to local, so local will automatically have same content
+            local;
+            set_system_content: Content::default();
         }
     }
 
@@ -732,6 +582,7 @@ mod create {
             remote;
             set_system_content: Content::default();
             backup;
+            local;
             set_system_content: Content::changed_a();
         }
     }
@@ -786,8 +637,8 @@ mod recreate {
             }
         }
 
-                test_diff! {
-            name: test_delete_and_recreate_local_with_remote_create,
+        test_diff! {
+            name: test_remote_create_and_delete_and_recreate_local,
             diff_type: CREATED,
             location: LOCAL,
             setup: {
@@ -798,7 +649,234 @@ mod recreate {
                 restore;
                 set_system_content: Content::none();
                 backup;
+                local;
                 set_system_content: Content::changed_a();
+            }
+        }
+    }
+
+    mod remote {
+        use super::*;
+
+        test_diff! {
+            name: test_create_delete_local_and_recreate_remote,
+            diff_type: CREATED,
+            location: REMOTE,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::default();
+                backup;
+            }
+        }
+
+        test_diff! {
+            name: test_create_local_and_delete_recreate_remote,
+            diff_type: CREATED,
+            location: REMOTE,
+            setup: {
+                local; set_system_content: Content::default(); backup;
+                remote; restore; set_system_content: Content::none(); backup;
+                local; restore;
+                remote; set_system_content: Content::changed_a(); backup;
+            }
+        }
+
+        test_diff! {
+            name: all_remote_with_local_restores,
+            diff_type: CREATED,
+            location: REMOTE,
+            setup: {
+                remote; set_system_content: Content::default(); backup;
+                local; restore;
+                remote; set_system_content: Content::none(); backup;
+                local; restore;
+                remote; set_system_content: Content::default(); backup;
+            }
+        }
+    }
+
+    mod mixed {
+        use super::*;
+
+        test_diff! {
+            name: test_create_delete_local_recreate_both_same_content,
+            diff_type: CREATED,
+            location: MIXED,
+            setup: {
+                local; set_system_content: Content::default(); backup;
+                remote; restore;
+                local; set_system_content: Content::none(); backup;
+                remote; restore; set_system_content: Content::default(); backup;
+                local; set_system_content: Content::default();
+            }
+        }
+
+        test_diff! {
+            name: test_create_delete_local_recreate_both_different_content,
+            diff_type: CREATED,
+            location: MIXED,
+            setup: {
+                local; set_system_content: Content::default(); backup;
+                remote; restore;
+                local; set_system_content: Content::none(); backup;
+                remote; restore; set_system_content: Content::default(); backup;
+                local; set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: test_create_delete_local_recreate_both_same_content_no_restore,
+            diff_type: CREATED,
+            location: MIXED,
+            setup: {
+                local;
+                set_system_content: Content::default(); backup;
+                set_system_content: Content::none(); backup;
+                remote; restore; set_system_content: Content::default(); backup;
+                local; set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: test_create_delete_local_recreate_both_different_content_no_restore,
+            diff_type: CREATED,
+            location: MIXED,
+            setup: {
+                local;
+                set_system_content: Content::default(); backup;
+                set_system_content: Content::none(); backup;
+                remote; restore; set_system_content: Content::default(); backup;
+                local; set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: test_create_delete_remote_recreate_both_same_content,
+            diff_type: CREATED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default(); backup;
+                set_system_content: Content::none(); backup;
+                local; restore;
+                remote; set_system_content: Content::changed_a(); backup;
+                local; set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: test_create_delete_remote_recreate_both_different_content,
+            diff_type: CREATED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default(); backup;
+                set_system_content: Content::none(); backup;
+                local; restore;
+                remote; set_system_content: Content::changed_a(); backup;
+                local; set_system_content: Content::changed_b();
+            }
+        }
+    }
+
+    mod unexpected {
+        use super::*;
+
+        test_diff! {
+            name: create_delete_locally,
+            diff_type: CREATED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_hoard_content: Content::default();
+            }
+        }
+
+        test_diff! {
+            name: create_delete_remotely,
+            diff_type: CREATED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_hoard_content: Content::default();
+            }
+        }
+
+        test_diff! {
+            name: create_delete_locally_create_local_same_content,
+            diff_type: CREATED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_hoard_content: Content::default();
+                local;
+                set_system_content: Content::default();
+            }
+        }
+
+        test_diff! {
+            name: create_delete_remotely_create_local_same_content,
+            diff_type: CREATED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_hoard_content: Content::default();
+                local;
+                set_system_content: Content::default();
+            }
+        }
+
+        test_diff! {
+            name: create_delete_locally_create_local_different_content,
+            diff_type: CREATED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_hoard_content: Content::changed_a();
+                local;
+                set_system_content: Content::changed_b();
+            }
+        }
+
+        test_diff! {
+            name: create_delete_remotely_create_local_different_content,
+            diff_type: CREATED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                backup;
+                set_hoard_content: Content::changed_a();
+                local;
+                set_system_content: Content::changed_b();
             }
         }
     }
@@ -835,6 +913,228 @@ mod modify {
             }
         }
     }
+
+    mod remote {
+        use super::*;
+
+        test_diff! {
+            name: test_create_local_modify_remote,
+            diff_type: MODIFIED,
+            location: REMOTE,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::changed_a();
+                backup;
+            }
+        }
+
+        test_diff! {
+            name: test_create_modify_remote,
+            diff_type: MODIFIED,
+            location: REMOTE,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::changed_a();
+                backup;
+            }
+        }
+
+        test_diff! {
+            name: create_local_delete_recreate_remote,
+            diff_type: MODIFIED,
+            location: REMOTE,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_a();
+                backup;
+            }
+        }
+
+        test_diff! {
+            name: create_remote_restore_local_delete_recreate_remote,
+            diff_type: MODIFIED,
+            location: REMOTE,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_a();
+                backup;
+            }
+        }
+    }
+
+    mod mixed {
+        use super::*;
+
+        test_diff! {
+            name: create_local_modify_same_content_both,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::changed_a();
+                backup;
+                local;
+                set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: create_local_modify_different_content_both,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::changed_a();
+                backup;
+                local;
+                set_system_content: Content::changed_b();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_modify_same_content_both,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::changed_b();
+                backup;
+                local;
+                set_system_content: Content::changed_b();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_modify_different_content_both,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::changed_b();
+                backup;
+                local;
+                set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: create_local_modify_same_content_remote_delete_recreate,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_a();
+                backup;
+                local;
+                set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: create_local_modify_different_content_remote_delete_recreate,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_a();
+                backup;
+                local;
+                set_system_content: Content::changed_b();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_modify_same_content_remote_delete_recreate,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_b();
+                backup;
+                local;
+                set_system_content: Content::changed_b();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_modify_different_content_remote_delete_recreate,
+            diff_type: MODIFIED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::none();
+                backup;
+                set_system_content: Content::changed_b();
+                backup;
+                local;
+                set_system_content: Content::changed_a();
+            }
+        }
+    }
 }
 
 mod permissions {
@@ -844,4 +1144,73 @@ mod permissions {
 
 mod delete {
     use super::*;
+
+    mod local {
+        use super::*;
+
+        test_diff! {
+            name: create_delete_local,
+            diff_type: DELETED,
+            location: LOCAL,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_delete_local,
+            diff_type: DELETED,
+            location: LOCAL,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::none();
+            }
+        }
+    }
+
+    mod remote {
+        use super::*;
+
+        test_diff! {
+            name: create_local_delete_remote,
+            diff_type: DELETED,
+            location: REMOTE,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                local;
+                set_system_content: Content::default();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_restore_local_delete_remote,
+            diff_type: DELETED,
+            location: REMOTE,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::none();
+                backup;
+                local;
+                set_system_content: Content::default();
+            }
+        }
+    }
 }
