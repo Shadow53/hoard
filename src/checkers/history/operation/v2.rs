@@ -204,7 +204,6 @@ impl OperationImpl for OperationV2 {
         let iter = hoard
             .get_paths(hoard_root.clone())
             .filter_map(|(pile_name, hoard_path, system_path)| {
-                println!("pile_name: \"{}\", files: {:?}", pile_name, self.files);
                 let pile = self.files.get_pile(&pile_name)?;
 
                 let (c_pile_name, c_hoard_path, c_system_path) =
