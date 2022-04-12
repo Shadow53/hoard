@@ -7,10 +7,10 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
-use super::Error;
+use super::{Error, ItemOperation};
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl, OperationType};
 use crate::checksum::{Checksum, ChecksumType};
-use crate::hoard::iter::{ItemOperation, OperationIter};
+use crate::hoard::iter::OperationIter;
 use crate::hoard::{Direction, Hoard as ConfigHoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
@@ -361,6 +361,7 @@ impl Hoard {
                             Self::get_or_create_pile(&mut acc, file.pile_name())
                                 .add_unmodified(file.relative_path().clone(), checksum);
                         }
+                        ItemOperation::DoesNotExist(_) => {},
                     }
 
                     Ok(acc)

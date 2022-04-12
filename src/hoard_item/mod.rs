@@ -12,4 +12,6 @@ mod cached;
 
 pub use hoard_item::HoardItem;
 
+#[allow(clippy::useless_attribute)]
+#[allow(clippy::module_name_repetitions)]
 pub use cached::CachedHoardItem;

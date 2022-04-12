@@ -2,7 +2,6 @@
 
 use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::Checker;
-use crate::hoard::iter::ItemOperation;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -21,6 +20,7 @@ use crate::checksum::Checksum;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 pub(crate) use util::cleanup_operations;
+use crate::hoard_item::HoardItem;
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -51,6 +51,28 @@ pub enum Error {
     /// This shouldn't happen in practice, but returning an error is preferred to panicking.
     #[error("found mixed empty/anonymous and non-empty pile names")]
     MixedPileNames,
+}
+
+/// Indicates what operation is/was/should be performed on the contained [`HoardItem`]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::module_name_repetitions)]
+#[allow(missing_docs)]
+pub enum ItemOperation {
+    Create(HoardItem),
+    Modify(HoardItem),
+    Delete(HoardItem),
+    /// Indicates a file that is unchanged.
+    Nothing(HoardItem),
+    /// Indicates a file that does not exist but is listed directly in the config.
+    DoesNotExist(HoardItem),
+}
+
+impl From<ItemOperation> for HoardItem {
+    fn from(op: ItemOperation) -> Self {
+        match op {
+            ItemOperation::Create(item) | ItemOperation::Modify(item) | ItemOperation::Delete(item) | ItemOperation::Nothing(item) | ItemOperation::DoesNotExist(item) => item
+        }
+    }
 }
 
 /// Enum representing types of operations
@@ -393,12 +415,10 @@ impl Operation {
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
-    ///
-    /// `path` must be relative to one of the hoard's piles.
     fn latest_hoard_operation_from_local_dir(
         dir: &HoardPath,
         hoard: &HoardName,
-        path: Option<(&PileName, &RelativePath)>,
+        file: Option<(&PileName, &RelativePath)>,
         backups_only: bool,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
@@ -425,7 +445,7 @@ impl Operation {
                 Ok(operation) => (!backups_only || operation.direction() == Direction::Backup)
                     .then(|| Ok(operation)),
             })
-            .filter_map(|operation| match path {
+            .filter_map(|operation| match file {
                 None => Some(operation),
                 Some((pile_name, path)) => match operation {
                     Err(err) => Some(Err(err)),

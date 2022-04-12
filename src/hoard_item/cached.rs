@@ -34,6 +34,40 @@ impl From<CachedHoardItem> for HoardItem {
     }
 }
 
+impl TryFrom<HoardItem> for CachedHoardItem {
+    type Error = io::Error;
+
+    fn try_from(inner: HoardItem) -> Result<Self, Self::Error> {
+        let (is_file, is_dir) = {
+            let system_exists = inner.system_path().exists();
+            let hoard_exists = inner.hoard_path().exists();
+
+            let is_file = (inner.system_path().is_file() || !system_exists) &&
+                (inner.hoard_path().is_file() || !hoard_exists) &&
+                (system_exists || hoard_exists);
+
+            let is_dir = (inner.system_path().is_dir() || !system_exists) &&
+                (inner.hoard_path().is_dir() || !hoard_exists) &&
+                (system_exists || hoard_exists);
+
+            (is_file, is_dir)
+        };
+
+        let (system_content, hoard_content) = if is_file {
+            let system_content = inner.system_content()?;
+            let hoard_content = inner.hoard_content()?;
+            (Some(system_content), Some(hoard_content))
+        } else {
+            (None, None)
+        };
+
+        let system_checksums = system_content.as_ref().and_then(Self::checksums);
+        let hoard_checksums = hoard_content.as_ref().and_then(Self::checksums);
+
+        Ok(Self { inner, hoard_content, system_content, hoard_checksums, system_checksums, is_file, is_dir })
+    }
+}
+
 impl CachedHoardItem {
     /// Create a new `CachedHoardItem`.
     ///
@@ -51,33 +85,7 @@ impl CachedHoardItem {
     ) -> io::Result<Self> {
         let inner = HoardItem::new(pile_name, hoard_prefix, system_prefix, relative_path);
 
-        let (is_file, is_dir) = {
-            let system_exists = inner.system_path().exists();
-            let hoard_exists = inner.hoard_path().exists();
-
-            let is_file = (inner.system_path().is_file() || !system_exists) &&
-                (inner.hoard_path().is_file() || !hoard_exists) &&
-                (system_exists || hoard_exists);
-
-            let is_dir = (inner.system_path().is_dir() || !system_exists) &&
-                    (inner.hoard_path().is_dir() || !hoard_exists) &&
-                    (system_exists || hoard_exists);
-
-            (is_file, is_dir)
-        };
-
-        let (system_content, hoard_content) = if is_file {
-            let system_content = inner.system_content()?;
-            let hoard_content = inner.hoard_content()?;
-            (Some(system_content), Some(hoard_content))
-        } else {
-            (None, None)
-        };
-
-        let system_checksums = system_content.as_ref().and_then(Self::checksums);
-        let hoard_checksums = hoard_content.as_ref().and_then(Self::checksums);
-
-        Ok(Self { inner, hoard_content, system_content, hoard_checksums, system_checksums, is_file, is_dir })
+        Self::try_from(inner)
     }
 
     /// Returns the name of the pile this item belongs to, if any.

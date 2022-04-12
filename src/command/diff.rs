@@ -96,6 +96,7 @@ pub(crate) fn run_diff(
             HoardFileDiff::Unchanged(file) => {
                 tracing::debug!("{}: unmodified", file.system_path().display());
             }
+            HoardFileDiff::Nonexistent(_) => {},
         }
     }
 

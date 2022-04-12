@@ -1,10 +1,11 @@
 use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
-use crate::hoard::iter::{Error as IterError, ItemOperation};
+use crate::hoard::iter::Error as IterError;
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath};
 use std::fs;
 use thiserror::Error;
+use crate::checkers::history::operation::ItemOperation;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -105,14 +106,19 @@ fn backup_or_restore<'a>(
                         Direction::Backup => file.hoard_path().as_ref(),
                         Direction::Restore => file.system_path().as_ref(),
                     };
-                    tracing::debug!("deleting {}", to_remove.display());
-                    if let Err(err) = fs::remove_file(to_remove) {
-                        tracing::error!("failed to delete {}: {}", to_remove.display(), err);
-                        return Err(Error::IO(err));
+                    if to_remove.exists() {
+                        tracing::debug!("deleting {}", to_remove.display());
+                        if let Err(err) = fs::remove_file(to_remove) {
+                            tracing::error!("failed to delete {}: {}", to_remove.display(), err);
+                            return Err(Error::IO(err));
+                        }
                     }
                 }
                 ItemOperation::Nothing(file) => {
                     tracing::debug!("file {} is unchanged", file.system_path().display());
+                }
+                ItemOperation::DoesNotExist(file) => {
+                    tracing::trace!("file {} does not exist", file.system_path().display());
                 }
             }
         }

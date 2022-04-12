@@ -424,7 +424,7 @@ macro_rules! test_diff {
     ) => {
         #[test]
         fn $fn_name() {
-            let tester = Tester::new(DIFF_TOML);
+            let tester = Tester::with_log_level(DIFF_TOML, tracing::Level::INFO);
             let hoards = get_hoards(&tester);
 
             for (hoard_name, files) in hoards {
@@ -503,7 +503,7 @@ macro_rules! test_diff {
                         &tester,
                         &hoard_name,
                         expected,
-                        false,
+                        true,
                         file.ignored,
                         false,
                     );
@@ -512,7 +512,7 @@ macro_rules! test_diff {
                         &tester,
                         &hoard_name,
                         expected_verbose,
-                        false,
+                        true,
                         file.ignored,
                         true,
                     );

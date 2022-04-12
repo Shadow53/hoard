@@ -24,7 +24,7 @@ pub(crate) fn run_status<'a>(
                     HoardFileDiff::PermissionsModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Created { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Deleted { diff_source, .. } => Some(diff_source),
-                    HoardFileDiff::Unchanged(_) => return None,
+                    HoardFileDiff::Unchanged(_) | HoardFileDiff::Nonexistent(_) => return None,
                 };
 
                 source.map(Ok)

@@ -1,17 +1,9 @@
-use super::{HoardDiffIter, HoardItem};
+use crate::checkers::history::operation::ItemOperation;
+use super::HoardDiffIter;
 use crate::hoard::iter::{DiffSource, HoardFileDiff};
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(clippy::module_name_repetitions)]
-pub enum ItemOperation {
-    Create(HoardItem),
-    Modify(HoardItem),
-    Delete(HoardItem),
-    Nothing(HoardItem),
-}
 
 pub(crate) struct OperationIter {
     iterator: HoardDiffIter,
@@ -71,6 +63,7 @@ impl Iterator for OperationIter {
                     | (Direction::Restore, DiffSource::Local) => ItemOperation::Create(file.into()),
                 },
                 HoardFileDiff::Unchanged(file) => ItemOperation::Nothing(file.into()),
+                HoardFileDiff::Nonexistent(file) => ItemOperation::DoesNotExist(file.into()),
             };
             Ok(op)
         })

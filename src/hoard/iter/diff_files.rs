@@ -60,6 +60,7 @@ pub(crate) enum HoardFileDiff {
         diff_source: DiffSource,
     },
     Unchanged(CachedHoardItem),
+    Nonexistent(CachedHoardItem),
 }
 
 #[cfg(unix)]
@@ -172,7 +173,10 @@ impl Ord for HoardFileDiff {
             (Self::Deleted { .. }, Self::Unchanged(_)) => Ordering::Less,
             (Self::Deleted { .. }, _) => Ordering::Greater,
             (Self::Unchanged(my_file), Self::Unchanged(other_file)) => my_file.cmp(other_file),
+            (Self::Unchanged(_), Self::Nonexistent(_)) => Ordering::Less,
             (Self::Unchanged(_), _) => Ordering::Greater,
+            (Self::Nonexistent(my_file), Self::Nonexistent(other_file)) => my_file.cmp(other_file),
+            (Self::Nonexistent(_), _) => Ordering::Greater
         }
     }
 }
@@ -182,6 +186,7 @@ pub(crate) struct HoardDiffIter {
     hoard_name: HoardName,
 }
 
+#[derive(Debug, Clone)]
 struct ProcessedFile {
     file: CachedHoardItem,
     diff: Option<Diff>,
@@ -195,6 +200,7 @@ struct ProcessedFile {
 }
 
 impl ProcessedFile {
+    #[tracing::instrument]
     fn process(hoard_name: &HoardName, file: CachedHoardItem) -> Result<Self, super::Error> {
         let diff = diff_files(file.hoard_path(), file.system_path()).map_err(|err| {
             tracing::error!(
@@ -273,10 +279,11 @@ impl ProcessedFile {
         })
     }
 
+    #[tracing::instrument]
     fn get_hoard_diff(self) -> HoardFileDiff {
         let diff = self.unexpected_diff()
             .unwrap_or_else(|| self.expected_diff());
-        println!("hoard_diff: {:?}\n=============", diff);
+        tracing::trace!(hoard_diff=?diff);
         diff
     }
 
@@ -320,9 +327,13 @@ impl ProcessedFile {
     }
 
     fn unexpected_diff(&self) -> Option<HoardFileDiff> {
+        let _span = tracing::trace_span!(
+            "check_unexpected_diff",
+            op=?self.unexpected_hoard_op(),
+            diff=?self.diff,
+        ).entered();
         let diff_source = DiffSource::Unknown;
-        println!("unexpected_op: {:?}\ndiff: {:?}\n===========", self.unexpected_hoard_op(), self.diff);
-        match (self.unexpected_hoard_op(), self.diff.as_ref()) {
+        let unexpected_diff = match (self.unexpected_hoard_op(), self.diff.as_ref()) {
             // Can't keep track of permissions
             (None, _) | (Some(OperationType::Modify), Some(Diff::Permissions(..))) => None,
             (Some(OperationType::Create), Some(Diff::Text(unified_diff))) => {
@@ -367,7 +378,9 @@ impl ProcessedFile {
                 })
             }
             (Some(OperationType::Modify), Some(Diff::HoardNotExists)) => unreachable!(""),
-        }
+        };
+        tracing::trace!(?unexpected_diff);
+        unexpected_diff
     }
 
     #[allow(clippy::too_many_lines)]
@@ -377,14 +390,12 @@ impl ProcessedFile {
         let has_logs = self.latest_remote_log.is_some() || self.latest_local_log.is_some();
 
         let file = self.file.clone();
-        println!(
-            "has_logs: {}\nlocal_op: {:?}\nremote_op: {:?}\ndiff: {:?}\n==========",
-            has_logs, local_op_type, remote_op_type, self.diff
-        );
+        let _span = tracing::trace_span!("expected_diff", %has_logs, ?local_op_type, ?remote_op_type, diff=?self.diff).entered();
 
         #[allow(clippy::match_same_arms)]
-        match (has_logs, local_op_type, remote_op_type, self.diff.clone()) {
-            (false, None, None, None) => unreachable!("file {} has never existed in Hoard", file.system_path().display()),
+        let expected_diff = match (has_logs, local_op_type, remote_op_type, self.diff.clone()) {
+            // File/dir never existed in hoard but is listed as a named pile
+            (false, None, None, None) => HoardFileDiff::Nonexistent(file),
             (true, None, None, None) => HoardFileDiff::Unchanged(file),
             (_, None, None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
                 HoardFileDiff::PermissionsModified {
@@ -712,7 +723,9 @@ impl ProcessedFile {
             (true, None, Some(OperationType::Create | OperationType::Modify), None) => HoardFileDiff::Deleted {
                 file, diff_source: DiffSource::Unknown
             },
-            (true, None, Some(OperationType::Delete), None) => unreachable!("file never existed locally and was deleted remotely, so should not have been diffed"),
+            (true, None, Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
+                file, diff_source: DiffSource::Remote
+            },
             (true, Some(OperationType::Create), None, None) => HoardFileDiff::Created {
                 file,
                 unified_diff: None,
@@ -768,7 +781,9 @@ impl ProcessedFile {
             (true, Some(OperationType::Modify), Some(OperationType::Delete), None) => HoardFileDiff::Created {
                 file, unified_diff: None, diff_source: DiffSource::Unknown
             },
-        }
+        };
+        tracing::trace!(?expected_diff);
+        expected_diff
     }
 }
 
@@ -797,16 +812,15 @@ impl HoardDiffIter {
 impl Iterator for HoardDiffIter {
     type Item = Result<HoardFileDiff, super::Error>;
 
-    #[allow(clippy::too_many_lines)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(result) = self.iterator.by_ref().next() {
             let file: CachedHoardItem = super::propagate_error!(result.map_err(super::Error::IO));
             let _span = trace_span!("diff_iterator_next", ?file);
             let processed: ProcessedFile =
                 super::propagate_error!(ProcessedFile::process(&self.hoard_name, file));
-            return Some(Ok(processed.get_hoard_diff()));
+            Some(Ok(processed.get_hoard_diff()))
+        } else {
+            None
         }
-
-        None
     }
 }
