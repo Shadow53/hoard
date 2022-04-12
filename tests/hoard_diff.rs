@@ -202,7 +202,7 @@ fn assert_diff_contains(
     } else if is_partial {
         tester.assert_has_output(&content);
     } else {
-        let debug_output = tester.extra_logging_output();
+        let debug_output = ""; //tester.extra_logging_output();
         assert_eq!(tester.output(), content, "{}", debug_output);
     }
 }
@@ -1135,6 +1135,160 @@ mod modify {
             }
         }
     }
+
+    mod unknown {
+        use super::*;
+
+        test_diff! {
+            name: no_local_changes_last_edit_local,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: no_local_changes_last_edit_remote,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: no_local_logs_last_edit_remote,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: local_create_local_and_out_of_band_edit_same_content,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: local_create_local_and_out_of_band_edit_different_content,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::changed_b();
+            }
+        }
+
+        test_diff! {
+            name: local_create_local_delete_and_out_of_band_edit,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: remote_create_local_and_out_of_band_edit_same_content,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: remote_create_local_and_out_of_band_edit_different_content,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::changed_b();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: remote_create_local_create_and_out_of_band_edit_same_content,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: remote_create_local_create_and_out_of_band_edit_different_content,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                set_system_content: Content::changed_b();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: remote_create_local_delete_and_out_of_band_edit,
+            diff_type: MODIFIED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::none();
+                set_hoard_content: Content::changed_a();
+            }
+        }
+    }
 }
 
 mod permissions {
@@ -1173,6 +1327,41 @@ mod delete {
                 set_system_content: Content::none();
             }
         }
+
+        test_diff! {
+            name: create_local_modify_remote_delete_local,
+            diff_type: DELETED,
+            location: LOCAL,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::changed_a();
+                backup;
+                local;
+                set_system_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_modify_remote_delete_local,
+            diff_type: DELETED,
+            location: LOCAL,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::changed_a();
+                backup;
+                local;
+                set_system_content: Content::none();
+            }
+        }
     }
 
     mod remote {
@@ -1196,7 +1385,24 @@ mod delete {
         }
 
         test_diff! {
-            name: create_remote_restore_local_delete_remote,
+            name: create_modify_local_delete_remote,
+            diff_type: DELETED,
+            location: REMOTE,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                local;
+                set_system_content: Content::changed_a();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_restore_modify_local_delete_remote,
             diff_type: DELETED,
             location: REMOTE,
             setup: {
@@ -1209,7 +1415,173 @@ mod delete {
                 set_system_content: Content::none();
                 backup;
                 local;
+                set_system_content: Content::changed_a();
+            }
+        }
+    }
+
+    mod mixed {
+        use super::*;
+
+        test_diff! {
+            name: create_local_delete_both,
+            diff_type: DELETED,
+            location: MIXED,
+            setup: {
+                local;
                 set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::none();
+                backup;
+                local;
+                set_system_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_delete_both,
+            diff_type: DELETED,
+            location: MIXED,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                remote;
+                set_system_content: Content::none();
+                backup;
+                local;
+                set_system_content: Content::none();
+            }
+        }
+    }
+
+    mod unknown {
+        use super::*;
+
+        test_diff! {
+            name: create_local_delete_from_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_local_restore_remote_delete_from_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_local_modify_remote_delete_from_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                remote;
+                restore;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_local_modify_local_delete_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_local_delete_local_and_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                local;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::none();
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_delete_from_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_restore_local_delete_from_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_modify_local_delete_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::changed_a();
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_remote_delete_local_and_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                local;
+                restore;
+                set_system_content: Content::none();
+                set_hoard_content: Content::none();
             }
         }
     }

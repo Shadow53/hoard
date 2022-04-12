@@ -274,8 +274,10 @@ impl ProcessedFile {
     }
 
     fn get_hoard_diff(self) -> HoardFileDiff {
-        self.unexpected_diff()
-            .unwrap_or_else(|| self.expected_diff())
+        let diff = self.unexpected_diff()
+            .unwrap_or_else(|| self.expected_diff());
+        println!("hoard_diff: {:?}\n=============", diff);
+        diff
     }
 
     fn remote_op_type(&self) -> Option<OperationType> {
@@ -319,6 +321,7 @@ impl ProcessedFile {
 
     fn unexpected_diff(&self) -> Option<HoardFileDiff> {
         let diff_source = DiffSource::Unknown;
+        println!("unexpected_op: {:?}\ndiff: {:?}\n===========", self.unexpected_hoard_op(), self.diff);
         match (self.unexpected_hoard_op(), self.diff.as_ref()) {
             // Can't keep track of permissions
             (None, _) | (Some(OperationType::Modify), Some(Diff::Permissions(..))) => None,
@@ -338,7 +341,19 @@ impl ProcessedFile {
                 file: self.file.clone(),
                 diff_source,
             }),
-            (Some(OperationType::Modify), None | Some(Diff::Binary | Diff::SystemNotExists)) => {
+            (Some(OperationType::Modify), None | Some(Diff::SystemNotExists)) => if self.file.is_text() {
+                Some(HoardFileDiff::TextModified {
+                    file: self.file.clone(),
+                    unified_diff: None,
+                    diff_source,
+                })
+            } else {
+                Some(HoardFileDiff::BinaryModified {
+                    file: self.file.clone(),
+                    diff_source,
+                })
+            }
+            (Some(OperationType::Modify), Some(Diff::Binary)) => {
                 Some(HoardFileDiff::BinaryModified {
                     file: self.file.clone(),
                     diff_source,
@@ -362,6 +377,10 @@ impl ProcessedFile {
         let has_logs = self.latest_remote_log.is_some() || self.latest_local_log.is_some();
 
         let file = self.file.clone();
+        println!(
+            "has_logs: {}\nlocal_op: {:?}\nremote_op: {:?}\ndiff: {:?}\n==========",
+            has_logs, local_op_type, remote_op_type, self.diff
+        );
 
         #[allow(clippy::match_same_arms)]
         match (has_logs, local_op_type, remote_op_type, self.diff.clone()) {
