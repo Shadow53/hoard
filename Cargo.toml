@@ -34,7 +34,7 @@ similar = { version = "2.1", default-features = false, features = ["text"] }
 tempfile = "3.3"
 thiserror = "1.0.30"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
-toml = "0.5.8"
+toml = "0.5.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
