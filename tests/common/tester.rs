@@ -1,10 +1,10 @@
+use std::io::ErrorKind;
 use std::ops::DerefMut;
 use std::{
     fs, io,
     ops::Deref,
     path::{Path, PathBuf},
 };
-use std::io::ErrorKind;
 
 use super::test_subscriber::MemorySubscriber;
 use hoard::dirs::{COMPANY, PROJECT, TLD};
@@ -301,7 +301,7 @@ impl Tester {
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => None,
                 _ => panic!("unexpected error while reading UUID: {}", err),
-            }
+            },
         }
     }
 
@@ -314,7 +314,7 @@ impl Tester {
             let entry = entry.unwrap();
             if entry.path().is_file() {
                 fs::remove_file(entry.path()).unwrap();
-            } else  if entry.path().is_dir() {
+            } else if entry.path().is_dir() {
                 fs::remove_dir_all(entry.path()).unwrap();
             }
         }

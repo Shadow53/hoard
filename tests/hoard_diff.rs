@@ -1,10 +1,10 @@
 mod common;
 
-use std::collections::BTreeMap;
 use common::tester::Tester;
 use hoard::command::Command;
 use hoard::newtypes::HoardName;
 use paste::paste;
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -130,11 +130,11 @@ fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
         Err(err) => match err.kind() {
             ErrorKind::NotFound => None,
             _ => panic!("failed to read contents of {}: {}", path.display(), err),
-        }
+        },
     };
 
     match (content, file_content) {
-        (None, None) => {},
+        (None, None) => {}
         (None, Some(_)) => {
             panic!("expected {} to not exist, but it does", path.display());
         }
@@ -144,9 +144,15 @@ fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
         (Some(Content((text, binary))), Some(current_data)) => {
             if is_text {
                 let current_text = String::from_utf8(current_data).unwrap();
-                assert_eq!(current_text, text, "expected file to contain right value, but had left value instead");
+                assert_eq!(
+                    current_text, text,
+                    "expected file to contain right value, but had left value instead"
+                );
             } else {
-                assert_eq!(current_data, binary, "expected file to contain right value, but had left value instead");
+                assert_eq!(
+                    current_data, binary,
+                    "expected file to contain right value, but had left value instead"
+                );
             }
         }
     }
@@ -225,7 +231,10 @@ struct Content((&'static str, [u8; 5]));
 
 impl Content {
     fn default() -> Option<Self> {
-        Some(Content(("This is a text file", [0xFF, 0xFE, 0xFD, 0xFC, 0xFB])))
+        Some(Content((
+            "This is a text file",
+            [0xFF, 0xFE, 0xFD, 0xFC, 0xFB],
+        )))
     }
 
     fn changed_a() -> Option<Self> {
@@ -236,10 +245,10 @@ impl Content {
     }
 
     fn changed_b() -> Option<Self> {
-       Some(Content((
-           "This is yet other text content",
-           [0xFF, 0xFE, 0xFD, 0xF0, 0xFB],
-       )))
+        Some(Content((
+            "This is yet other text content",
+            [0xFF, 0xFE, 0xFD, 0xF0, 0xFB],
+        )))
     }
 
     fn none() -> Option<Self> {

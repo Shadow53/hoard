@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
-use std::io;
+use super::hoard_item::HoardItem;
 use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
 use crate::diff::FileContent;
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use super::hoard_item::HoardItem;
+use std::collections::BTreeMap;
+use std::io;
 
 /// Wrapper around [`HoardItem`] that accesses the filesystem at creation time and
 /// caches file data.
@@ -42,13 +42,13 @@ impl TryFrom<HoardItem> for CachedHoardItem {
             let system_exists = inner.system_path().exists();
             let hoard_exists = inner.hoard_path().exists();
 
-            let is_file = (inner.system_path().is_file() || !system_exists) &&
-                (inner.hoard_path().is_file() || !hoard_exists) &&
-                (system_exists || hoard_exists);
+            let is_file = (inner.system_path().is_file() || !system_exists)
+                && (inner.hoard_path().is_file() || !hoard_exists)
+                && (system_exists || hoard_exists);
 
-            let is_dir = (inner.system_path().is_dir() || !system_exists) &&
-                (inner.hoard_path().is_dir() || !hoard_exists) &&
-                (system_exists || hoard_exists);
+            let is_dir = (inner.system_path().is_dir() || !system_exists)
+                && (inner.hoard_path().is_dir() || !hoard_exists)
+                && (system_exists || hoard_exists);
 
             (is_file, is_dir)
         };
@@ -64,7 +64,15 @@ impl TryFrom<HoardItem> for CachedHoardItem {
         let system_checksums = system_content.as_ref().and_then(Self::checksums);
         let hoard_checksums = hoard_content.as_ref().and_then(Self::checksums);
 
-        Ok(Self { inner, hoard_content, system_content, hoard_checksums, system_checksums, is_file, is_dir })
+        Ok(Self {
+            inner,
+            hoard_content,
+            system_content,
+            hoard_checksums,
+            system_checksums,
+            is_file,
+            is_dir,
+        })
     }
 }
 
@@ -156,10 +164,14 @@ impl CachedHoardItem {
     /// text.
     #[must_use]
     pub fn is_text(&self) -> bool {
-        self.is_file() && matches!(
-            (self.system_content.as_ref(), self.hoard_content.as_ref()),
-            (Some(FileContent::Text(_) | FileContent::Missing), Some(FileContent::Text(_) | FileContent::Missing))
-        )
+        self.is_file()
+            && matches!(
+                (self.system_content.as_ref(), self.hoard_content.as_ref()),
+                (
+                    Some(FileContent::Text(_) | FileContent::Missing),
+                    Some(FileContent::Text(_) | FileContent::Missing)
+                )
+            )
     }
 
     /// Returns whether this file contains text.
@@ -167,10 +179,11 @@ impl CachedHoardItem {
     /// This is `true` if at least one file (system/hoard) exists and is not text.
     #[must_use]
     pub fn is_binary(&self) -> bool {
-        self.is_file() && matches!(
-            (self.system_content.as_ref(), self.hoard_content.as_ref()),
-            (Some(FileContent::Binary(_)), Some(_)) | (Some(_), Some(FileContent::Binary(_)))
-        )
+        self.is_file()
+            && matches!(
+                (self.system_content.as_ref(), self.hoard_content.as_ref()),
+                (Some(FileContent::Binary(_)), Some(_)) | (Some(_), Some(FileContent::Binary(_)))
+            )
     }
 
     /// Returns the content, as bytes, of the system version of the file.
@@ -200,16 +213,28 @@ impl CachedHoardItem {
             FileContent::Missing => None,
             FileContent::Text(s) => {
                 let mut map = BTreeMap::new();
-                map.insert(ChecksumType::MD5, Checksum::MD5(MD5::from_data(s.as_bytes())));
-                map.insert(ChecksumType::SHA256, Checksum::SHA256(SHA256::from_data(s.as_bytes())));
+                map.insert(
+                    ChecksumType::MD5,
+                    Checksum::MD5(MD5::from_data(s.as_bytes())),
+                );
+                map.insert(
+                    ChecksumType::SHA256,
+                    Checksum::SHA256(SHA256::from_data(s.as_bytes())),
+                );
                 Some(map)
-            },
+            }
             FileContent::Binary(data) => {
                 let mut map = BTreeMap::new();
-                map.insert(ChecksumType::MD5, Checksum::MD5(MD5::from_data(data.as_slice())));
-                map.insert(ChecksumType::SHA256, Checksum::SHA256(SHA256::from_data(data.as_slice())));
+                map.insert(
+                    ChecksumType::MD5,
+                    Checksum::MD5(MD5::from_data(data.as_slice())),
+                );
+                map.insert(
+                    ChecksumType::SHA256,
+                    Checksum::SHA256(SHA256::from_data(data.as_slice())),
+                );
                 Some(map)
-            },
+            }
         }
     }
 
@@ -238,7 +263,8 @@ impl CachedHoardItem {
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     #[must_use]
     pub fn hoard_md5(&self) -> Option<Checksum> {
-        self.hoard_checksums.as_ref()
+        self.hoard_checksums
+            .as_ref()
             .and_then(|map| map.get(&ChecksumType::MD5).cloned())
     }
 
@@ -250,7 +276,8 @@ impl CachedHoardItem {
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     #[must_use]
     pub fn hoard_sha256(&self) -> Option<Checksum> {
-        self.hoard_checksums.as_ref()
+        self.hoard_checksums
+            .as_ref()
             .and_then(|map| map.get(&ChecksumType::SHA256).cloned())
     }
 
@@ -279,7 +306,8 @@ impl CachedHoardItem {
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     #[must_use]
     pub fn system_md5(&self) -> Option<Checksum> {
-        self.system_checksums.as_ref()
+        self.system_checksums
+            .as_ref()
             .and_then(|map| map.get(&ChecksumType::MD5).cloned())
     }
 
@@ -291,7 +319,8 @@ impl CachedHoardItem {
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     #[must_use]
     pub fn system_sha256(&self) -> Option<Checksum> {
-        self.system_checksums.as_ref()
+        self.system_checksums
+            .as_ref()
             .and_then(|map| map.get(&ChecksumType::SHA256).cloned())
     }
 }

@@ -1,13 +1,13 @@
+use crate::checkers::history::operation::{ItemOperation, Operation, OperationImpl};
 use crate::filters::{Filter, Filters};
 use crate::hoard::Hoard;
+use crate::hoard_item::{CachedHoardItem, HoardItem};
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::iter::Peekable;
-use std::{fs, io};
 use std::collections::BTreeSet;
+use std::iter::Peekable;
 use std::path::PathBuf;
-use crate::checkers::history::operation::{ItemOperation, Operation, OperationImpl};
-use crate::hoard_item::{CachedHoardItem, HoardItem};
+use std::{fs, io};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct RootPathItem {
@@ -48,27 +48,30 @@ pub(crate) struct AllFilesIter {
 
 impl AllFilesIter {
     #[tracing::instrument]
-    fn paths_from_hoard(hoard: &Hoard, hoard_name_root: &HoardPath) -> Result<Vec<RootPathItem>, super::Error> {
+    fn paths_from_hoard(
+        hoard: &Hoard,
+        hoard_name_root: &HoardPath,
+    ) -> Result<Vec<RootPathItem>, super::Error> {
         match hoard {
             Hoard::Anonymous(pile) => {
                 let path = pile.path.clone();
                 let filters = Filters::new(&pile.config)?;
                 match path {
                     None => Ok(Vec::default()),
-                    Some(system_prefix) => {
-                        std::iter::once(
-                            CachedHoardItem::new(
-                                PileName::anonymous(),
-                                hoard_name_root.clone(),
-                                system_prefix,
-                                RelativePath::none(),
-                            ).map(|hoard_file| {
-                                RootPathItem {
-                                    hoard_file, filters
-                                }
-                            }).map_err(super::Error::IO)
-                        ).collect()
-                    }
+                    Some(system_prefix) => std::iter::once(
+                        CachedHoardItem::new(
+                            PileName::anonymous(),
+                            hoard_name_root.clone(),
+                            system_prefix,
+                            RelativePath::none(),
+                        )
+                        .map(|hoard_file| RootPathItem {
+                            hoard_file,
+                            filters,
+                        })
+                        .map_err(super::Error::IO),
+                    )
+                    .collect(),
                 }
             }
             Hoard::Named(piles) => piles
@@ -88,12 +91,12 @@ impl AllFilesIter {
                             hoard_prefix,
                             system_prefix,
                             RelativePath::none(),
-                        ).map(|hoard_file| {
-                            RootPathItem {
-                                hoard_file,
-                                filters,
-                            }
-                        }).map_err(super::Error::IO)
+                        )
+                        .map(|hoard_file| RootPathItem {
+                            hoard_file,
+                            filters,
+                        })
+                        .map_err(super::Error::IO)
                     })
                 })
                 .collect(),
@@ -101,52 +104,58 @@ impl AllFilesIter {
     }
 
     #[tracing::instrument]
-    fn paths_from_logs(hoard: &Hoard, hoard_name: &HoardName, hoard_name_root: &HoardPath) -> Result<Vec<RootPathItem>, super::Error> {
+    fn paths_from_logs(
+        hoard: &Hoard,
+        hoard_name: &HoardName,
+        hoard_name_root: &HoardPath,
+    ) -> Result<Vec<RootPathItem>, super::Error> {
         // This is used to detect files deleted locally and remotely
         let from_logs: Vec<ItemOperation> = {
             let _span = tracing::trace_span!("load_paths_from_logs").entered();
-            let local = Operation::latest_local(hoard_name, None)
-                .map_err(Box::new)?;
-            let remote = Operation::latest_remote_backup(hoard_name, None, false)
-                .map_err(Box::new)?;
+            let local = Operation::latest_local(hoard_name, None).map_err(Box::new)?;
+            let remote =
+                Operation::latest_remote_backup(hoard_name, None, false).map_err(Box::new)?;
 
             match (local, remote) {
                 (None, None) => Vec::new(),
-                (None, Some(single)) =>
-                    single.hoard_operations_iter(hoard_name_root, hoard)
-                        .map_err(Box::new)
-                        .map_err(super::Error::Operation)?
-                        .collect(),
-                (Some(single), None) =>
-                    single.hoard_operations_iter(hoard_name_root, hoard)
-                        .map_err(Box::new)
-                        .map_err(super::Error::Operation)?
-                        .filter(|item| !matches!(item, ItemOperation::Delete(_)))
-                        .collect(),
+                (None, Some(single)) => single
+                    .hoard_operations_iter(hoard_name_root, hoard)
+                    .map_err(Box::new)
+                    .map_err(super::Error::Operation)?
+                    .collect(),
+                (Some(single), None) => single
+                    .hoard_operations_iter(hoard_name_root, hoard)
+                    .map_err(Box::new)
+                    .map_err(super::Error::Operation)?
+                    .filter(|item| !matches!(item, ItemOperation::Delete(_)))
+                    .collect(),
                 (Some(left), Some(right)) => {
-                    let left = left.hoard_operations_iter(hoard_name_root, hoard)
+                    let left = left
+                        .hoard_operations_iter(hoard_name_root, hoard)
                         .map(Box::new)
                         .map_err(Box::new)
                         .map_err(super::Error::Operation)?
                         .filter(|item| !matches!(item, ItemOperation::Delete(_)));
-                    let right = right.hoard_operations_iter(hoard_name_root, hoard)
+                    let right = right
+                        .hoard_operations_iter(hoard_name_root, hoard)
                         .map(Box::new)
                         .map_err(Box::new)
                         .map_err(super::Error::Operation)?;
                     left.chain(right).collect()
-                },
+                }
             }
         };
 
-        from_logs.into_iter()
+        from_logs
+            .into_iter()
             .map(|item| {
-                CachedHoardItem::try_from(HoardItem::from(item)).map(|hoard_file| {
-                    RootPathItem {
-                        hoard_file,
-                        filters: Filters::default(),
-                    }
+                CachedHoardItem::try_from(HoardItem::from(item)).map(|hoard_file| RootPathItem {
+                    hoard_file,
+                    filters: Filters::default(),
                 })
-            }).collect::<io::Result<Vec<_>>>().map_err(super::Error::IO)
+            })
+            .collect::<io::Result<Vec<_>>>()
+            .map_err(super::Error::IO)
     }
 
     #[tracing::instrument(name = "new_all_files_iter")]
@@ -202,13 +211,25 @@ impl AllFilesIter {
 
     fn get_next_entry_with_prefix(&mut self) -> Option<(io::Result<fs::DirEntry>, PathBuf)> {
         if let Some(entry) = self.system_entries.as_mut().and_then(Iterator::next) {
-            let prefix = self.current_root.as_ref().unwrap().hoard_file.system_prefix().to_path_buf();
-            return Some((entry, prefix))
+            let prefix = self
+                .current_root
+                .as_ref()
+                .unwrap()
+                .hoard_file
+                .system_prefix()
+                .to_path_buf();
+            return Some((entry, prefix));
         }
 
         if let Some(entry) = self.hoard_entries.as_mut().and_then(Iterator::next) {
-            let prefix = self.current_root.as_ref().unwrap().hoard_file.hoard_prefix().to_path_buf();
-            return Some((entry, prefix))
+            let prefix = self
+                .current_root
+                .as_ref()
+                .unwrap()
+                .hoard_file
+                .hoard_prefix()
+                .to_path_buf();
+            return Some((entry, prefix));
         }
 
         None
@@ -219,14 +240,23 @@ impl AllFilesIter {
             None => Ok(None),
             Some((Ok(entry), prefix)) => {
                 let rel_path = RelativePath::try_from(
-                    entry.path().strip_prefix(prefix)
+                    entry
+                        .path()
+                        .strip_prefix(prefix)
                         .expect("prefix should always match path")
                         .to_path_buf(),
-                ).expect("path created with strip_prefix should always be valid RelativePath");
+                )
+                .expect("path created with strip_prefix should always be valid RelativePath");
                 Ok(Some(rel_path))
-            },
+            }
             Some((Err(error), prefix)) => {
-                let rel_path = self.current_root.as_ref().unwrap().hoard_file.relative_path().to_path_buf();
+                let rel_path = self
+                    .current_root
+                    .as_ref()
+                    .unwrap()
+                    .hoard_file
+                    .relative_path()
+                    .to_path_buf();
                 tracing::error!(
                     "could not process entry in {}/{}: {}",
                     prefix.display(),
@@ -239,9 +269,7 @@ impl AllFilesIter {
     }
 
     #[tracing::instrument(name = "all_files_iter")]
-    fn process_dir_entry(
-        &mut self,
-    ) -> Result<Option<CachedHoardItem>, io::Error> {
+    fn process_dir_entry(&mut self) -> Result<Option<CachedHoardItem>, io::Error> {
         let current_root = self
             .current_root
             .as_ref()
@@ -268,9 +296,11 @@ impl AllFilesIter {
                         continue;
                     }
 
-                    let new_item = CachedHoardItem::try_from(hoard_item).map(|hoard_file| {
-                        RootPathItem { hoard_file, filters: filters.clone() }
-                    })?;
+                    let new_item =
+                        CachedHoardItem::try_from(hoard_item).map(|hoard_file| RootPathItem {
+                            hoard_file,
+                            filters: filters.clone(),
+                        })?;
 
                     if new_item.keep() {
                         if new_item.is_dir() {
@@ -304,7 +334,7 @@ impl AllFilesIter {
                             match fs::read_dir(system_path) {
                                 Ok(iter) => {
                                     self.system_entries = Some(iter.peekable());
-                                },
+                                }
                                 Err(err) => {
                                     if err.kind() == io::ErrorKind::NotFound {
                                         self.system_entries = None;
@@ -321,7 +351,7 @@ impl AllFilesIter {
                             match fs::read_dir(hoard_path) {
                                 Ok(iter) => {
                                     self.hoard_entries = Some(iter.peekable());
-                                },
+                                }
                                 Err(err) => {
                                     if err.kind() == io::ErrorKind::NotFound {
                                         self.hoard_entries = None;
@@ -357,7 +387,7 @@ impl Iterator for AllFilesIter {
                 match return_value.as_ref() {
                     None => tracing::trace!("no more items remaining"),
                     Some(Ok(item)) => tracing::trace!(?item, "found file among root paths"),
-                    Some(Err(_)) => {},
+                    Some(Err(_)) => {}
                 }
                 return return_value;
             }

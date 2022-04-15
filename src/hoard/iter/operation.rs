@@ -1,5 +1,5 @@
-use crate::checkers::history::operation::ItemOperation;
 use super::HoardDiffIter;
+use crate::checkers::history::operation::ItemOperation;
 use crate::hoard::iter::{DiffSource, HoardFileDiff};
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;

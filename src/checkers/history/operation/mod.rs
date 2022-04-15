@@ -17,10 +17,10 @@ pub mod v2;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
 use crate::checksum::Checksum;
+use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 pub(crate) use util::cleanup_operations;
-use crate::hoard_item::HoardItem;
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -70,7 +70,11 @@ pub enum ItemOperation {
 impl From<ItemOperation> for HoardItem {
     fn from(op: ItemOperation) -> Self {
         match op {
-            ItemOperation::Create(item) | ItemOperation::Modify(item) | ItemOperation::Delete(item) | ItemOperation::Nothing(item) | ItemOperation::DoesNotExist(item) => item
+            ItemOperation::Create(item)
+            | ItemOperation::Modify(item)
+            | ItemOperation::Delete(item)
+            | ItemOperation::Nothing(item)
+            | ItemOperation::DoesNotExist(item) => item,
         }
     }
 }

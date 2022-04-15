@@ -1,3 +1,4 @@
+use crate::checkers::history::operation::ItemOperation;
 use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
 use crate::hoard::iter::Error as IterError;
 use crate::hoard::{Direction, Hoard};
@@ -5,7 +6,6 @@ use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath};
 use std::fs;
 use thiserror::Error;
-use crate::checkers::history::operation::ItemOperation;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]

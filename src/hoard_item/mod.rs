@@ -6,9 +6,9 @@
 //! [`CachedHoardItem`] reads all of the relevant information at creation time and returns cached
 //! values for content, etc. It provides the same interface as [`HoardItem`].
 
+mod cached;
 #[allow(clippy::module_inception)]
 mod hoard_item;
-mod cached;
 
 pub use hoard_item::HoardItem;
 

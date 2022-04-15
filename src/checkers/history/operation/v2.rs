@@ -361,7 +361,7 @@ impl Hoard {
                             Self::get_or_create_pile(&mut acc, file.pile_name())
                                 .add_unmodified(file.relative_path().clone(), checksum);
                         }
-                        ItemOperation::DoesNotExist(_) => {},
+                        ItemOperation::DoesNotExist(_) => {}
                     }
 
                     Ok(acc)

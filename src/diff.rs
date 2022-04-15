@@ -52,9 +52,7 @@ pub(crate) enum Diff {
 
 fn content_for(path: &Path) -> io::Result<FileContent> {
     match fs::File::open(path) {
-        Ok(file) => {
-            FileContent::read(file)
-        }
+        Ok(file) => FileContent::read(file),
         Err(err) => match err.kind() {
             io::ErrorKind::NotFound => Ok(FileContent::Missing),
             _ => Err(err),

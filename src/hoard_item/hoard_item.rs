@@ -1,11 +1,10 @@
-
 use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
+use crate::diff::FileContent;
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::io::ErrorKind;
 use std::path::Path;
 use std::{fs, io};
-use crate::diff::FileContent;
 
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -127,8 +126,10 @@ impl HoardItem {
 
     fn content(path: &Path) -> io::Result<FileContent> {
         match fs::read(path) {
-            Ok(content) => Ok(String::from_utf8(content)
-                                  .map_or_else(|err| FileContent::Binary(err.into_bytes()),FileContent::Text)),
+            Ok(content) => Ok(String::from_utf8(content).map_or_else(
+                |err| FileContent::Binary(err.into_bytes()),
+                FileContent::Text,
+            )),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => Ok(FileContent::Missing),
                 _ => Err(err), // grcov: ignore
@@ -187,8 +188,7 @@ impl HoardItem {
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     pub fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.hoard_path())
-            .map(|content| content.as_deref().map(Self::md5))
+        Self::raw_content(self.hoard_path()).map(|content| content.as_deref().map(Self::md5))
     }
 
     /// Returns the SHA256 checksum for the Hoard version of the file.
@@ -198,8 +198,7 @@ impl HoardItem {
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     pub fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.hoard_path())
-            .map(|content| content.as_deref().map(Self::sha256))
+        Self::raw_content(self.hoard_path()).map(|content| content.as_deref().map(Self::sha256))
     }
 
     /// Returns the requested [`ChecksumType`] for the system version of the file.
@@ -225,8 +224,7 @@ impl HoardItem {
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     pub fn system_md5(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.system_path())
-            .map(|content| content.as_deref().map(Self::md5))
+        Self::raw_content(self.system_path()).map(|content| content.as_deref().map(Self::md5))
     }
 
     /// Returns the SHA256 checksum for the system version of the file.
@@ -236,8 +234,7 @@ impl HoardItem {
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     pub fn system_sha256(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.system_path())
-            .map(|content| content.as_deref().map(Self::sha256))
+        Self::raw_content(self.system_path()).map(|content| content.as_deref().map(Self::sha256))
     }
 
     fn md5(content: &[u8]) -> Checksum {
@@ -451,4 +448,3 @@ mod tests {
         }
     }
 }
-
