@@ -3,7 +3,6 @@ mod common;
 use common::tester::Tester;
 use hoard::command::Command;
 use hoard::newtypes::HoardName;
-use paste::paste;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::ErrorKind;
@@ -189,13 +188,11 @@ fn get_full_diff(
     let hoard_content = match hoard_content {
         None => return String::new(),
         Some(Content((hoard_content, _))) => hoard_content,
-        Some(_) => panic!("expected text, not permissions"),
     };
 
     let system_content = match system_content {
         None => return String::new(),
         Some(Content((system_content, _))) => system_content,
-        Some(_) => panic!("expected text, not permissions"),
     };
 
     if file.is_text && file.hoard_path.is_some() && hoard_content != system_content {
@@ -403,8 +400,11 @@ macro_rules! test_diff {
 
             for (hoard_name, files) in hoards {
                 for file in files {
+                    #[allow(unused_mut, unused_assignments)]
                     let mut system_content = None;
+                    #[allow(unused_mut, unused_assignments)]
                     let mut hoard_content = None;
+                    #[allow(unused_mut, unused_assignments)]
                     let mut other_system_content = None;
 
                     test_diff_inner! {
@@ -1278,10 +1278,6 @@ mod modify {
             }
         }
     }
-}
-
-mod permissions {
-    use super::*;
 }
 
 mod delete {

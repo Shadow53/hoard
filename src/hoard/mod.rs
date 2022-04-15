@@ -5,7 +5,6 @@
 pub(crate) mod iter;
 pub(crate) mod pile_config;
 
-use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::Error as FilterError;
 use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
