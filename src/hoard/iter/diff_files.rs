@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
 use crate::diff::{diff_files, Diff};
 use crate::hoard::iter::all_files::AllFilesIter;
@@ -279,12 +280,549 @@ impl ProcessedFile {
         })
     }
 
-    #[tracing::instrument]
+    #[allow(clippy::too_many_lines)]
     fn get_hoard_diff(self) -> HoardFileDiff {
-        let diff = self.unexpected_diff()
-            .unwrap_or_else(|| self.expected_diff());
-        tracing::trace!(hoard_diff=?diff);
-        diff
+        let local_op_type = self.local_op_type();
+        let remote_op_type = self.remote_op_type();
+        let unexpected_op_type = self.unexpected_hoard_op();
+        let has_logs = self.latest_remote_log.is_some() || self.latest_local_log.is_some();
+
+        let file = self.file.clone();
+        let _span = tracing::trace_span!("expected_diff", %has_logs, ?local_op_type, ?remote_op_type, diff=?self.diff).entered();
+
+        #[allow(clippy::match_same_arms)]
+        let expected_diff = match (has_logs, unexpected_op_type, local_op_type, remote_op_type, self.diff.clone()) {
+            (_, Some(OperationType::Create), _, _, Some(Diff::Text(unified_diff))) => {
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: Some(unified_diff),
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (_, Some(OperationType::Create), _, _, _) => {
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (_, Some(OperationType::Delete), _, _, _) => {
+                HoardFileDiff::Deleted {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (_, Some(OperationType::Modify), _, _, None | Some(Diff::SystemNotExists)) => if self.file.is_text() {
+                HoardFileDiff::TextModified {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            } else {
+                HoardFileDiff::BinaryModified {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (_, Some(OperationType::Modify), _, _, Some(Diff::Binary)) => {
+                HoardFileDiff::BinaryModified {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (_, Some(OperationType::Modify), _, _, Some(Diff::Text(unified_diff))) => {
+                HoardFileDiff::TextModified {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                    unified_diff: Some(unified_diff),
+                }
+            }
+            (_, Some(OperationType::Modify), _, _, Some(Diff::HoardNotExists)) => unreachable!(""),
+            (false, Some(OperationType::Modify), _, _, _) => {
+                unreachable!("cannot modify a hoard file without operation logs")
+            }
+            (_, Some(_), _, _, Some(Diff::Permissions(..))) => HoardFileDiff::Unchanged(file),
+            // File/dir never existed in hoard but is listed as a named pile
+            (false, None, None, None, None) => HoardFileDiff::Nonexistent(file),
+            (true, None, None, None, None) => HoardFileDiff::Unchanged(file),
+            (_, _, None, None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
+                unreachable!();
+                HoardFileDiff::PermissionsModified {
+                    file,
+                    hoard_perms,
+                    system_perms,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (false, None, None, None, Some(_)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file, unified_diff: None, diff_source: DiffSource::Unknown
+                }
+            }
+            (true, None, None, None, Some(Diff::HoardNotExists)) => {
+                unreachable!();
+                HoardFileDiff::Deleted { file, diff_source: DiffSource::Unknown }
+            }
+            (true, None, None, None, Some(Diff::SystemNotExists)) => {
+                unreachable!();
+                HoardFileDiff::Created { file, unified_diff: None, diff_source: DiffSource::Unknown }
+            }
+            (true, None, None, None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
+                unreachable!();
+                HoardFileDiff::PermissionsModified {
+                    file,
+                    hoard_perms,
+                    system_perms,
+                    diff_source: DiffSource::Unknown
+                }
+            }
+            (true, None, None, None, Some(Diff::Text(unified_diff))) => {
+                unreachable!();
+                HoardFileDiff::TextModified {
+                    file,
+                    unified_diff: Some(unified_diff),
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (true, None, None, None, Some(Diff::Binary)) => {
+                unreachable!();
+                HoardFileDiff::BinaryModified { file, diff_source: DiffSource::Unknown }
+            }
+            (false, None, _, Some(_), _) => {
+                unreachable!("cannot have remote changes without operation logs")
+            }
+            (false, None, Some(_), None, None) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file, unified_diff: None, diff_source: DiffSource::Unknown
+                }
+            },
+            (
+                _,
+                _,
+                Some(OperationType::Delete),
+                _,
+                Some(Diff::HoardNotExists | Diff::Text(_) | Diff::Permissions(..) | Diff::Binary)
+            ) => unreachable!("cannot have deleted local file and not detect it missing"),
+            (false, None, _, _, Some(Diff::SystemNotExists)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (
+                true, None,
+                None,
+                Some(OperationType::Create | OperationType::Modify),
+                Some(Diff::HoardNotExists),
+            ) => {
+                unreachable!();
+                HoardFileDiff::Deleted {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (true, None, Some(OperationType::Create), None, Some(Diff::HoardNotExists)) => {
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Local,
+                }
+            }
+            (
+                true, None,
+                Some(OperationType::Modify),
+                None,
+                Some(Diff::HoardNotExists),
+            ) => {
+                unreachable!();
+                HoardFileDiff::Deleted {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (
+                true, None,
+                Some(_),
+                Some(OperationType::Create | OperationType::Modify),
+                Some(Diff::HoardNotExists),
+            ) => {
+                unreachable!();
+                HoardFileDiff::Deleted {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            // If system file was created, last state was deleted or non-existent. If remote file was deleted, it is net even with current logged state of system.
+            (
+                true, None,
+                Some(OperationType::Create),
+                Some(OperationType::Delete),
+                Some(Diff::HoardNotExists),
+            ) => HoardFileDiff::Created {
+                file,
+                unified_diff: None,
+                diff_source: DiffSource::Local,
+            },
+            (
+                true, None,
+                None | Some(OperationType::Modify),
+                Some(OperationType::Delete),
+                Some(Diff::HoardNotExists),
+            ) => HoardFileDiff::Deleted {
+                file,
+                diff_source: DiffSource::Remote,
+            },
+            (false, None, Some(OperationType::Create), None, Some(Diff::HoardNotExists)) => {
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Local,
+                }
+            }
+            (
+                false,
+                _,
+                Some(OperationType::Modify),
+                None,
+                Some(Diff::HoardNotExists),
+            ) => unreachable!("cannot modify local file if no logs exist"),
+            (
+                true, None,
+                None,
+                Some(OperationType::Create | OperationType::Modify),
+                Some(Diff::SystemNotExists),
+            ) => HoardFileDiff::Created {
+                file,
+                unified_diff: None,
+                diff_source: DiffSource::Remote,
+            },
+            (true, None, None, Some(OperationType::Delete), Some(Diff::SystemNotExists)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (
+                _,
+                _,
+                Some(OperationType::Create | OperationType::Modify),
+                _,
+                Some(Diff::SystemNotExists),
+            ) => unreachable!("cannot have created or modified local file while it doesn't exist"),
+            (
+                true, None,
+                Some(OperationType::Delete),
+                None | Some(OperationType::Modify | OperationType::Create),
+                Some(Diff::SystemNotExists),
+            ) => HoardFileDiff::Deleted {
+                file,
+                diff_source: DiffSource::Local,
+            },
+            (
+                true, None,
+                Some(OperationType::Delete),
+                Some(OperationType::Delete),
+                Some(Diff::SystemNotExists),
+            ) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (true, None, None, Some(_), Some(Diff::Permissions(hoard_perms, system_perms))) => {
+                unreachable!();
+                HoardFileDiff::PermissionsModified {
+                    file,
+                    hoard_perms,
+                    system_perms,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (true, None, Some(_), None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
+                unreachable!();
+                HoardFileDiff::PermissionsModified {
+                    file,
+                    hoard_perms,
+                    system_perms,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (true, None, Some(_), Some(_), Some(Diff::Permissions(hoard_perms, system_perms))) => {
+                unreachable!();
+                HoardFileDiff::PermissionsModified {
+                    file,
+                    hoard_perms,
+                    system_perms,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (false, None, Some(_), None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
+                unreachable!();
+                HoardFileDiff::PermissionsModified {
+                    file,
+                    hoard_perms,
+                    system_perms,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            // Deleted and then recreated? Regardless, appears to this machine as modified
+            (
+                true, None,
+                None,
+                Some(OperationType::Create | OperationType::Modify),
+                Some(Diff::Binary),
+            ) => HoardFileDiff::BinaryModified {
+                file,
+                diff_source: DiffSource::Remote,
+            },
+            (true, None, None, Some(OperationType::Delete), Some(Diff::Binary)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (true, None, Some(OperationType::Create), None, Some(Diff::Binary)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (true, None, Some(OperationType::Modify), None, Some(Diff::Binary)) => {
+                HoardFileDiff::BinaryModified {
+                    file,
+                    diff_source: DiffSource::Local,
+                }
+            }
+            (
+                true, None,
+                Some(OperationType::Create),
+                Some(OperationType::Create),
+                Some(Diff::Binary),
+            ) => HoardFileDiff::Created {
+                file,
+                unified_diff: None,
+                diff_source: DiffSource::Mixed,
+            },
+            (
+                true, None,
+                Some(OperationType::Modify),
+                Some(OperationType::Create),
+                Some(Diff::Binary),
+            ) => HoardFileDiff::BinaryModified {
+                file,
+                diff_source: DiffSource::Mixed,
+            },
+            (true, None, _, Some(OperationType::Delete), Some(Diff::Binary)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (
+                true, None,
+                Some(OperationType::Create),
+                Some(OperationType::Modify),
+                Some(Diff::Binary),
+            ) => HoardFileDiff::Created {
+                file,
+                unified_diff: None,
+                diff_source: DiffSource::Mixed,
+            },
+            (
+                true, None,
+                Some(OperationType::Modify),
+                Some(OperationType::Modify),
+                Some(Diff::Binary),
+            ) => HoardFileDiff::BinaryModified {
+                file,
+                diff_source: DiffSource::Mixed,
+            },
+            (false, None, _, None, Some(Diff::Binary)) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (
+                true, None,
+                None,
+                Some(OperationType::Create | OperationType::Modify),
+                Some(Diff::Text(unified_diff)),
+            ) => HoardFileDiff::TextModified {
+                file,
+                unified_diff: Some(unified_diff),
+                diff_source: DiffSource::Remote,
+            },
+            (true, None, Some(OperationType::Create), None, Some(Diff::Text(_))) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            }
+            (true, None, Some(OperationType::Modify), None, Some(Diff::Text(unified_diff))) => {
+                HoardFileDiff::TextModified {
+                    file,
+                    unified_diff: Some(unified_diff),
+                    diff_source: DiffSource::Local,
+                }
+            }
+            (true, None, _, Some(OperationType::Delete), Some(Diff::Text(_))) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (
+                true, None,
+                Some(OperationType::Create),
+                Some(OperationType::Create),
+                Some(Diff::Text(unified_diff)),
+            ) => HoardFileDiff::Created {
+                file,
+                unified_diff: Some(unified_diff),
+                diff_source: DiffSource::Mixed,
+            },
+            (
+                true, None,
+                Some(OperationType::Modify),
+                Some(OperationType::Create),
+                Some(Diff::Text(unified_diff)),
+            ) => HoardFileDiff::TextModified {
+                file,
+                unified_diff: Some(unified_diff),
+                diff_source: DiffSource::Mixed,
+            },
+            (
+                true, None,
+                Some(OperationType::Create),
+                Some(OperationType::Modify),
+                Some(Diff::Text(unified_diff)),
+            ) => HoardFileDiff::Created {
+                file,
+                unified_diff: Some(unified_diff),
+                diff_source: DiffSource::Mixed,
+            },
+            (
+                true, None,
+                Some(OperationType::Modify),
+                Some(OperationType::Modify),
+                Some(Diff::Text(unified_diff)),
+            ) => HoardFileDiff::TextModified {
+                file,
+                unified_diff: Some(unified_diff),
+                diff_source: DiffSource::Mixed,
+            },
+            (false, None, _, None, Some(Diff::Text(unified_diff))) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: Some(unified_diff),
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (true, None, None, Some(OperationType::Create | OperationType::Modify), None) => {
+                HoardFileDiff::Deleted {
+                    file, diff_source: DiffSource::Unknown
+                }
+            },
+            (true, None, None, Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
+                file, diff_source: DiffSource::Remote
+            },
+            (true, None, Some(OperationType::Create), None, None) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (true, None, Some(OperationType::Delete), None, None) => {
+                unreachable!();
+                HoardFileDiff::Deleted {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (true, None, Some(OperationType::Modify), None, None) => if file.is_text() {
+                unreachable!();
+                HoardFileDiff::TextModified {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Unknown
+                }
+            } else {
+                unreachable!();
+                HoardFileDiff::BinaryModified {
+                    file,
+                    diff_source: DiffSource::Unknown,
+                }
+            },
+            (true, None, Some(OperationType::Create), Some(OperationType::Create), None) => {
+                HoardFileDiff::Created {
+                    file,
+                    unified_diff: None,
+                    diff_source: DiffSource::Mixed,
+                }
+            },
+            (true, None, Some(OperationType::Create), Some(OperationType::Modify), None) => HoardFileDiff::Created {
+                file, unified_diff: None, diff_source: DiffSource::Mixed
+            },
+            (true, None, Some(OperationType::Create), Some(OperationType::Delete), None) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    // If file was deleted remotely and created locally, there can be no diff only if
+                    // the file was recreated out-of-band in the hoard folder.
+                    file, unified_diff: None, diff_source: DiffSource::Unknown
+                }
+            },
+            (true, None, Some(OperationType::Delete), Some(OperationType::Create | OperationType::Modify), None) => {
+                unreachable!();
+                HoardFileDiff::Deleted {
+                    file, diff_source: DiffSource::Unknown
+                }
+            },
+            (true, None, Some(OperationType::Delete), Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
+                file, diff_source: DiffSource::Mixed
+            },
+            // Deleted and recreated (or just modified) remotely, but with the same modifications as local
+            (true, None, Some(OperationType::Modify), Some(OperationType::Create | OperationType::Modify), None) => if file.is_text() {
+                HoardFileDiff::TextModified {
+                    file, unified_diff: None, diff_source: DiffSource::Mixed
+                }
+            } else {
+                HoardFileDiff::BinaryModified {
+                    file, diff_source: DiffSource::Mixed
+                }
+            },
+            (true, None, Some(OperationType::Modify), Some(OperationType::Delete), None) => {
+                unreachable!();
+                HoardFileDiff::Created {
+                    file, unified_diff: None, diff_source: DiffSource::Unknown
+                }
+            },
+        };
+        tracing::trace!(?expected_diff);
+        expected_diff
     }
 
     fn remote_op_type(&self) -> Option<OperationType> {
@@ -324,466 +862,6 @@ impl ProcessedFile {
                 }
             }
         }
-    }
-
-    fn unexpected_diff(&self) -> Option<HoardFileDiff> {
-        let _span = tracing::trace_span!(
-            "check_unexpected_diff",
-            op=?self.unexpected_hoard_op(),
-            diff=?self.diff,
-        ).entered();
-        let diff_source = DiffSource::Unknown;
-        let unexpected_diff = match (self.unexpected_hoard_op(), self.diff.as_ref()) {
-            // Can't keep track of permissions
-            (None, _) | (Some(OperationType::Modify), Some(Diff::Permissions(..))) => None,
-            (Some(OperationType::Create), Some(Diff::Text(unified_diff))) => {
-                Some(HoardFileDiff::Created {
-                    file: self.file.clone(),
-                    unified_diff: Some(unified_diff.clone()),
-                    diff_source,
-                })
-            }
-            (Some(OperationType::Create), _) => Some(HoardFileDiff::Created {
-                file: self.file.clone(),
-                unified_diff: None,
-                diff_source,
-            }),
-            (Some(OperationType::Delete), _) => Some(HoardFileDiff::Deleted {
-                file: self.file.clone(),
-                diff_source,
-            }),
-            (Some(OperationType::Modify), None | Some(Diff::SystemNotExists)) => if self.file.is_text() {
-                Some(HoardFileDiff::TextModified {
-                    file: self.file.clone(),
-                    unified_diff: None,
-                    diff_source,
-                })
-            } else {
-                Some(HoardFileDiff::BinaryModified {
-                    file: self.file.clone(),
-                    diff_source,
-                })
-            }
-            (Some(OperationType::Modify), Some(Diff::Binary)) => {
-                Some(HoardFileDiff::BinaryModified {
-                    file: self.file.clone(),
-                    diff_source,
-                })
-            }
-            (Some(OperationType::Modify), Some(Diff::Text(unified_diff))) => {
-                Some(HoardFileDiff::TextModified {
-                    file: self.file.clone(),
-                    diff_source,
-                    unified_diff: Some(unified_diff.clone()),
-                })
-            }
-            (Some(OperationType::Modify), Some(Diff::HoardNotExists)) => unreachable!(""),
-        };
-        tracing::trace!(?unexpected_diff);
-        unexpected_diff
-    }
-
-    #[allow(clippy::too_many_lines)]
-    fn expected_diff(&self) -> HoardFileDiff {
-        let local_op_type = self.local_op_type();
-        let remote_op_type = self.remote_op_type();
-        let has_logs = self.latest_remote_log.is_some() || self.latest_local_log.is_some();
-
-        let file = self.file.clone();
-        let _span = tracing::trace_span!("expected_diff", %has_logs, ?local_op_type, ?remote_op_type, diff=?self.diff).entered();
-
-        #[allow(clippy::match_same_arms)]
-        let expected_diff = match (has_logs, local_op_type, remote_op_type, self.diff.clone()) {
-            // File/dir never existed in hoard but is listed as a named pile
-            (false, None, None, None) => HoardFileDiff::Nonexistent(file),
-            (true, None, None, None) => HoardFileDiff::Unchanged(file),
-            (_, None, None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
-                HoardFileDiff::PermissionsModified {
-                    file,
-                    hoard_perms,
-                    system_perms,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (_, None, None, Some(_)) => {
-                unreachable!("diff should not exist if there are no changes")
-            }
-            (false, _, Some(_), _) => {
-                unreachable!("cannot have remote changes without operation logs")
-            }
-            (false, Some(_), None, None) => HoardFileDiff::Created {
-                file, unified_diff: None, diff_source: DiffSource::Unknown
-            },
-            (
-                _,
-                Some(OperationType::Delete),
-                _,
-                Some(Diff::HoardNotExists | Diff::Text(_) | Diff::Permissions(..) | Diff::Binary)
-            ) => unreachable!("cannot have deleted local file and not detect it missing"),
-            (false, _, _, Some(Diff::SystemNotExists)) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Unknown,
-            },
-            (
-                true,
-                None,
-                Some(OperationType::Create | OperationType::Modify),
-                Some(Diff::HoardNotExists),
-            ) => HoardFileDiff::Deleted {
-                file,
-                diff_source: DiffSource::Unknown,
-            },
-            (true, Some(OperationType::Create), None, Some(Diff::HoardNotExists)) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Local,
-                }
-            }
-            (
-                true,
-                Some(OperationType::Modify),
-                None,
-                Some(Diff::HoardNotExists),
-            ) => HoardFileDiff::Deleted {
-                file,
-                diff_source: DiffSource::Unknown,
-            },
-            (
-                true,
-                Some(_),
-                Some(OperationType::Create | OperationType::Modify),
-                Some(Diff::HoardNotExists),
-            ) => HoardFileDiff::Deleted {
-                file,
-                diff_source: DiffSource::Unknown,
-            },
-            // If system file was created, last state was deleted or non-existent. If remote file was deleted, it is net even with current logged state of system.
-            (
-                true,
-                Some(OperationType::Create),
-                Some(OperationType::Delete),
-                Some(Diff::HoardNotExists),
-            ) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Local,
-            },
-            (
-                true,
-                None | Some(OperationType::Modify),
-                Some(OperationType::Delete),
-                Some(Diff::HoardNotExists),
-            ) => HoardFileDiff::Deleted {
-                file,
-                diff_source: DiffSource::Remote,
-            },
-            (false, Some(OperationType::Create), None, Some(Diff::HoardNotExists)) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Local,
-                }
-            }
-            (
-                false,
-                Some(OperationType::Modify),
-                None,
-                Some(Diff::HoardNotExists),
-            ) => unreachable!("cannot modify local file if no logs exist"),
-            (
-                true,
-                None,
-                Some(OperationType::Create | OperationType::Modify),
-                Some(Diff::SystemNotExists),
-            ) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Remote,
-            },
-            (true, None, Some(OperationType::Delete), Some(Diff::SystemNotExists)) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (
-                _,
-                Some(OperationType::Create | OperationType::Modify),
-                _,
-                Some(Diff::SystemNotExists),
-            ) => unreachable!("cannot have created or modified local file while it doesn't exist"),
-            (
-                true,
-                Some(OperationType::Delete),
-                None | Some(OperationType::Modify | OperationType::Create),
-                Some(Diff::SystemNotExists),
-            ) => HoardFileDiff::Deleted {
-                file,
-                diff_source: DiffSource::Local,
-            },
-            (
-                true,
-                Some(OperationType::Delete),
-                Some(OperationType::Delete),
-                Some(Diff::SystemNotExists),
-            ) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Unknown,
-                }
-            },
-            (true, None, Some(_), Some(Diff::Permissions(hoard_perms, system_perms))) => {
-                HoardFileDiff::PermissionsModified {
-                    file,
-                    hoard_perms,
-                    system_perms,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (true, Some(_), None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
-                HoardFileDiff::PermissionsModified {
-                    file,
-                    hoard_perms,
-                    system_perms,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (true, Some(_), Some(_), Some(Diff::Permissions(hoard_perms, system_perms))) => {
-                HoardFileDiff::PermissionsModified {
-                    file,
-                    hoard_perms,
-                    system_perms,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (false, Some(_), None, Some(Diff::Permissions(hoard_perms, system_perms))) => {
-                HoardFileDiff::PermissionsModified {
-                    file,
-                    hoard_perms,
-                    system_perms,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            // Deleted and then recreated? Regardless, appears to this machine as modified
-            (
-                true,
-                None,
-                Some(OperationType::Create | OperationType::Modify),
-                Some(Diff::Binary),
-            ) => HoardFileDiff::BinaryModified {
-                file,
-                diff_source: DiffSource::Remote,
-            },
-            (true, None, Some(OperationType::Delete), Some(Diff::Binary)) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (true, Some(OperationType::Create), None, Some(Diff::Binary)) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (true, Some(OperationType::Modify), None, Some(Diff::Binary)) => {
-                HoardFileDiff::BinaryModified {
-                    file,
-                    diff_source: DiffSource::Local,
-                }
-            }
-            (
-                true,
-                Some(OperationType::Create),
-                Some(OperationType::Create),
-                Some(Diff::Binary),
-            ) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Mixed,
-            },
-            (
-                true,
-                Some(OperationType::Modify),
-                Some(OperationType::Create),
-                Some(Diff::Binary),
-            ) => HoardFileDiff::BinaryModified {
-                file,
-                diff_source: DiffSource::Mixed,
-            },
-            (true, _, Some(OperationType::Delete), Some(Diff::Binary)) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Unknown,
-            },
-            (
-                true,
-                Some(OperationType::Create),
-                Some(OperationType::Modify),
-                Some(Diff::Binary),
-            ) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Mixed,
-            },
-            (
-                true,
-                Some(OperationType::Modify),
-                Some(OperationType::Modify),
-                Some(Diff::Binary),
-            ) => HoardFileDiff::BinaryModified {
-                file,
-                diff_source: DiffSource::Mixed,
-            },
-            (false, _, None, Some(Diff::Binary)) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Unknown,
-            },
-            (
-                true,
-                None,
-                Some(OperationType::Create | OperationType::Modify),
-                Some(Diff::Text(unified_diff)),
-            ) => HoardFileDiff::TextModified {
-                file,
-                unified_diff: Some(unified_diff),
-                diff_source: DiffSource::Remote,
-            },
-            (true, Some(OperationType::Create), None, Some(Diff::Text(_))) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Unknown,
-                }
-            }
-            (true, Some(OperationType::Modify), None, Some(Diff::Text(unified_diff))) => {
-                HoardFileDiff::TextModified {
-                    file,
-                    unified_diff: Some(unified_diff),
-                    diff_source: DiffSource::Local,
-                }
-            }
-            (true, _, Some(OperationType::Delete), Some(Diff::Text(_))) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Unknown,
-            },
-            (
-                true,
-                Some(OperationType::Create),
-                Some(OperationType::Create),
-                Some(Diff::Text(unified_diff)),
-            ) => HoardFileDiff::Created {
-                file,
-                unified_diff: Some(unified_diff),
-                diff_source: DiffSource::Mixed,
-            },
-            (
-                true,
-                Some(OperationType::Modify),
-                Some(OperationType::Create),
-                Some(Diff::Text(unified_diff)),
-            ) => HoardFileDiff::TextModified {
-                file,
-                unified_diff: Some(unified_diff),
-                diff_source: DiffSource::Mixed,
-            },
-            (
-                true,
-                Some(OperationType::Create),
-                Some(OperationType::Modify),
-                Some(Diff::Text(unified_diff)),
-            ) => HoardFileDiff::Created {
-                file,
-                unified_diff: Some(unified_diff),
-                diff_source: DiffSource::Mixed,
-            },
-            (
-                true,
-                Some(OperationType::Modify),
-                Some(OperationType::Modify),
-                Some(Diff::Text(unified_diff)),
-            ) => HoardFileDiff::TextModified {
-                file,
-                unified_diff: Some(unified_diff),
-                diff_source: DiffSource::Mixed,
-            },
-            (false, _, None, Some(Diff::Text(unified_diff))) => HoardFileDiff::Created {
-                file,
-                unified_diff: Some(unified_diff),
-                diff_source: DiffSource::Unknown,
-            },
-            (true, None, Some(OperationType::Create | OperationType::Modify), None) => HoardFileDiff::Deleted {
-                file, diff_source: DiffSource::Unknown
-            },
-            (true, None, Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
-                file, diff_source: DiffSource::Remote
-            },
-            (true, Some(OperationType::Create), None, None) => HoardFileDiff::Created {
-                file,
-                unified_diff: None,
-                diff_source: DiffSource::Unknown,
-            },
-            (true, Some(OperationType::Delete), None, None) => HoardFileDiff::Deleted {
-                file,
-                diff_source: DiffSource::Unknown,
-            },
-            (true, Some(OperationType::Modify), None, None) => if file.is_text() {
-                HoardFileDiff::TextModified {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Unknown
-                }
-            } else {
-                HoardFileDiff::BinaryModified {
-                    file,
-                    diff_source: DiffSource::Unknown,
-                }
-            },
-            (true, Some(OperationType::Create), Some(OperationType::Create), None) => {
-                HoardFileDiff::Created {
-                    file,
-                    unified_diff: None,
-                    diff_source: DiffSource::Mixed,
-                }
-            },
-            (true, Some(OperationType::Create), Some(OperationType::Modify), None) => HoardFileDiff::Created {
-                file, unified_diff: None, diff_source: DiffSource::Mixed
-            },
-            (true, Some(OperationType::Create), Some(OperationType::Delete), None) => HoardFileDiff::Created {
-                // If file was deleted remotely and created locally, there can be no diff only if
-                // the file was recreated out-of-band in the hoard folder.
-                file, unified_diff: None, diff_source: DiffSource::Unknown
-            },
-            (true, Some(OperationType::Delete), Some(OperationType::Create | OperationType::Modify), None) => HoardFileDiff::Deleted {
-                file, diff_source: DiffSource::Unknown
-            },
-            (true, Some(OperationType::Delete), Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
-                file, diff_source: DiffSource::Mixed
-            },
-            // Deleted and recreated (or just modified) remotely, but with the same modifications as local
-            (true, Some(OperationType::Modify), Some(OperationType::Create | OperationType::Modify), None) => if file.is_text() {
-                HoardFileDiff::TextModified {
-                    file, unified_diff: None, diff_source: DiffSource::Mixed
-                }
-            } else {
-                HoardFileDiff::BinaryModified {
-                    file, diff_source: DiffSource::Mixed
-                }
-            },
-            (true, Some(OperationType::Modify), Some(OperationType::Delete), None) => HoardFileDiff::Created {
-                file, unified_diff: None, diff_source: DiffSource::Unknown
-            },
-        };
-        tracing::trace!(?expected_diff);
-        expected_diff
     }
 }
 

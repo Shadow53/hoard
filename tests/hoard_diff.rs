@@ -64,7 +64,7 @@ fn get_hoards(tester: &Tester) -> BTreeMap<HoardName, Vec<File>> {
                 path: tester.home_dir().join("testdir").join("test.bin"),
                 hoard_path: Some(tester.data_dir().join("hoards").join("anon_dir").join("test.bin")),
                 ignored: false,
-                is_text: true,
+                is_text: false,
             },
             File {
                 path: tester.home_dir().join("testdir").join("ignore.txt"),
@@ -92,7 +92,7 @@ fn get_hoards(tester: &Tester) -> BTreeMap<HoardName, Vec<File>> {
                 path: tester.home_dir().join("named.bin"),
                 hoard_path: Some(tester.data_dir().join("hoards").join("named").join("binary")),
                 ignored: false,
-                is_text: true,
+                is_text: false,
             },
         ],
     }
@@ -260,21 +260,29 @@ enum Content {
 
 impl Content {
     fn default() -> Option<Self> {
-        Some(Content::Data(("This is a text file", [0x12, 0xFB, 0x3D, 0x00, 0x3A])))
+        Some(Content::Data(("This is a text file", [0xFF, 0xFE, 0xFD, 0xFC, 0xFB])))
     }
 
     fn changed_a() -> Option<Self> {
         Some(Content::Data((
             "This is different text content",
-            [0x12, 0xFB, 0x45, 0x00, 0x3A],
+            [0xFF, 0xFE, 0xF5, 0xFC, 0xFB],
         )))
     }
 
     fn changed_b() -> Option<Self> {
        Some(Content::Data((
            "This is yet other text content",
-           [0x12, 0xFB, 0x91, 0x00, 0x3A],
+           [0xFF, 0xFE, 0xFD, 0xF0, 0xFB],
        )))
+    }
+
+    fn writable() -> Option<Self> {
+        Some(Content::Perms(0o666))
+    }
+
+    fn readonly() -> Option<Self> {
+        Some(Content::Perms(0o444))
     }
 
     fn none() -> Option<Self> {
@@ -1293,7 +1301,6 @@ mod modify {
 
 mod permissions {
     use super::*;
-
 }
 
 mod delete {
@@ -1566,6 +1573,20 @@ mod delete {
                 local;
                 restore;
                 set_system_content: Content::changed_a();
+                set_hoard_content: Content::none();
+            }
+        }
+
+        test_diff! {
+            name: create_modify_remote_delete_unknown,
+            diff_type: DELETED,
+            location: UNKNOWN,
+            setup: {
+                remote;
+                set_system_content: Content::default();
+                backup;
+                set_system_content: Content::changed_a();
+                backup;
                 set_hoard_content: Content::none();
             }
         }
