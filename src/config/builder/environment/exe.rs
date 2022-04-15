@@ -219,7 +219,6 @@ mod tests {
 
     #[test]
     fn test_exe_exists() {
-        println!("{}", std::env::var("PATH").unwrap());
         for exe in &EXE_NAMES {
             let exists: bool = ExeExists(PathBuf::from(exe).try_into().unwrap())
                 .try_into()

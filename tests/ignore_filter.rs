@@ -12,32 +12,13 @@ const NESTED_FILE: &str = "nested_dir/.hidden";
 
 fn ignored_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
     vec![
-        tester
-            .home_dir()
-            .join("first_anon_dir")
-            .join("global_ignore"),
-        tester
-            .home_dir()
-            .join("first_named_dir1")
-            .join("global_ignore"),
-        tester
-            .home_dir()
-            .join("first_named_dir2")
-            .join("global_ignore"),
-        tester
-            .home_dir()
-            .join("first_named_dir1")
-            .join("ignore_for_hoard"),
-        tester
-            .home_dir()
-            .join("first_named_dir2")
-            .join("ignore_for_hoard"),
-        tester.home_dir().join("first_named_dir1").join("spilem"),
-        tester
-            .home_dir()
-            .join("first_named_dir2")
-            .join("nested_dir")
-            .join(".hidden"),
+        tester.home_dir().join("first_anon_dir").join(GLOBAL_FILE),
+        tester.home_dir().join("first_named_dir1").join(GLOBAL_FILE),
+        tester.home_dir().join("first_named_dir2").join(GLOBAL_FILE),
+        tester.home_dir().join("first_named_dir1").join(HOARD_FILE),
+        tester.home_dir().join("first_named_dir2").join(HOARD_FILE),
+        tester.home_dir().join("first_named_dir1").join(PILE_FILE),
+        tester.home_dir().join("first_named_dir2").join(NESTED_FILE),
     ]
 }
 

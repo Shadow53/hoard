@@ -26,7 +26,7 @@ pub enum Error {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub(crate) struct IgnoreFilter {
     globs: Vec<Pattern>,
 }
@@ -42,7 +42,6 @@ impl Filter for IgnoreFilter {
 
     fn keep(&self, prefix: &SystemPath, rel_path: &RelativePath) -> bool {
         let _span = tracing::trace_span!("ignore_filter", ?prefix, ?rel_path).entered();
-        tracing::trace!("stripping {:?} from {:?}", prefix, rel_path);
         self.globs.iter().all(|glob| {
             let matches = glob.matches_path(&rel_path.to_path_buf());
             tracing::trace!("{:?} matches glob {:?}: {}", rel_path, glob, matches);

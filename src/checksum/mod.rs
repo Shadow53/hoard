@@ -7,7 +7,7 @@ mod digest;
 pub use self::digest::{MD5, SHA256};
 
 /// The types of checksums supported by Hoard.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChecksumType {
     /// MD5 checksum -- provided for backwards compatibility with older versions of Hoard.

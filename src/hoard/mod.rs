@@ -5,7 +5,6 @@
 pub(crate) mod iter;
 pub(crate) mod pile_config;
 
-use crate::checkers::history::last_paths::HoardPaths;
 use crate::filters::Error as FilterError;
 use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
@@ -102,20 +101,6 @@ pub enum Hoard {
 }
 
 impl Hoard {
-    /// Returns a [`HoardPaths`] based on this `Hoard`.
-    #[must_use]
-    pub fn get_last_paths(&self) -> HoardPaths {
-        match self {
-            Hoard::Anonymous(pile) => pile.path.clone().into(),
-            Hoard::Named(piles) => piles
-                .piles
-                .iter()
-                .filter_map(|(key, val)| val.path.clone().map(|path| (key.clone(), path)))
-                .collect::<HashMap<_, _>>()
-                .into(),
-        }
-    }
-
     /// Returns an iterator over all piles with associates paths.
     ///
     /// The [`HoardPath`] and [`SystemPath`] represent the relevant prefix/root path for the given pile.

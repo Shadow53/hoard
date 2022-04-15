@@ -2,7 +2,6 @@
 
 use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::Checker;
-use crate::hoard::iter::ItemOperation;
 use crate::hoard::{Direction, Hoard};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -18,6 +17,7 @@ pub mod v2;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
 use crate::checksum::Checksum;
+use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 pub(crate) use util::cleanup_operations;
@@ -51,6 +51,46 @@ pub enum Error {
     /// This shouldn't happen in practice, but returning an error is preferred to panicking.
     #[error("found mixed empty/anonymous and non-empty pile names")]
     MixedPileNames,
+}
+
+/// Indicates what operation is/was/should be performed on the contained [`HoardItem`]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::module_name_repetitions)]
+#[allow(missing_docs)]
+pub enum ItemOperation {
+    Create(HoardItem),
+    Modify(HoardItem),
+    Delete(HoardItem),
+    /// Indicates a file that is unchanged.
+    Nothing(HoardItem),
+    /// Indicates a file that does not exist but is listed directly in the config.
+    DoesNotExist(HoardItem),
+}
+
+impl From<ItemOperation> for HoardItem {
+    fn from(op: ItemOperation) -> Self {
+        match op {
+            ItemOperation::Create(item)
+            | ItemOperation::Modify(item)
+            | ItemOperation::Delete(item)
+            | ItemOperation::Nothing(item)
+            | ItemOperation::DoesNotExist(item) => item,
+        }
+    }
+}
+
+/// Enum representing types of operations
+///
+/// Does not include no operation.
+#[derive(Debug)]
+#[allow(clippy::module_name_repetitions)]
+pub enum OperationType {
+    /// Created a (system) file.
+    Create,
+    /// Modified an existing file.
+    Modify,
+    /// Deleted a (system) file.
+    Delete,
 }
 
 /// Information logged about a single Hoard file inside of an Operation.
@@ -105,6 +145,22 @@ pub trait OperationImpl {
         _hoard_path: &HoardPath,
         _hoard: &Hoard,
     ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+        Err(Error::UpgradeRequired)
+    }
+
+    /// Returns the operation performed on the given file, if any.
+    ///
+    /// Returns `None` if the file did not exist in the hoard *or* if the file was unmodified.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UpgradeRequired`] in the case when the operation log format is too old to
+    /// contain information about the operation performed on a given file.
+    fn file_operation(
+        &self,
+        _pile_name: &PileName,
+        _rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
         Err(Error::UpgradeRequired)
     }
 }
@@ -167,6 +223,17 @@ impl OperationImpl for OperationVersion {
             OperationVersion::V2(v2) => v2.hoard_operations_iter(hoard_root, hoard),
         }
     }
+
+    fn file_operation(
+        &self,
+        pile_name: &PileName,
+        rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
+        match &self {
+            OperationVersion::V1(v1) => v1.file_operation(pile_name, rel_path),
+            OperationVersion::V2(v2) => v2.file_operation(pile_name, rel_path),
+        }
+    }
 }
 
 /// A wrapper struct for any supported operation log version.
@@ -213,6 +280,14 @@ impl OperationImpl for Operation {
     ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
         self.0.hoard_operations_iter(hoard_root, hoard)
     }
+
+    fn file_operation(
+        &self,
+        pile_name: &PileName,
+        rel_path: &RelativePath,
+    ) -> Result<Option<OperationType>, Error> {
+        self.0.file_operation(pile_name, rel_path)
+    }
 }
 
 impl Operation {
@@ -227,7 +302,12 @@ impl Operation {
             .map(Self)
     }
 
-    fn require_latest_version(&self) -> Result<(), Error> {
+    /// Return an error if this `Operation` is not the most recent schema version.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::UpgradeRequired`] if this `Operation` is not the most recent schema.
+    pub fn require_latest_version(&self) -> Result<(), Error> {
         if let Self(OperationVersion::V2(_)) = self {
             Ok(())
         } else {
@@ -235,11 +315,21 @@ impl Operation {
         }
     }
 
-    fn as_latest_version(&self) -> Result<&Self, Error> {
+    /// Borrows the `Operation` if it is the most recent schema version, otherwise returns an error.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::UpgradeRequired`] if this `Operation` is not the most recent schema.
+    pub fn as_latest_version(&self) -> Result<&Self, Error> {
         self.require_latest_version().map(|_| self)
     }
 
-    fn into_latest_version(self) -> Result<Self, Error> {
+    /// Returns the owned `Operation` if it is the most recent schema version, otherwise returns an error.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::UpgradeRequired`] if this `Operation` is not the most recent schema.
+    pub fn into_latest_version(self) -> Result<Self, Error> {
         self.require_latest_version().map(|_| self)
     }
 
@@ -329,12 +419,10 @@ impl Operation {
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
-    ///
-    /// `path` must be relative to one of the hoard's piles.
     fn latest_hoard_operation_from_local_dir(
         dir: &HoardPath,
         hoard: &HoardName,
-        path: Option<(&PileName, &RelativePath)>,
+        file: Option<(&PileName, &RelativePath)>,
         backups_only: bool,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
@@ -361,7 +449,7 @@ impl Operation {
                 Ok(operation) => (!backups_only || operation.direction() == Direction::Backup)
                     .then(|| Ok(operation)),
             })
-            .filter_map(|operation| match path {
+            .filter_map(|operation| match file {
                 None => Some(operation),
                 Some((pile_name, path)) => match operation {
                     Err(err) => Some(Err(err)),
@@ -420,49 +508,6 @@ impl Operation {
             .map(Option::flatten)?
             .map(Self::into_latest_version)
             .transpose()
-    }
-
-    /// Returns whether the given `file` has unapplied remote changes.
-    ///
-    /// `file` must be a path relative to the root of one of the Hoard's Piles, or
-    /// `RelativePath::none()` if the Pile represents a file.
-    ///
-    /// # Errors
-    ///
-    /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
-    pub(crate) fn file_has_remote_changes(
-        hoard: &HoardName,
-        pile_name: &PileName,
-        file: &RelativePath,
-    ) -> Result<bool, Error> {
-        let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), true)?;
-        let local = Self::latest_local(hoard, Some((pile_name, file)))?;
-
-        let result = match (remote, local) {
-            (None, _) => false,
-            (Some(_), None) => true,
-            (Some(remote), Some(local)) => remote.timestamp() > local.timestamp(),
-        };
-
-        Ok(result)
-    }
-
-    /// Returns whether the given `file` has any records from `hoard`.
-    ///
-    /// `file` must be a path relative to the root of one of the Hoard's Piles.
-    ///
-    /// # Errors
-    ///
-    /// - Any errors returned by [`latest_local`] or [`latest_remote_backup`].
-    pub(crate) fn file_has_records(
-        hoard: &HoardName,
-        pile_name: &PileName,
-        file: &RelativePath,
-    ) -> Result<bool, Error> {
-        let remote = Self::latest_remote_backup(hoard, Some((pile_name, file)), false)?;
-        let local = Self::latest_local(hoard, Some((pile_name, file)))?;
-
-        Ok(remote.is_some() || local.is_some())
     }
 
     pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {

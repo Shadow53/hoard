@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::ops::DerefMut;
 use std::{
     fs, io,
@@ -294,7 +295,28 @@ impl Tester {
         fs::read_to_string(self.uuid_path())
     }
 
+    pub fn current_uuid(&self) -> Option<uuid::Uuid> {
+        match self.get_uuid() {
+            Ok(s) => s.parse().ok(),
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => None,
+                _ => panic!("unexpected error while reading UUID: {}", err),
+            },
+        }
+    }
+
     pub fn set_uuid(&self, content: &str) -> io::Result<()> {
         fs::write(self.uuid_path(), content)
+    }
+
+    pub fn clear_data_dir(&self) {
+        for entry in fs::read_dir(self.data_dir()).unwrap() {
+            let entry = entry.unwrap();
+            if entry.path().is_file() {
+                fs::remove_file(entry.path()).unwrap();
+            } else if entry.path().is_dir() {
+                fs::remove_dir_all(entry.path()).unwrap();
+            }
+        }
     }
 }

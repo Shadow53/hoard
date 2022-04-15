@@ -11,8 +11,9 @@ use similar::{ChangeTag, TextDiff};
 
 const CONTEXT_RADIUS: usize = 5;
 
-#[derive(Debug, Clone, PartialEq)]
-enum FileContent {
+/// Represents the existing file content for a given file.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileContent {
     Text(String),
     Binary(Vec<u8>),
     Missing,
@@ -43,23 +44,17 @@ pub(crate) enum Diff {
     Text(String),
     /// Binary content differs. Also occurs if a file changes between text and binary formats.
     Binary,
-    /// Content is the same, but permissions differ.
-    Permissions(fs::Permissions, fs::Permissions),
     /// The left path to diff_files did not exist, but the right path did.
     HoardNotExists,
     /// The left path to diff_paths existed, but the right path did not.
     SystemNotExists,
 }
 
-fn content_and_meta_for(path: &Path) -> io::Result<(FileContent, Option<fs::Metadata>)> {
+fn content_for(path: &Path) -> io::Result<FileContent> {
     match fs::File::open(path) {
-        Ok(file) => {
-            let meta = file.metadata()?;
-            let content = FileContent::read(file)?;
-            Ok((content, Some(meta)))
-        }
+        Ok(file) => FileContent::read(file),
         Err(err) => match err.kind() {
-            io::ErrorKind::NotFound => Ok((FileContent::Missing, None)),
+            io::ErrorKind::NotFound => Ok(FileContent::Missing),
             _ => Err(err),
         },
     }
@@ -69,17 +64,8 @@ pub(crate) fn diff_files(
     hoard_path: &HoardPath,
     system_path: &SystemPath,
 ) -> io::Result<Option<Diff>> {
-    let (hoard_content, hoard_meta) = content_and_meta_for(hoard_path)?;
-    let (system_content, system_meta) = content_and_meta_for(system_path)?;
-
-    let permissions_diff = if let (Some(hoard_meta), Some(system_meta)) = (hoard_meta, system_meta)
-    {
-        let hoard_perms = hoard_meta.permissions();
-        let system_perms = system_meta.permissions();
-        (hoard_perms != system_perms).then(|| Diff::Permissions(hoard_perms, system_perms))
-    } else {
-        None
-    };
+    let hoard_content = content_for(hoard_path)?;
+    let system_content = content_for(system_path)?;
 
     let diff = match (hoard_content, system_content) {
         (FileContent::Missing, FileContent::Missing) => None,
@@ -103,7 +89,7 @@ pub(crate) fn diff_files(
                     .to_string();
                 Some(Diff::Text(udiff))
             } else {
-                permissions_diff
+                None
             }
         }
         (left, right) => {
@@ -114,7 +100,6 @@ pub(crate) fn diff_files(
                 .zip(right)
                 .any(|(l, r)| l != r)
                 .then(|| Diff::Binary)
-                .or(permissions_diff)
         }
     };
 

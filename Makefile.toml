@@ -20,7 +20,7 @@
     args = ["+stable", "build", "--target", "x86_64-unknown-linux-musl"]
     [tasks.build-stable.env]
         RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage"
+        RUSTFLAGS="-Cinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
 [tasks.test-nextest]
@@ -29,7 +29,7 @@
     args = ["nextest", "run"]
     [tasks.test-nextest.env]
         RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
+        RUSTFLAGS="-Cinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
 [tasks.test-single-thread]
@@ -39,7 +39,7 @@
     args = ["+stable", "test", "--", "--test-threads=1"]
     [tasks.test-single-thread.env]
         RUSTC_BOOTSTRAP="1"
-        RUSTFLAGS="-Zinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
+        RUSTFLAGS="-Cinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
 [tasks.docker-tests]
@@ -63,13 +63,13 @@
         --excl-br-stop "grcov: ignore-end" --excl-stop "grcov: ignore-end"
     """
     [tasks.grcov.env]
-        RUSTFLAGS="-Zinstrument-coverage"
+        RUSTFLAGS="-Cinstrument-coverage"
         RUSTC_BOOTSTRAP="1"
         RUSTUP_TOOLCHAIN="stable"
         HOARD_LOG="trace"
         EXCLUDE_DERIVE="#\\[derive\\("
-        EXCLUDE_PANICS="panic!|todo!|unimplemented!"
-        EXCLUDE_TRACING="tracing::(error|warn|info|debug|trace)(_span)?"
+        EXCLUDE_PANICS="panic!|todo!|unimplemented!|unreachable!"
+        EXCLUDE_TRACING="kjhgfdsadgjkl" #tracing::(error|warn|info|debug|trace)(_span)?!"
         EXCLUDE_PROPAGATE_ERROR="(return|(Err\\(err(or)?\\)|err(or)?) =>) (Some\\()?Err\\(err(or)?(\\.into\\(\\))?\\)"
         EXCLUDE_MANUAL="grcov: ignore"
         EXCLUDE_LONE_CLOSING_BRACE="^\\s*\\}\\s*$"
