@@ -4,8 +4,6 @@ use crate::paths::HoardPath;
 use std::collections::BTreeSet;
 
 use crate::newtypes::HoardName;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 pub(crate) fn run_diff(
     hoard: &Hoard,
@@ -46,35 +44,6 @@ pub(crate) fn run_diff(
                 if let (true, Some(unified_diff)) = (verbose, unified_diff) {
                     tracing::info!("{}", unified_diff);
                 }
-            }
-            HoardFileDiff::PermissionsModified {
-                file,
-                hoard_perms,
-                system_perms,
-                ..
-            } => {
-                #[cfg(unix)]
-                tracing::info!(
-                    "{}: permissions changed: hoard ({:o}), system ({:o})",
-                    file.system_path().display(),
-                    hoard_perms.mode(),
-                    system_perms.mode(),
-                );
-                #[cfg(not(unix))]
-                tracing::info!(
-                    "{}: permissions changed: hoard ({}), system ({})",
-                    file.system_path().display(),
-                    if hoard_perms.readonly() {
-                        "readonly"
-                    } else {
-                        "writable"
-                    },
-                    if system_perms.readonly() {
-                        "readonly"
-                    } else {
-                        "writable"
-                    },
-                );
             }
             HoardFileDiff::Created {
                 file,

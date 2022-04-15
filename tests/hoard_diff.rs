@@ -7,8 +7,6 @@ use hoard::newtypes::HoardName;
 use paste::paste;
 use std::fs;
 use std::io::ErrorKind;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 const DIFF_TOML: &str = r#"
@@ -106,7 +104,7 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
                 assert!(!path.exists());
             }
         }
-        Some(Content::Data((text, binary))) => {
+        Some(Content((text, binary))) => {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).expect("should be able to create file parents");
             }
@@ -122,33 +120,6 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
                 "writing to the {} failed to create file",
                 path.display()
             );
-        }
-        Some(Content::Perms(octet)) => {
-            let file = fs::File::open(path).expect("file should exist and be able to be opened");
-            let mut permissions = file
-                .metadata()
-                .expect("failed to read file metadata")
-                .permissions();
-            #[cfg(unix)]
-            {
-                permissions.set_mode(octet);
-                fs::set_permissions(path, permissions).expect("failed to set permissions on file");
-            }
-            #[cfg(windows)]
-            {
-                let readonly = !is_writable(octet);
-                if permissions.readonly() != readonly {
-                    println!(
-                        "attempting to set {} permissions to {} from readonly = {}",
-                        path.display(),
-                        !is_writable(octet),
-                        permissions.readonly()
-                    );
-                    permissions.set_readonly(readonly);
-                    fs::set_permissions(path, permissions)
-                        .expect("failed to set permissions on file");
-                }
-            }
         }
     }
 }
@@ -170,16 +141,13 @@ fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
         (Some(_), None) => {
             panic!("expected {} to exist, but it does not", path.display());
         }
-        (Some(Content::Data((text, binary))), Some(current_data)) => {
+        (Some(Content((text, binary))), Some(current_data)) => {
             if is_text {
                 let current_text = String::from_utf8(current_data).unwrap();
                 assert_eq!(current_text, text, "expected file to contain right value, but had left value instead");
             } else {
                 assert_eq!(current_data, binary, "expected file to contain right value, but had left value instead");
             }
-        }
-        (Some(Content::Perms(perms)), Some(_)) => {
-            unimplemented!("permissions checking is not implemented yet");
         }
     }
 }
@@ -214,13 +182,13 @@ fn get_full_diff(
 ) -> String {
     let hoard_content = match hoard_content {
         None => return String::new(),
-        Some(Content::Data((hoard_content, _))) => hoard_content,
+        Some(Content((hoard_content, _))) => hoard_content,
         Some(_) => panic!("expected text, not permissions"),
     };
 
     let system_content = match system_content {
         None => return String::new(),
-        Some(Content::Data((system_content, _))) => system_content,
+        Some(Content((system_content, _))) => system_content,
         Some(_) => panic!("expected text, not permissions"),
     };
 
@@ -253,36 +221,25 @@ struct File {
 }
 
 #[derive(Clone)]
-enum Content {
-    Data((&'static str, [u8; 5])),
-    Perms(u32),
-}
+struct Content((&'static str, [u8; 5]));
 
 impl Content {
     fn default() -> Option<Self> {
-        Some(Content::Data(("This is a text file", [0xFF, 0xFE, 0xFD, 0xFC, 0xFB])))
+        Some(Content(("This is a text file", [0xFF, 0xFE, 0xFD, 0xFC, 0xFB])))
     }
 
     fn changed_a() -> Option<Self> {
-        Some(Content::Data((
+        Some(Content((
             "This is different text content",
             [0xFF, 0xFE, 0xF5, 0xFC, 0xFB],
         )))
     }
 
     fn changed_b() -> Option<Self> {
-       Some(Content::Data((
+       Some(Content((
            "This is yet other text content",
            [0xFF, 0xFE, 0xFD, 0xF0, 0xFB],
        )))
-    }
-
-    fn writable() -> Option<Self> {
-        Some(Content::Perms(0o666))
-    }
-
-    fn readonly() -> Option<Self> {
-        Some(Content::Perms(0o444))
     }
 
     fn none() -> Option<Self> {
@@ -459,35 +416,6 @@ macro_rules! test_diff {
                             $diff_type,
                             $location
                         ),
-                        PERMS => {
-                            let hoard_perms = match hoard_content.clone().expect("expected permissions") {
-                                Content::Data(_) => panic!("expected permissions, not data"),
-                                Content::Perms(perms) => perms,
-                            };
-
-                            let system_perms = match system_content.clone().expect("expected permissions") {
-                                Content::Data(_) => panic!("expected permissions, not data"),
-                                Content::Perms(perms) => perms,
-                            };
-
-                            #[cfg(unix)]
-                            let (hoard_perms, system_perms) = (format!("{:o}", hoard_perms), format!("{:o}", system_perms));
-
-                            #[cfg(windows)]
-                            let hoard_perms = if is_writable(hoard_perms) {
-                                "writable"
-                            } else {
-                                "readonly"
-                            };
-
-                            #[cfg(windows)]
-                            let system_perms = if is_writable(system_perms) {
-                                "writable"
-                            } else {
-                                "readonly"
-                            };
-                            format!("permissions changed: hoard({}), system ({})", hoard_perms, system_perms)
-                        },
                         _ => panic!("unexpected diff type: {}", $diff_type),
                     };
 
@@ -537,7 +465,6 @@ macro_rules! test_diff {
 
 const CREATED: &str = "(re)created";
 const MODIFIED: &str = "changed";
-const PERMS: &str = "permissions changed";
 const DELETED: &str = "deleted";
 
 const LOCAL: &str = "locally";
@@ -555,6 +482,21 @@ mod create {
         setup:  {
             local;
             set_system_content: Content::default();
+        }
+    }
+
+    test_diff! {
+        name: test_create_delete_remote_create_local,
+        diff_type: CREATED,
+        location: LOCAL,
+        setup: {
+            remote;
+            set_system_content: Content::default();
+            backup;
+            set_system_content: Content::none();
+            backup;
+            local;
+            set_system_content: Content::changed_a();
         }
     }
 
@@ -589,6 +531,36 @@ mod create {
         setup: {
             remote;
             set_system_content: Content::default();
+            backup;
+            local;
+            set_system_content: Content::changed_a();
+        }
+    }
+
+    test_diff! {
+        name: test_mixed_modify_remote_same_content,
+        diff_type: CREATED,
+        location: MIXED,
+        setup: {
+            remote;
+            set_system_content: Content::default();
+            backup;
+            set_system_content: Content::changed_a();
+            backup;
+            local;
+            set_system_content: Content::changed_a();
+        }
+    }
+
+    test_diff! {
+        name: test_mixed_modify_remote_different_content,
+        diff_type: CREATED,
+        location: MIXED,
+        setup: {
+            remote;
+            set_system_content: Content::default();
+            backup;
+            set_system_content: Content::changed_b();
             backup;
             local;
             set_system_content: Content::changed_a();

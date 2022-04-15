@@ -36,8 +36,7 @@ impl Iterator for OperationIter {
             #[allow(clippy::match_same_arms)]
             let op = match diff? {
                 HoardFileDiff::BinaryModified { file, .. }
-                | HoardFileDiff::TextModified { file, .. }
-                | HoardFileDiff::PermissionsModified { file, .. } => ItemOperation::Modify(file.into()),
+                | HoardFileDiff::TextModified { file, .. } => ItemOperation::Modify(file.into()),
                 HoardFileDiff::Created {
                     file, diff_source, ..
                 } => match (self.direction, diff_source) {

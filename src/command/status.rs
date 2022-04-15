@@ -21,7 +21,6 @@ pub(crate) fn run_status<'a>(
                 let source = match hoard_diff {
                     HoardFileDiff::BinaryModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::TextModified { diff_source, .. } => Some(diff_source),
-                    HoardFileDiff::PermissionsModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Created { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Deleted { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Unchanged(_) | HoardFileDiff::Nonexistent(_) => return None,
