@@ -112,8 +112,8 @@ jobs:
         env:
           RUSTC_BOOTSTRAP: '1'
           CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: '-Zinstrument-coverage'
-          RUSTDOCFLAGS: '-Zinstrument-coverage'
+          RUSTFLAGS: '-Cinstrument-coverage'
+          RUSTDOCFLAGS: '-Cinstrument-coverage'
           LLVM_PROFILE_FILE: 'profraw/hoard-cargo-tests-%p-%m.profraw'
 
       - name: Run grcov
@@ -126,7 +126,7 @@ jobs:
           --excl-br-start "(grcov: ignore-start|mod tests)" --excl-start "(grcov: ignore-start|mod tests)" \
           --excl-br-stop "grcov: ignore-end" --excl-stop "grcov: ignore-end"
         env:
-          RUSTFLAGS: "-Zinstrument-coverage"
+          RUSTFLAGS: "-Cinstrument-coverage"
           RUSTC_BOOTSTRAP: "1"
           RUSTUP_TOOLCHAIN: "stable"
           HOARD_LOG: "trace"
