@@ -118,3 +118,74 @@ to ignore. These lists will be merged across all levels of configuration.
     "bar" = "/another/named/path"
 ```
 
+### File Permissions
+
+> For a general discussion of file/folder permission support in Hoard, including
+> Windows-specific limitations, see [this page](../../permissions.md).
+
+Hoard supports setting permissions separately for files and folders, using `file_permissions`
+and `folder_permissions`, respectively. These can be specified in two different ways: a "mode"
+and boolean flags.
+
+#### Mode
+
+A "mode" is an octal (base 8) integer representing read, write, and execute permissions for the
+owning user, users in the owning "group", and all other users. See the
+[Wikipedia article](https://en.wikipedia.org/wiki/Unix_file_types#Representations) for more.
+
+You can specify a "mode" in TOML by prefixing the number with `0o`. For example, a common file
+mode is `0o644` (read/write for the owner user, readonly for everyone else).
+
+```toml
+[config]
+    file_permissions = 0o644
+```
+
+If using a "mode" is too confusing, you can also use a set of boolean flags: just set these to
+`true` or `false`:
+
+#### Flags
+
+> Note: only `is_writable` is supported on Windows. All other flags are ignored.
+> Note 2: "others" in the context of these boolean flags are a combination of the "group" and "other"
+> values from a file "mode".
+
+- `is_readable`: the owning user can read the contents of the file or folder. This should not be
+  set to `false` and is provided for completeness' sake.
+- `is_writable`: the owning user can modify and delete the file or folder.
+- `is_executable`: this has different meanings depending on whether it applies to files or folders:
+  - `true` for files means that the user can run the file as an executable program.
+  - `true` for folders means that the user can list the contents of the folder.
+  - In short, this should always be `true` for folders.
+
+- `others_can_read`: like `is_readable` but for non-owner users.
+- `others_can_write`: like `is_writable` but for non-owner users.
+- `others_can_execute`: like `is_executable` but for non-owner users.
+
+```toml
+# ... snip env definitions of "foo" and "bar" ...
+
+# Top-level config, applies to all hoards
+[config]
+    # These represent the current defaults used by Hoard:
+    # owner-only access.
+    file_permissions = 0o600
+    folder_permissions = 0o700
+
+[hoards]
+[hoards.anon_hoard]
+    "foo" = "/some/path"
+    "bar" = "/some/other/path"
+[hoards.anon_hoard.config.file_permissions]
+    # Equivalent to a 0o644 mode
+    is_readable = true
+    is_writable = true
+    others_can_read = true
+[hoards.anon_hoard.config.folder_permissions]
+    # Equivalent to a 0o755 mode
+    is_readable = true
+    is_writable = true
+    is_executable = true
+    others_can_read = true
+    others_can_execute = true
+```
