@@ -1,6 +1,6 @@
 #![allow(unused)]
 use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
-use crate::diff::{diff_files, Diff};
+use crate::diff::Diff;
 use crate::hoard::iter::all_files::AllFilesIter;
 use crate::hoard::Hoard;
 use crate::hoard_item::CachedHoardItem;
@@ -77,15 +77,7 @@ struct ProcessedFile {
 impl ProcessedFile {
     fn process(hoard_name: &HoardName, file: CachedHoardItem) -> Result<Self, super::Error> {
         let _span = tracing::trace_span!("processing_file", hoard=%hoard_name, ?file).entered();
-        let diff = diff_files(file.hoard_path(), file.system_path()).map_err(|err| {
-            tracing::error!(
-                "failed to diff {} and {}: {}",
-                file.system_path().display(),
-                file.hoard_path().display(),
-                err
-            );
-            super::Error::IO(err)
-        })?;
+        let diff = file.diff().cloned();
 
         let latest_local_log =
             Operation::latest_local(hoard_name, Some((file.pile_name(), file.relative_path())))

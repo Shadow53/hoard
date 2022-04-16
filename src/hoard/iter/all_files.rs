@@ -33,7 +33,7 @@ impl RootPathItem {
     }
 
     fn exists(&self) -> bool {
-        self.hoard_file.system_content().is_some() || self.hoard_file.hoard_content().is_some()
+        self.hoard_file.is_file() || self.hoard_file.is_dir()
     }
 }
 

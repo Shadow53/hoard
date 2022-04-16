@@ -2,9 +2,8 @@ use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
 use crate::diff::FileContent;
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::io::ErrorKind;
 use std::path::Path;
-use std::{fs, io};
+use std::io;
 
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -125,16 +124,7 @@ impl HoardItem {
     }
 
     fn content(path: &Path) -> io::Result<FileContent> {
-        match fs::read(path) {
-            Ok(content) => Ok(String::from_utf8(content).map_or_else(
-                |err| FileContent::Binary(err.into_bytes()),
-                FileContent::Text,
-            )),
-            Err(err) => match err.kind() {
-                ErrorKind::NotFound => Ok(FileContent::Missing),
-                _ => Err(err), // grcov: ignore
-            },
-        }
+        FileContent::read_path(path)
     }
 
     fn raw_content(path: &Path) -> io::Result<Option<Vec<u8>>> {
@@ -249,6 +239,7 @@ impl HoardItem {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::fs;
 
     use super::*;
     use crate::test::Tester;
