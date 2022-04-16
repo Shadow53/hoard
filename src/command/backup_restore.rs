@@ -3,6 +3,7 @@ use crate::checkers::{history::operation::OperationImpl, Checkers, Error as Cons
 use crate::hoard::iter::Error as IterError;
 use crate::hoard::pile_config::Permissions;
 use crate::hoard::{Direction, Hoard};
+use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::fs;
@@ -97,6 +98,81 @@ fn create_all_with_perms(path: &Path, perms: Permissions) -> Result<(), Error> {
     }
 }
 
+fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
+    let (src, dest) = match direction {
+        Direction::Backup => (file.system_path().as_ref(), file.hoard_path().as_ref()),
+        Direction::Restore => (file.hoard_path().as_ref(), file.system_path().as_ref()),
+    };
+    if let Some(parent) = dest.parent() {
+        tracing::trace!(?parent, "ensuring parent dirs");
+        if let Err(err) = create_all_with_perms(parent, Permissions::folder_default()) {
+            tracing::error!(
+                "failed to create parent directories for {}: {}",
+                dest.display(),
+                err
+            );
+            return Err(err);
+        }
+    }
+    tracing::debug!("copying {} to {}", src.display(), dest.display());
+    if let Err(err) = fs::copy(src, dest) {
+        tracing::error!(
+            "failed to copy {} to {}: {}",
+            src.display(),
+            dest.display(),
+            err
+        );
+        return Err(Error::IO(err));
+    }
+
+    Ok(())
+}
+
+fn fix_permissions(
+    hoard: &Hoard,
+    operation: &ItemOperation,
+    direction: Direction,
+) -> Result<(), Error> {
+    // Set permissions if file exists, regardless of if it was modified.
+    if let ItemOperation::Create(file)
+    | ItemOperation::Modify(file)
+    | ItemOperation::Nothing(file) = operation
+    {
+        match direction {
+            Direction::Backup => {
+                recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path())?;
+            }
+            Direction::Restore => {
+                let pile = hoard
+                    .get_pile(file.pile_name())
+                    .expect("pile name should always be valid here");
+                let file_perms = pile
+                    .config
+                    .file_permissions
+                    .unwrap_or_else(Permissions::file_default);
+                let dir_perms = pile
+                    .config
+                    .folder_permissions
+                    .unwrap_or_else(Permissions::folder_default);
+
+                tracing::debug!(
+                    "setting file ({:o}) and folder ({:o}) permissions",
+                    file_perms.as_mode(),
+                    dir_perms.as_mode()
+                );
+                recursively_set_system_permissions(
+                    file.system_prefix(),
+                    file.relative_path(),
+                    file_perms,
+                    dir_perms,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[allow(single_use_lifetimes)]
 fn backup_or_restore<'a>(
     hoards_root: &HoardPath,
@@ -127,37 +203,7 @@ fn backup_or_restore<'a>(
             tracing::trace!("found operation: {:?}", operation);
             match &operation {
                 ItemOperation::Create(file) | ItemOperation::Modify(file) => {
-                    let (src, dest) = match direction {
-                        Direction::Backup => {
-                            (file.system_path().as_ref(), file.hoard_path().as_ref())
-                        }
-                        Direction::Restore => {
-                            (file.hoard_path().as_ref(), file.system_path().as_ref())
-                        }
-                    };
-                    if let Some(parent) = dest.parent() {
-                        tracing::trace!(?parent, "ensuring parent dirs");
-                        if let Err(err) =
-                            create_all_with_perms(parent, Permissions::folder_default())
-                        {
-                            tracing::error!(
-                                "failed to create parent directories for {}: {}",
-                                dest.display(),
-                                err
-                            );
-                            return Err(err);
-                        }
-                    }
-                    tracing::debug!("copying {} to {}", src.display(), dest.display());
-                    if let Err(err) = fs::copy(src, dest) {
-                        tracing::error!(
-                            "failed to copy {} to {}: {}",
-                            src.display(),
-                            dest.display(),
-                            err
-                        );
-                        return Err(Error::IO(err));
-                    }
+                    copy_file(file, direction)?;
                 }
                 ItemOperation::Delete(file) => {
                     let to_remove = match direction {
@@ -180,45 +226,7 @@ fn backup_or_restore<'a>(
                 }
             }
 
-            // Set permissions if file exists, regardless of if it was modified.
-            if let ItemOperation::Create(file)
-            | ItemOperation::Modify(file)
-            | ItemOperation::Nothing(file) = operation
-            {
-                match direction {
-                    Direction::Backup => {
-                        recursively_set_hoard_permissions(
-                            file.hoard_prefix(),
-                            file.relative_path(),
-                        )?;
-                    }
-                    Direction::Restore => {
-                        let pile = hoard
-                            .get_pile(file.pile_name())
-                            .expect("pile name should always be valid here");
-                        let file_perms = pile
-                            .config
-                            .file_permissions
-                            .unwrap_or_else(Permissions::file_default);
-                        let dir_perms = pile
-                            .config
-                            .folder_permissions
-                            .unwrap_or_else(Permissions::folder_default);
-
-                        tracing::debug!(
-                            "setting file ({:o}) and folder ({:o}) permissions",
-                            file_perms.as_mode(),
-                            dir_perms.as_mode()
-                        );
-                        recursively_set_system_permissions(
-                            file.system_prefix(),
-                            file.relative_path(),
-                            file_perms,
-                            dir_perms,
-                        )?;
-                    }
-                }
-            }
+            fix_permissions(hoard, &operation, direction)?;
         }
     }
 
