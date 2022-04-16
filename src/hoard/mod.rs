@@ -126,4 +126,14 @@ impl Hoard {
             )),
         }
     }
+
+    /// Returns the pile with the given [`PileName`], if exists.
+    #[must_use]
+    pub fn get_pile(&self, name: &PileName) -> Option<&Pile> {
+        match (name.as_ref(), self) {
+            (None, Self::Anonymous(pile)) => Some(pile),
+            (Some(name), Self::Named(map)) => map.piles.get(name),
+            _ => None,
+        }
+    }
 }

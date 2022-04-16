@@ -19,3 +19,5 @@
 - [Configuration File](./config/README.md)
     - [Environments](./config/envs.md)
     - [Hoards and Piles](./config/hoards-piles.md)
+
+- [File Permissions](./permissions.md)

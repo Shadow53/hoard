@@ -1,6 +1,6 @@
 [tasks.clean-all]
     script = """
-    #cargo clean
+    cargo clean
     rm -rf profraw
     """
 
@@ -52,7 +52,7 @@
     """
 
 [tasks.grcov]
-    dependencies = ["clean-all", "test-nextest"]
+    dependencies = ["clean-all", "test-single-thread"]
     # Using `script` is necessary to get the glob expansion
     script = """
     grcov profraw/*.profraw --binary-path ./target/debug \
@@ -75,7 +75,7 @@
         EXCLUDE_LONE_CLOSING_BRACE="^\\s*\\}\\s*$"
 
 [tasks.view-grcov]
-    dependencies = ["grcov"]
+    dependencies = ["clean-all", "grcov"]
     command = "xdg-open"
     args = ["./target/debug/coverage/index.html"]
 

@@ -51,14 +51,12 @@ impl Filter for Filters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checksum::ChecksumType;
 
     #[test]
     fn test_filters_derives() {
         let config = PileConfig {
-            checksum_type: ChecksumType::default(),
-            encryption: None,
             ignore: vec![glob::Pattern::new("valid/**").unwrap()],
+            ..PileConfig::default()
         };
         let filters = Filters::new(&config).expect("config should be valid");
         assert!(format!("{:?}", filters).contains("Filters"));

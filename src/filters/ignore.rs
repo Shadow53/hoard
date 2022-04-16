@@ -53,23 +53,20 @@ impl Filter for IgnoreFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checksum::ChecksumType;
 
     #[test]
     fn test_filter_derives() {
         let filter = {
             let config = PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: None,
                 ignore: vec![Pattern::new("testing/**").unwrap()],
+                ..PileConfig::default()
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
         let other = {
             let config = PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: None,
                 ignore: vec![Pattern::new("test/**").unwrap()],
+                ..PileConfig::default()
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };

@@ -175,87 +175,6 @@ mod tests {
         AsymmetricEncryption, Config as PileConfig, Encryption, SymmetricEncryption,
     };
 
-    mod config {
-        use super::*;
-        use crate::checksum::ChecksumType;
-
-        #[test]
-        fn test_layer_configs_both_none() {
-            let mut specific = None;
-            let general = None;
-            PileConfig::layer_options(&mut specific, general);
-            assert!(specific.is_none());
-        }
-
-        #[test]
-        fn test_layer_specific_some_general_none() {
-            let mut specific = Some(PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
-                    "password".into(),
-                ))),
-                ignore: vec![glob::Pattern::new("ignore me").unwrap()],
-            });
-            let old_specific = specific.clone();
-            let general = None;
-            PileConfig::layer_options(&mut specific, general);
-            assert_eq!(specific, old_specific);
-        }
-
-        #[test]
-        fn test_layer_specific_none_general_some() {
-            let mut specific = None;
-            let general = Some(PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
-                    "password".into(),
-                ))),
-                ignore: vec![glob::Pattern::new("ignore me").unwrap()],
-            });
-            PileConfig::layer_options(&mut specific, general.as_ref());
-            assert_eq!(specific, general);
-        }
-
-        #[test]
-        fn test_layer_configs_both_some() {
-            let mut specific = Some(PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
-                    "password".into(),
-                ))),
-                ignore: vec![
-                    glob::Pattern::new("ignore me").unwrap(),
-                    glob::Pattern::new("duplicate").unwrap(),
-                ],
-            });
-            let old_specific = specific.clone();
-            let general = Some(PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
-                    public_key: "somekey".into(),
-                })),
-                ignore: vec![
-                    glob::Pattern::new("me too").unwrap(),
-                    glob::Pattern::new("duplicate").unwrap(),
-                ],
-            });
-            PileConfig::layer_options(&mut specific, general.as_ref());
-            assert!(specific.is_some());
-            assert_eq!(
-                specific.as_ref().unwrap().encryption,
-                old_specific.unwrap().encryption
-            );
-            assert_eq!(
-                specific.unwrap().ignore,
-                vec![
-                    glob::Pattern::new("duplicate").unwrap(),
-                    glob::Pattern::new("ignore me").unwrap(),
-                    glob::Pattern::new("me too").unwrap(),
-                ]
-            );
-        }
-    }
-
     mod process {
         use super::*;
         use crate::hoard::Pile as RealPile;
@@ -299,7 +218,6 @@ mod tests {
 
     mod serde {
         use super::*;
-        use crate::checksum::ChecksumType;
         use maplit::btreemap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 
@@ -329,11 +247,10 @@ mod tests {
         fn single_entry_with_config() {
             let hoard = Hoard::Single(Pile {
                 config: Some(PileConfig {
-                    checksum_type: ChecksumType::default(),
                     encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                         public_key: "public key".to_string(),
                     })),
-                    ignore: Vec::new(),
+                    ..PileConfig::default()
                 }),
                 items: btreemap! {
                     "bar_env|foo_env".parse().unwrap() => "/some/path".into()
@@ -348,14 +265,10 @@ mod tests {
                     Token::Some,
                     Token::Struct {
                         name: "Config",
-                        len: 3,
+                        len: 5,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum {
-                        name: "ChecksumType",
-                    },
-                    Token::Str("sha256"),
-                    Token::Unit,
+                    Token::None,
                     Token::Str("encrypt"),
                     Token::Some,
                     Token::Struct {
@@ -370,6 +283,10 @@ mod tests {
                     Token::Str("ignore"),
                     Token::Seq { len: Some(0) },
                     Token::SeqEnd,
+                    Token::Str("file_permissions"),
+                    Token::None,
+                    Token::Str("folder_permissions"),
+                    Token::None,
                     Token::StructEnd,
                     Token::Str("bar_env|foo_env"),
                     Token::Str("/some/path"),
@@ -414,11 +331,10 @@ mod tests {
         fn multiple_entry_with_config() {
             let hoard = Hoard::Multiple(MultipleEntries {
                 config: Some(PileConfig {
-                    checksum_type: ChecksumType::default(),
                     encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                         "correcthorsebatterystaple".into(),
                     ))),
-                    ignore: Vec::new(),
+                    ..PileConfig::default()
                 }),
                 items: btreemap! {
                     "item1".parse().unwrap() => Pile {
@@ -438,14 +354,10 @@ mod tests {
                     Token::Some,
                     Token::Struct {
                         name: "Config",
-                        len: 3,
+                        len: 5,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum {
-                        name: "ChecksumType",
-                    },
-                    Token::Str("sha256"),
-                    Token::Unit,
+                    Token::None,
                     Token::Str("encrypt"),
                     Token::Some,
                     Token::Map { len: Some(2) },
@@ -457,6 +369,10 @@ mod tests {
                     Token::Str("ignore"),
                     Token::Seq { len: Some(0) },
                     Token::SeqEnd,
+                    Token::Str("file_permissions"),
+                    Token::None,
+                    Token::Str("folder_permissions"),
+                    Token::None,
                     Token::StructEnd,
                     Token::Str("item1"),
                     Token::Map { len: None },
@@ -476,13 +392,15 @@ mod tests {
                 &[
                     Token::Struct {
                         name: "Config",
-                        len: 3,
+                        len: 5,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum { name: "ChecksumType" },
-                    Token::Str("sha256"),
-                    Token::Unit,
+                    Token::None,
                     Token::Str("encrypt"),
+                    Token::None,
+                    Token::Str("file_permissions"),
+                    Token::None,
+                    Token::Str("folder_permissions"),
                     Token::None,
                     Token::Str("ignore"),
                     Token::Seq { len: Some(2) },
@@ -498,12 +416,11 @@ mod tests {
         #[test]
         fn test_valid_globs() {
             let config = PileConfig {
-                checksum_type: ChecksumType::default(),
-                encryption: None,
                 ignore: vec![
                     glob::Pattern::new("**/valid*").unwrap(),
                     glob::Pattern::new("*/also_valid/**").unwrap(),
                 ],
+                ..PileConfig::default()
             };
 
             assert_tokens::<PileConfig>(
@@ -511,14 +428,10 @@ mod tests {
                 &[
                     Token::Struct {
                         name: "Config",
-                        len: 3,
+                        len: 5,
                     },
                     Token::Str("hash_algorithm"),
-                    Token::Enum {
-                        name: "ChecksumType",
-                    },
-                    Token::Str("sha256"),
-                    Token::Unit,
+                    Token::None,
                     Token::Str("encrypt"),
                     Token::None,
                     Token::Str("ignore"),
@@ -526,6 +439,10 @@ mod tests {
                     Token::Str("**/valid*"),
                     Token::Str("*/also_valid/**"),
                     Token::SeqEnd,
+                    Token::Str("file_permissions"),
+                    Token::None,
+                    Token::Str("folder_permissions"),
+                    Token::None,
                     Token::StructEnd,
                 ],
             );
