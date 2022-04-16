@@ -337,6 +337,14 @@ impl RelativePath {
     pub fn none() -> Self {
         Self(None)
     }
+
+    /// Returns the parent [`RelativePath`] to this one.
+    /// 
+    /// If this `RelativePath` has one or fewer components to it, an empty `RelativePath` is returned.
+    #[must_use]
+    pub fn parent(&self) -> RelativePath {
+        RelativePath(self.0.as_deref().and_then(Path::parent).map(Path::to_path_buf))
+    }
 }
 
 #[cfg(test)]

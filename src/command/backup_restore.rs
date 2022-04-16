@@ -3,9 +3,11 @@ use crate::checkers::{history::operation::OperationImpl, Checkers, Error as Cons
 use crate::hoard::iter::Error as IterError;
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
-use crate::paths::{HoardPath, RelativePath};
+use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::fs;
+use std::path::Path;
 use thiserror::Error;
+use crate::hoard::pile_config::Permissions;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -39,6 +41,49 @@ pub(crate) fn run_restore<'a>(
     backup_or_restore(hoards_root, Direction::Restore, hoards, force).map_err(super::Error::Restore)
 }
 
+fn recursively_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> Result<(), Error> {
+    let full_path = root.join(path);
+    set_permissions(&full_path, Permissions::file_default(), Permissions::folder_default())?;
+    if path.as_path().is_some() {
+        let new_rel = path.parent();
+        recursively_set_hoard_permissions(root, &new_rel)
+    } else {
+        Ok(())
+    }
+}
+
+fn recursively_set_system_permissions(root: &SystemPath, path: &RelativePath, file_perms: Permissions, dir_perms: Permissions) -> Result<(), Error> {
+    let full_path = root.join(path);
+    set_permissions(&full_path, file_perms, dir_perms)?;
+    if path.as_path().is_some() {
+        let new_rel = path.parent();
+        recursively_set_system_permissions(root, &new_rel, file_perms, dir_perms)
+    } else {
+        Ok(())
+    }
+}
+
+fn set_permissions(path: &Path, file_perms: Permissions, dir_perms: Permissions) -> Result<(), Error> {
+    if path.is_file() {
+        file_perms.set_on_path(path).map_err(Error::IO)
+    } else {
+        dir_perms.set_on_path(path).map_err(Error::IO)
+    }
+}
+
+fn create_all_with_perms(path: &Path, perms: Permissions) -> Result<(), Error> {
+    if path.is_dir() {
+        perms.set_on_path(path).map_err(Error::IO)
+    } else {
+        if let Some(parent) = path.parent() {
+            create_all_with_perms(parent, perms)?;
+        }
+
+        fs::create_dir(path)?;
+        perms.set_on_path(path).map_err(Error::IO)
+    }
+}
+
 #[allow(single_use_lifetimes)]
 fn backup_or_restore<'a>(
     hoards_root: &HoardPath,
@@ -52,8 +97,6 @@ fn backup_or_restore<'a>(
         checkers.check()?;
     }
 
-    // TODO: decrease runtime by using computed values from `checkers` instead of running
-    // the iterator again.
     for (name, hoard) in hoards {
         match direction {
             Direction::Backup => tracing::info!(hoard=%name, "backing up"),
@@ -69,7 +112,7 @@ fn backup_or_restore<'a>(
             .map_err(ConsistencyError::Operation)?;
         for operation in iter {
             tracing::trace!("found operation: {:?}", operation);
-            match operation {
+            match &operation {
                 ItemOperation::Create(file) | ItemOperation::Modify(file) => {
                     let (src, dest) = match direction {
                         Direction::Backup => {
@@ -81,13 +124,13 @@ fn backup_or_restore<'a>(
                     };
                     if let Some(parent) = dest.parent() {
                         tracing::trace!(?parent, "ensuring parent dirs");
-                        if let Err(err) = fs::create_dir_all(parent) {
+                        if let Err(err) = create_all_with_perms(parent, Permissions::folder_default()) {
                             tracing::error!(
                                 "failed to create parent directories for {}: {}",
                                 dest.display(),
                                 err
                             );
-                            return Err(Error::IO(err));
+                            return Err(err);
                         }
                     }
                     tracing::debug!("copying {} to {}", src.display(), dest.display());
@@ -119,6 +162,23 @@ fn backup_or_restore<'a>(
                 }
                 ItemOperation::DoesNotExist(file) => {
                     tracing::trace!("file {} does not exist", file.system_path().display());
+                }
+            }
+
+            // Set permissions if file exists, regardless of if it was modified.
+            if let ItemOperation::Create(file) | ItemOperation::Modify(file) | ItemOperation::Nothing(file) = operation {
+                match direction {
+                    Direction::Backup => {
+                        recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path())?;
+                    },
+                    Direction::Restore => {
+                        let pile = hoard.get_pile(file.pile_name()).expect("pile name should always be valid here");
+                        let file_perms = pile.config.file_permissions.unwrap_or_else(Permissions::file_default);
+                        let dir_perms = pile.config.folder_permissions.unwrap_or_else(Permissions::folder_default);
+
+                        tracing::debug!("setting file ({:o}) and folder ({:o}) permissions", file_perms.as_mode(), dir_perms.as_mode());
+                        recursively_set_system_permissions(file.system_prefix(), file.relative_path(), file_perms, dir_perms)?;
+                    },
                 }
             }
         }

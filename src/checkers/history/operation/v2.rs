@@ -231,7 +231,7 @@ impl OperationImpl for OperationV2 {
                 });
 
                 let (d_pile_name, d_hoard_path, d_system_path) =
-                    (pile_name, hoard_path, system_path);
+                    (pile_name.clone(), hoard_path.clone(), system_path.clone());
                 let deleted = pile.deleted.iter().cloned().map(move |rel_path| {
                     ItemOperation::Delete(HoardItem::new(
                         d_pile_name.clone(),
@@ -241,7 +241,18 @@ impl OperationImpl for OperationV2 {
                     ))
                 });
 
-                Some(created.chain(modified).chain(deleted))
+                let (u_pile_name, u_hoard_path, u_system_path) =
+                    (pile_name.clone(), hoard_path.clone(), system_path.clone());
+                let unmodified = pile.unmodified.keys().cloned().map(move |rel_path| {
+                    ItemOperation::Nothing(HoardItem::new(
+                        u_pile_name.clone(),
+                        u_hoard_path.clone(),
+                        u_system_path.clone(),
+                        rel_path
+                    ))
+                });
+
+                Some(created.chain(modified).chain(deleted).chain(unmodified))
             })
             .flatten();
         Ok(Box::new(iter))
@@ -304,7 +315,7 @@ impl Hoard {
                 "mismatched hoard type and pile name option: hoard ({:?}), pile_name: {:?}",
                 hoard, pile_name
             ),
-        }
+        }.unwrap_or_default()
     }
 
     fn new(
