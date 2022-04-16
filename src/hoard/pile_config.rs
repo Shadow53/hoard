@@ -127,7 +127,7 @@ impl Permissions {
 
     pub fn is_readonly(self) -> bool {
         match self {
-            Self::Mode(mode) => mode & Self::OTHER_WRITE == 0,
+            Self::Mode(mode) => (mode & Self::OWNER_WRITE) == 0,
             Self::Manual { is_writable, .. } => !is_writable,
         }
     }
