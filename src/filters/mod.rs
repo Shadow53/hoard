@@ -56,7 +56,7 @@ mod tests {
     fn test_filters_derives() {
         let config = PileConfig {
             ignore: vec![glob::Pattern::new("valid/**").unwrap()],
-            .. PileConfig::default()
+            ..PileConfig::default()
         };
         let filters = Filters::new(&config).expect("config should be valid");
         assert!(format!("{:?}", filters).contains("Filters"));

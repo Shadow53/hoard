@@ -1,10 +1,10 @@
-use std::{fs, io};
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
 use crate::checksum::ChecksumType;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
+use std::{fs, io};
 
 /// Configuration for symmetric (password) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -34,8 +34,6 @@ pub enum Encryption {
     Asymmetric(AsymmetricEncryption),
 }
 
-
-
 /// Configurable permissions for files and folders.
 ///
 /// Can be declared as a unix `chmod(1)` style mode or as a set of boolean flags.
@@ -52,7 +50,7 @@ pub enum Permissions {
         others_can_write: bool,
         #[serde(alias = "others_can_list")]
         others_can_execute: bool,
-    }
+    },
 }
 
 impl Permissions {
@@ -79,18 +77,48 @@ impl Permissions {
         Self::Mode(Self::OWNER_READ | Self::OWNER_WRITE | Self::OWNER_EXE)
     }
 
-    #[cfg(unix)]
     pub fn as_mode(self) -> u32 {
         match self {
             Self::Mode(mode) => mode,
-            Self::Manual { is_executable, is_readable, is_writable, others_can_read, others_can_write, others_can_execute } => {
-                let owner_exe = if is_executable { Self::OWNER_EXE } else { Self::EMPTY };
-                let owner_write = if is_writable { Self::OWNER_WRITE } else { Self::EMPTY };
-                let owner_read = if is_readable { Self::OWNER_READ } else { Self::EMPTY };
+            Self::Manual {
+                is_executable,
+                is_readable,
+                is_writable,
+                others_can_read,
+                others_can_write,
+                others_can_execute,
+            } => {
+                let owner_exe = if is_executable {
+                    Self::OWNER_EXE
+                } else {
+                    Self::EMPTY
+                };
+                let owner_write = if is_writable {
+                    Self::OWNER_WRITE
+                } else {
+                    Self::EMPTY
+                };
+                let owner_read = if is_readable {
+                    Self::OWNER_READ
+                } else {
+                    Self::EMPTY
+                };
 
-                let other_exe = if others_can_execute { Self::OTHER_EXE } else { Self::EMPTY };
-                let other_write = if others_can_write { Self::OTHER_WRITE } else { Self::EMPTY };
-                let other_read = if others_can_read { Self::OTHER_READ } else { Self::EMPTY };
+                let other_exe = if others_can_execute {
+                    Self::OTHER_EXE
+                } else {
+                    Self::EMPTY
+                };
+                let other_write = if others_can_write {
+                    Self::OTHER_WRITE
+                } else {
+                    Self::EMPTY
+                };
+                let other_read = if others_can_read {
+                    Self::OTHER_READ
+                } else {
+                    Self::EMPTY
+                };
 
                 owner_read | owner_write | owner_exe | other_read | other_write | other_exe
             }
@@ -113,10 +141,16 @@ impl Permissions {
     }
 
     pub fn set_on_path(self, path: &Path) -> io::Result<()> {
-        let perms = fs::metadata(path).map_err(|err| {
-            tracing::error!("failed to read current permissions for {}: {}", path.display(), err);
-            err
-        })?.permissions();
+        let perms = fs::metadata(path)
+            .map_err(|err| {
+                tracing::error!(
+                    "failed to read current permissions for {}: {}",
+                    path.display(),
+                    err
+                );
+                err
+            })?
+            .permissions();
         let perms = self.set_permissions(perms);
         fs::set_permissions(path, perms).map_err(|err| {
             tracing::error!("failed to set permissions on {}: {}", path.display(), err);
@@ -301,8 +335,24 @@ mod tests {
                 glob::Pattern::new("me too").unwrap(),
             ]
         );
-        assert_eq!(specific.as_ref().unwrap().file_permissions.unwrap().as_mode(), 0o644);
-        assert_eq!(specific.as_ref().unwrap().folder_permissions.unwrap().as_mode(), 0o777);
+        assert_eq!(
+            specific
+                .as_ref()
+                .unwrap()
+                .file_permissions
+                .unwrap()
+                .as_mode(),
+            0o644
+        );
+        assert_eq!(
+            specific
+                .as_ref()
+                .unwrap()
+                .folder_permissions
+                .unwrap()
+                .as_mode(),
+            0o777
+        );
     }
 
     mod permissions {
@@ -312,110 +362,149 @@ mod tests {
         #[test]
         fn test_as_mode() {
             let perms = [
-                (Permissions::Mode(0o000), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: false,
-                    is_writable: false,
-                    others_can_read: false,
-                    others_can_write: false,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o011), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: false,
-                    is_writable: false,
-                    others_can_read: false,
-                    others_can_write: false,
-                    others_can_execute: true
-                }),
-                (Permissions::Mode(0o100), Permissions::Manual {
-                    is_executable: true,
-                    is_readable: false,
-                    is_writable: false,
-                    others_can_read: false,
-                    others_can_write: false,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o111), Permissions::Manual {
-                    is_executable: true,
-                    is_readable: false,
-                    is_writable: false,
-                    others_can_read: false,
-                    others_can_write: false,
-                    others_can_execute: true
-                }),
-                (Permissions::Mode(0o022), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: false,
-                    is_writable: false,
-                    others_can_read: false,
-                    others_can_write: true,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o200), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: false,
-                    is_writable: true,
-                    others_can_read: false,
-                    others_can_write: false,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o222), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: false,
-                    is_writable: true,
-                    others_can_read: false,
-                    others_can_write: true,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o044), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: false,
-                    is_writable: false,
-                    others_can_read: true,
-                    others_can_write: false,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o400), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: true,
-                    is_writable: false,
-                    others_can_read: false,
-                    others_can_write: false,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o444), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: true,
-                    is_writable: false,
-                    others_can_read: true,
-                    others_can_write: false,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o555), Permissions::Manual {
-                    is_executable: true,
-                    is_readable: true,
-                    is_writable: false,
-                    others_can_read: true,
-                    others_can_write: false,
-                    others_can_execute: true
-                }),
-                (Permissions::Mode(0o666), Permissions::Manual {
-                    is_executable: false,
-                    is_readable: true,
-                    is_writable: true,
-                    others_can_read: true,
-                    others_can_write: true,
-                    others_can_execute: false
-                }),
-                (Permissions::Mode(0o777), Permissions::Manual {
-                    is_executable: true,
-                    is_readable: true,
-                    is_writable: true,
-                    others_can_read: true,
-                    others_can_write: true,
-                    others_can_execute: true
-                }),
+                (
+                    Permissions::Mode(0o000),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: false,
+                        is_writable: false,
+                        others_can_read: false,
+                        others_can_write: false,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o011),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: false,
+                        is_writable: false,
+                        others_can_read: false,
+                        others_can_write: false,
+                        others_can_execute: true,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o100),
+                    Permissions::Manual {
+                        is_executable: true,
+                        is_readable: false,
+                        is_writable: false,
+                        others_can_read: false,
+                        others_can_write: false,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o111),
+                    Permissions::Manual {
+                        is_executable: true,
+                        is_readable: false,
+                        is_writable: false,
+                        others_can_read: false,
+                        others_can_write: false,
+                        others_can_execute: true,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o022),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: false,
+                        is_writable: false,
+                        others_can_read: false,
+                        others_can_write: true,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o200),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: false,
+                        is_writable: true,
+                        others_can_read: false,
+                        others_can_write: false,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o222),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: false,
+                        is_writable: true,
+                        others_can_read: false,
+                        others_can_write: true,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o044),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: false,
+                        is_writable: false,
+                        others_can_read: true,
+                        others_can_write: false,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o400),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: true,
+                        is_writable: false,
+                        others_can_read: false,
+                        others_can_write: false,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o444),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: true,
+                        is_writable: false,
+                        others_can_read: true,
+                        others_can_write: false,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o555),
+                    Permissions::Manual {
+                        is_executable: true,
+                        is_readable: true,
+                        is_writable: false,
+                        others_can_read: true,
+                        others_can_write: false,
+                        others_can_execute: true,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o666),
+                    Permissions::Manual {
+                        is_executable: false,
+                        is_readable: true,
+                        is_writable: true,
+                        others_can_read: true,
+                        others_can_write: true,
+                        others_can_execute: false,
+                    },
+                ),
+                (
+                    Permissions::Mode(0o777),
+                    Permissions::Manual {
+                        is_executable: true,
+                        is_readable: true,
+                        is_writable: true,
+                        others_can_read: true,
+                        others_can_write: true,
+                        others_can_execute: true,
+                    },
+                ),
             ];
 
             for (mode, manual) in perms {

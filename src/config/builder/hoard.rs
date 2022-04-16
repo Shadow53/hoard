@@ -175,7 +175,6 @@ mod tests {
         AsymmetricEncryption, Config as PileConfig, Encryption, SymmetricEncryption,
     };
 
-
     mod process {
         use super::*;
         use crate::hoard::Pile as RealPile;
@@ -251,7 +250,7 @@ mod tests {
                     encryption: Some(Encryption::Asymmetric(AsymmetricEncryption {
                         public_key: "public key".to_string(),
                     })),
-                    .. PileConfig::default()
+                    ..PileConfig::default()
                 }),
                 items: btreemap! {
                     "bar_env|foo_env".parse().unwrap() => "/some/path".into()
@@ -335,7 +334,7 @@ mod tests {
                     encryption: Some(Encryption::Symmetric(SymmetricEncryption::Password(
                         "correcthorsebatterystaple".into(),
                     ))),
-                    .. PileConfig::default()
+                    ..PileConfig::default()
                 }),
                 items: btreemap! {
                     "item1".parse().unwrap() => Pile {
@@ -421,7 +420,7 @@ mod tests {
                     glob::Pattern::new("**/valid*").unwrap(),
                     glob::Pattern::new("*/also_valid/**").unwrap(),
                 ],
-                .. PileConfig::default()
+                ..PileConfig::default()
             };
 
             assert_tokens::<PileConfig>(

@@ -242,13 +242,13 @@ impl OperationImpl for OperationV2 {
                 });
 
                 let (u_pile_name, u_hoard_path, u_system_path) =
-                    (pile_name.clone(), hoard_path.clone(), system_path.clone());
+                    (pile_name.clone(), hoard_path, system_path);
                 let unmodified = pile.unmodified.keys().cloned().map(move |rel_path| {
                     ItemOperation::Nothing(HoardItem::new(
                         u_pile_name.clone(),
                         u_hoard_path.clone(),
                         u_system_path.clone(),
-                        rel_path
+                        rel_path,
                     ))
                 });
 
@@ -315,7 +315,8 @@ impl Hoard {
                 "mismatched hoard type and pile name option: hoard ({:?}), pile_name: {:?}",
                 hoard, pile_name
             ),
-        }.unwrap_or_default()
+        }
+        .unwrap_or_default()
     }
 
     fn new(

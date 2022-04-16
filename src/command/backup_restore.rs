@@ -1,13 +1,13 @@
 use crate::checkers::history::operation::ItemOperation;
 use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
 use crate::hoard::iter::Error as IterError;
+use crate::hoard::pile_config::Permissions;
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
-use crate::hoard::pile_config::Permissions;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -43,7 +43,11 @@ pub(crate) fn run_restore<'a>(
 
 fn recursively_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> Result<(), Error> {
     let full_path = root.join(path);
-    set_permissions(&full_path, Permissions::file_default(), Permissions::folder_default())?;
+    set_permissions(
+        &full_path,
+        Permissions::file_default(),
+        Permissions::folder_default(),
+    )?;
     if path.as_path().is_some() {
         let new_rel = path.parent();
         recursively_set_hoard_permissions(root, &new_rel)
@@ -52,7 +56,12 @@ fn recursively_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> R
     }
 }
 
-fn recursively_set_system_permissions(root: &SystemPath, path: &RelativePath, file_perms: Permissions, dir_perms: Permissions) -> Result<(), Error> {
+fn recursively_set_system_permissions(
+    root: &SystemPath,
+    path: &RelativePath,
+    file_perms: Permissions,
+    dir_perms: Permissions,
+) -> Result<(), Error> {
     let full_path = root.join(path);
     set_permissions(&full_path, file_perms, dir_perms)?;
     if path.as_path().is_some() {
@@ -63,7 +72,11 @@ fn recursively_set_system_permissions(root: &SystemPath, path: &RelativePath, fi
     }
 }
 
-fn set_permissions(path: &Path, file_perms: Permissions, dir_perms: Permissions) -> Result<(), Error> {
+fn set_permissions(
+    path: &Path,
+    file_perms: Permissions,
+    dir_perms: Permissions,
+) -> Result<(), Error> {
     if path.is_file() {
         file_perms.set_on_path(path).map_err(Error::IO)
     } else {
@@ -124,7 +137,9 @@ fn backup_or_restore<'a>(
                     };
                     if let Some(parent) = dest.parent() {
                         tracing::trace!(?parent, "ensuring parent dirs");
-                        if let Err(err) = create_all_with_perms(parent, Permissions::folder_default()) {
+                        if let Err(err) =
+                            create_all_with_perms(parent, Permissions::folder_default())
+                        {
                             tracing::error!(
                                 "failed to create parent directories for {}: {}",
                                 dest.display(),
@@ -166,19 +181,42 @@ fn backup_or_restore<'a>(
             }
 
             // Set permissions if file exists, regardless of if it was modified.
-            if let ItemOperation::Create(file) | ItemOperation::Modify(file) | ItemOperation::Nothing(file) = operation {
+            if let ItemOperation::Create(file)
+            | ItemOperation::Modify(file)
+            | ItemOperation::Nothing(file) = operation
+            {
                 match direction {
                     Direction::Backup => {
-                        recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path())?;
-                    },
+                        recursively_set_hoard_permissions(
+                            file.hoard_prefix(),
+                            file.relative_path(),
+                        )?;
+                    }
                     Direction::Restore => {
-                        let pile = hoard.get_pile(file.pile_name()).expect("pile name should always be valid here");
-                        let file_perms = pile.config.file_permissions.unwrap_or_else(Permissions::file_default);
-                        let dir_perms = pile.config.folder_permissions.unwrap_or_else(Permissions::folder_default);
+                        let pile = hoard
+                            .get_pile(file.pile_name())
+                            .expect("pile name should always be valid here");
+                        let file_perms = pile
+                            .config
+                            .file_permissions
+                            .unwrap_or_else(Permissions::file_default);
+                        let dir_perms = pile
+                            .config
+                            .folder_permissions
+                            .unwrap_or_else(Permissions::folder_default);
 
-                        tracing::debug!("setting file ({:o}) and folder ({:o}) permissions", file_perms.as_mode(), dir_perms.as_mode());
-                        recursively_set_system_permissions(file.system_prefix(), file.relative_path(), file_perms, dir_perms)?;
-                    },
+                        tracing::debug!(
+                            "setting file ({:o}) and folder ({:o}) permissions",
+                            file_perms.as_mode(),
+                            dir_perms.as_mode()
+                        );
+                        recursively_set_system_permissions(
+                            file.system_prefix(),
+                            file.relative_path(),
+                            file_perms,
+                            dir_perms,
+                        )?;
+                    }
                 }
             }
         }

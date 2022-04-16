@@ -59,14 +59,14 @@ mod tests {
         let filter = {
             let config = PileConfig {
                 ignore: vec![Pattern::new("testing/**").unwrap()],
-                .. PileConfig::default()
+                ..PileConfig::default()
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };
         let other = {
             let config = PileConfig {
                 ignore: vec![Pattern::new("test/**").unwrap()],
-                .. PileConfig::default()
+                ..PileConfig::default()
             };
             IgnoreFilter::new(&config).expect("filter should be valid")
         };

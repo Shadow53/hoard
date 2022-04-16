@@ -1,9 +1,9 @@
 mod common;
 
-use std::fs;
-use std::fs::Permissions;
 use common::tester::Tester;
 use hoard::command::Command;
+use std::fs;
+use std::fs::Permissions;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -75,7 +75,9 @@ fn test_default_permissions() {
     fs::create_dir_all(ignored.parent().unwrap()).unwrap();
     fs::write(&file, "test content").unwrap();
     fs::write(&ignored, "ignore me!").unwrap();
-    tester.expect_command(Command::Backup { hoards: hoards.clone() });
+    tester.expect_command(Command::Backup {
+        hoards: hoards.clone(),
+    });
 
     #[cfg(unix)]
     {
@@ -87,23 +89,40 @@ fn test_default_permissions() {
         fs::set_permissions(&ignored, Permissions::from_mode(0o644)).unwrap();
     }
 
-    tester.expect_command(Command::Restore { hoards: hoards.clone() });
+    tester.expect_command(Command::Restore { hoards });
 
     let file_perms = fs::metadata(&file).unwrap().permissions();
     let dir_perms = fs::metadata(&root).unwrap().permissions();
 
-    assert_eq!((false, false), (file_perms.readonly(), dir_perms.readonly()));
+    assert_eq!(
+        (false, false),
+        (file_perms.readonly(), dir_perms.readonly())
+    );
 
     #[cfg(unix)]
     {
         let home_perms = fs::metadata(tester.home_dir()).unwrap().permissions();
-        let ignored_dir_perms = fs::metadata(ignored.parent().unwrap()).unwrap().permissions();
+        let ignored_dir_perms = fs::metadata(ignored.parent().unwrap())
+            .unwrap()
+            .permissions();
         let ignored_perms = fs::metadata(ignored).unwrap().permissions();
         assert_eq!(0o100600, file_perms.mode());
         assert_eq!(0o040700, dir_perms.mode());
-        assert_eq!(0o040755, home_perms.mode(), "permissions should not be set on the parent of pile root");
-        assert_eq!(0o040755, ignored_dir_perms.mode(), "permissions should not be set on the parent of ignored file");
-        assert_eq!(0o100644, ignored_perms.mode(), "permissions should not be set on ignored file");
+        assert_eq!(
+            0o040755,
+            home_perms.mode(),
+            "permissions should not be set on the parent of pile root"
+        );
+        assert_eq!(
+            0o040755,
+            ignored_dir_perms.mode(),
+            "permissions should not be set on the parent of ignored file"
+        );
+        assert_eq!(
+            0o100644,
+            ignored_perms.mode(),
+            "permissions should not be set on ignored file"
+        );
     }
 }
 
@@ -115,18 +134,20 @@ fn test_anon_txt_configured_perms() {
 
     fs::write(&file, "content").unwrap();
 
-    tester.expect_command(Command::Backup { hoards: hoards.clone() });
+    tester.expect_command(Command::Backup {
+        hoards: hoards.clone(),
+    });
 
     fs::remove_file(&file).unwrap();
 
-    tester.expect_command(Command::Restore { hoards: hoards.clone() });
+    tester.expect_command(Command::Restore { hoards });
 
     assert!(file.exists());
     let perms = fs::metadata(file).unwrap().permissions();
 
     #[cfg(unix)]
     assert_eq!(0o100444, perms.mode());
-    assert_eq!(true, perms.readonly());
+    assert!(perms.readonly());
 }
 
 #[test]
@@ -137,15 +158,17 @@ fn test_anon_bin_configured_perms() {
 
     fs::write(&file, [0xFF, 0xFF, 0xFF, 0xDE]).unwrap();
 
-    tester.expect_command(Command::Backup { hoards: hoards.clone() });
+    tester.expect_command(Command::Backup {
+        hoards: hoards.clone(),
+    });
 
-    tester.expect_command(Command::Restore { hoards: hoards.clone() });
+    tester.expect_command(Command::Restore { hoards });
 
     let perms = fs::metadata(file).unwrap().permissions();
 
     #[cfg(unix)]
     assert_eq!(0o100755, perms.mode());
-    assert_eq!(false, perms.readonly());
+    assert!(!perms.readonly());
 }
 
 #[test]
@@ -161,12 +184,14 @@ fn test_anon_dir_configured_perms() {
     fs::write(&file1, "content 1").unwrap();
     fs::write(&file2, "content 2").unwrap();
 
-    tester.expect_command(Command::Backup { hoards: hoards.clone() });
+    tester.expect_command(Command::Backup {
+        hoards: hoards.clone(),
+    });
 
     fs::remove_dir_all(&sub_dir).unwrap();
     fs::remove_file(&file1).unwrap();
 
-    tester.expect_command(Command::Restore { hoards: hoards.clone() });
+    tester.expect_command(Command::Restore { hoards });
     println!("{}", tester.output());
 
     assert!(root.exists());
@@ -182,8 +207,14 @@ fn test_anon_dir_configured_perms() {
     assert_eq!(root_perms, sub_dir_perms);
     assert_eq!(file1_perms, file2_perms);
     #[cfg(unix)]
-    assert_eq!((0o100455, 0o040755), (file1_perms.mode(), root_perms.mode()));
-    assert_eq!((true, false), (file1_perms.readonly(), root_perms.readonly()));
+    assert_eq!(
+        (0o100455, 0o040755),
+        (file1_perms.mode(), root_perms.mode())
+    );
+    assert_eq!(
+        (true, false),
+        (file1_perms.readonly(), root_perms.readonly())
+    );
 }
 
 #[test]
@@ -197,8 +228,10 @@ fn test_readonly_dir() {
     fs::create_dir_all(&sub_dir).unwrap();
     fs::write(&file, "content").unwrap();
 
-    tester.expect_command(Command::Backup { hoards: hoards.clone() });
-    
+    tester.expect_command(Command::Backup {
+        hoards: hoards.clone(),
+    });
+
     for path in [&file, &sub_dir, &root] {
         let mut perms = fs::metadata(&path).unwrap().permissions();
         perms.set_readonly(false);
@@ -211,7 +244,7 @@ fn test_readonly_dir() {
         }
     }
 
-    tester.expect_command(Command::Restore { hoards: hoards.clone() });
+    tester.expect_command(Command::Restore { hoards });
 
     assert!(root.exists());
     assert!(sub_dir.exists());
@@ -224,7 +257,10 @@ fn test_readonly_dir() {
     assert_eq!(root_perms, sub_dir_perms);
     #[cfg(unix)]
     assert_eq!((0o100600, 0o040555), (file_perms.mode(), root_perms.mode()));
-    assert_eq!((false, true), (file_perms.readonly(), root_perms.readonly()));
+    assert_eq!(
+        (false, true),
+        (file_perms.readonly(), root_perms.readonly())
+    );
 }
 
 #[test]
@@ -240,7 +276,7 @@ fn test_hoard_file_permissions() {
     fs::write(&file1, "content 1").unwrap();
     fs::write(&file2, "content 2").unwrap();
 
-    tester.expect_command(Command::Backup { hoards: hoards.clone() });
+    tester.expect_command(Command::Backup { hoards });
 
     let hoard_root = tester.data_dir().join("hoards").join("anon_dir");
     let hoard_file1 = hoard_root.join("file");
@@ -260,6 +296,12 @@ fn test_hoard_file_permissions() {
     assert_eq!(root_perms, sub_dir_perms);
     assert_eq!(file1_perms, file2_perms);
     #[cfg(unix)]
-    assert_eq!((0o100600, 0o040700), (file1_perms.mode(), root_perms.mode()));
-    assert_eq!((false, false), (file1_perms.readonly(), root_perms.readonly()));
+    assert_eq!(
+        (0o100600, 0o040700),
+        (file1_perms.mode(), root_perms.mode())
+    );
+    assert_eq!(
+        (false, false),
+        (file1_perms.readonly(), root_perms.readonly())
+    );
 }
