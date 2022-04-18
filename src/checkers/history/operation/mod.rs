@@ -3,12 +3,14 @@
 use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::Checker;
 use crate::hoard::{Direction, Hoard};
+use futures::stream::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::{fs, io};
+use tokio::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
+use tokio_stream::wrappers::ReadDirStream;
 
 pub mod util;
 pub mod v1;
@@ -291,13 +293,14 @@ impl OperationImpl for Operation {
 }
 
 impl Operation {
-    fn new(
+    async fn new(
         hoards_root: &HoardPath,
         name: &HoardName,
         hoard: &Hoard,
         direction: Direction,
     ) -> Result<Self, Error> {
         v2::OperationV2::new(hoards_root, name, hoard, direction)
+            .await
             .map(OperationVersion::V2)
             .map(Self)
     }
@@ -333,49 +336,31 @@ impl Operation {
         self.require_latest_version().map(|_| self)
     }
 
-    fn from_file(path: &Path) -> Result<Self, Error> {
+    async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::trace!(path=%path.display(), "loading operation log from path");
-        fs::File::open(path)
-            .map(serde_json::from_reader)
-            .map_err(|err| {
-                tracing::error!("failed to open file at {}: {}", path.display(), err);
-                Error::from(err)
-            })?
+        let file = fs::File::open(path).await.map_err(|err| {
+            tracing::error!("failed to open file at {}: {}", path.display(), err);
+            Error::from(err)
+        })?.into_std().await;
+        serde_json::from_reader(file)
             .map_err(|err| {
                 tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
                 Error::from(err)
             })
     }
 
-    fn reduce_latest(left: Result<Self, Error>, right: Result<Self, Error>) -> Result<Self, Error> {
-        let left = left?;
-        let right = right?;
-        if left.timestamp() > right.timestamp() {
-            // grcov: ignore-start
-            // This branch doesn't seem to be taken by tests, at least locally.
-            // I don't know of a way to force this branch to be taken and it is simple
-            // enough that I feel comfortable marking it ignored.
-            Ok(left)
-            // grcov: ignore-end
-        } else {
-            Ok(right)
-        }
-    }
-
-    fn reduce_option_latest(
-        left: Result<Option<Self>, Error>,
-        right: Result<Option<Self>, Error>,
-    ) -> Result<Option<Self>, Error> {
-        match (left?, right?) {
-            (Some(left), None) => Ok(Some(left)),
-            (None, Some(right)) => Ok(Some(right)),
-            (None, None) => Ok(None),
-            (Some(left), Some(right)) => {
-                if left.timestamp() > right.timestamp() {
-                    Ok(Some(left))
-                } else {
-                    Ok(Some(right))
-                }
+    async fn reduce_latest(left: Option<Self>, right: Self) -> Result<Option<Self>, Error> {
+        match left {
+            None => Ok(Some(right)),
+            Some(left) => if left.timestamp() > right.timestamp() {
+                // grcov: ignore-start
+                // This branch doesn't seem to be taken by tests, at least locally.
+                // I don't know of a way to force this branch to be taken and it is simple
+                // enough that I feel comfortable marking it ignored.
+                Ok(Some(left))
+                // grcov: ignore-end
+            } else {
+                Ok(Some(right))
             }
         }
     }
@@ -419,7 +404,7 @@ impl Operation {
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
-    fn latest_hoard_operation_from_local_dir(
+    async fn latest_hoard_operation_from_local_dir(
         dir: &HoardPath,
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
@@ -434,32 +419,31 @@ impl Operation {
             return Ok(None);
         }
 
-        root.read_dir()?
-            .filter_map(|item| {
+        ReadDirStream::new(fs::read_dir(&root).await?)
+            .map_err(Error::IO)
+            .try_filter_map(|item| async move {
                 // Only keep errors and anything where path() returns Some
-                item.map(|item| {
-                    let path = item.path();
-                    util::file_is_log(&path).then(|| path)
-                })
-                .transpose()
+                let path = item.path();
+                Ok(util::file_is_log(&path).then(|| path))
             })
-            .map(|path| -> Result<Self, Error> { path.map(|path| Self::from_file(&path))? })
-            .filter_map(|operation| match operation {
-                Err(err) => Some(Err(err)),
-                Ok(operation) => (!backups_only || operation.direction() == Direction::Backup)
-                    .then(|| Ok(operation)),
+            .and_then(|path| async move { Self::from_file(&path).await })
+            .try_filter_map(|operation| async {
+                (!backups_only || operation.direction() == Direction::Backup)
+                    .then(|| Ok(operation))
+                    .transpose()
             })
-            .filter_map(|operation| match file {
-                None => Some(operation),
-                Some((pile_name, path)) => match operation {
-                    Err(err) => Some(Err(err)),
-                    Ok(operation) => operation
-                        .contains_file(pile_name, path, only_modified)
-                        .then(|| Ok(operation)),
-                },
+            .try_filter_map(|operation| async {
+                match file {
+                    None => Ok(Some(operation)),
+                    Some((pile_name, path)) => {
+                        operation.contains_file(pile_name, path, only_modified)
+                            .then(|| Ok(operation))
+                            .transpose()
+                    },
+                }
             })
-            .reduce(Self::reduce_latest)
-            .transpose()
+            .try_fold(None, Self::reduce_latest)
+            .await
     }
 
     /// Returns the latest operation recorded on this machine (by UUID).
@@ -470,15 +454,15 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub fn latest_local(
+    pub async fn latest_local(
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_local", %hoard).entered();
         tracing::trace!("finding latest Operation file for this machine");
-        let uuid = super::get_or_generate_uuid()?;
+        let uuid = super::get_or_generate_uuid().await?;
         let self_folder = super::get_history_dir_for_id(uuid);
-        Self::latest_hoard_operation_from_local_dir(&self_folder, hoard, file, false, false)
+        Self::latest_hoard_operation_from_local_dir(&self_folder, hoard, file, false, false).await
     }
 
     /// Returns the latest backup operation recorded on any other machine (by UUID).
@@ -489,23 +473,21 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    pub(crate) fn latest_remote_backup(
+    pub(crate) async fn latest_remote_backup(
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
         let _span = tracing::debug_span!("latest_remote_backup").entered();
         tracing::trace!("finding latest Operation file from remote machines");
-        let uuid = super::get_or_generate_uuid()?;
-        let other_folders = super::get_history_dirs_not_for_id(&uuid)?;
-        other_folders
-            .into_iter()
-            .map(|dir| {
-                Self::latest_hoard_operation_from_local_dir(&dir, hoard, file, true, only_modified)
+        let uuid = super::get_or_generate_uuid().await?;
+        let other_folders = super::get_history_dirs_not_for_id(&uuid).await?;
+        tokio_stream::iter(other_folders.into_iter().map(Ok))
+            .try_filter_map(|dir| async move {
+                Self::latest_hoard_operation_from_local_dir(&dir, hoard, file, true, only_modified).await
             })
-            .reduce(Self::reduce_option_latest)
-            .transpose()
-            .map(Option::flatten)?
+            .try_fold(None,Self::reduce_latest)
+            .await?
             .map(Self::into_latest_version)
             .transpose()
     }
@@ -530,64 +512,49 @@ impl Operation {
     }
 }
 
+#[async_trait::async_trait(?Send)]
 impl Checker for Operation {
     type Error = Error;
 
-    fn new(
+    async fn new(
         hoards_root: &HoardPath,
         name: &HoardName,
         hoard: &Hoard,
         direction: Direction,
-    ) -> Result<Self, Self::Error> {
-        Self::new(hoards_root, name, hoard, direction)
+    ) -> Result<Self, Error> {
+        Self::new(hoards_root, name, hoard, direction).await
     }
 
-    fn check(&mut self) -> Result<(), Self::Error> {
-        let _span =
-            tracing::debug_span!("is_pending_operation_valid", hoard=%self.hoard_name()).entered();
-        tracing::debug!("checking if the hoard operation is safe to perform");
-        let last_local = Self::latest_local(self.hoard_name(), None)?;
-        let last_remote = Self::latest_remote_backup(self.hoard_name(), None, false)?;
+    async fn check(&mut self) -> Result<(), Error> {
+        let last_local = Self::latest_local(self.hoard_name(), None).await?;
+        let last_remote = Self::latest_remote_backup(self.hoard_name(), None, false).await?;
 
         if self.direction() != Direction::Backup {
-            tracing::debug!("not backing up, is safe to continue");
             return Ok(());
         }
 
         match (last_local, last_remote) {
             (_, None) => {
-                tracing::debug!("no remote operations found for hoard, is safe to continue");
                 Ok(())
             }
             (None, Some(last_remote)) => {
-                tracing::debug!("no local operations found, might not be safe to continue");
                 self.check_has_same_files(&last_remote)
             }
             (Some(last_local), Some(last_remote)) => {
                 if last_local.timestamp() > last_remote.timestamp() {
                     // Allow if the last operation on this machine
-                    tracing::debug!(
-                        local=%last_local.timestamp(),
-                        remote=%last_remote.timestamp(),
-                        "latest local operation is more recent than last remote operation"
-                    );
                     Ok(())
                 } else {
-                    tracing::debug!(
-                        local=%last_local.timestamp(),
-                        remote=%last_remote.timestamp(),
-                        "latest local operation is less recent than last remote operation"
-                    );
                     self.check_has_same_files(&last_remote)
                 }
             }
         }
     }
 
-    fn commit_to_disk(self) -> Result<(), Self::Error> {
+    async fn commit_to_disk(self) -> Result<(), Error> {
         let _span =
             tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name()).entered();
-        let id = super::get_or_generate_uuid()?;
+        let id = super::get_or_generate_uuid().await?;
         let path = super::get_history_dir_for_id(id)
             .join(&RelativePath::from(self.hoard_name()))
             .join(
@@ -600,8 +567,10 @@ impl Checker for Operation {
                 .expect("file name is always a valid RelativePath"),
             );
         tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
-        path.parent().map(fs::create_dir_all).transpose()?;
-        let file = fs::File::create(path)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let file = fs::File::create(path).await?.into_std().await;
         serde_json::to_writer(file, &self)?;
         Ok(())
     }

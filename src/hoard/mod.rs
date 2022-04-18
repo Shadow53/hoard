@@ -2,7 +2,7 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
-pub(crate) mod iter;
+pub mod iter;
 pub(crate) mod pile_config;
 
 use crate::filters::Error as FilterError;
@@ -11,7 +11,7 @@ use crate::paths::{HoardPath, RelativePath, SystemPath};
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io;
+use tokio::io;
 use std::path::PathBuf;
 use thiserror::Error;
 

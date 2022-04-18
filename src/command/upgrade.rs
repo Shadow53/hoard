@@ -8,10 +8,10 @@ pub enum Error {
     Operations(OperationError),
 }
 
-pub(crate) fn run_upgrade() -> Result<(), super::Error> {
+pub(crate) async fn run_upgrade() -> Result<(), super::Error> {
     let _span = tracing::trace_span!("run_upgrade").entered();
     tracing::info!("Upgrading operation logs to the latest format...");
-    match upgrade_operations() {
+    match upgrade_operations().await {
         Ok(_) => {
             tracing::info!("Successfully upgraded all operation logs");
             Ok(())

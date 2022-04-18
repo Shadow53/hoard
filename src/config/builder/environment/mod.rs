@@ -24,7 +24,7 @@ use std::fmt;
 pub enum Error {
     /// An error that occurred while determining the system hostname.
     #[error("failed to detect hostname: {0}")]
-    Hostname(#[from] std::io::Error),
+    Hostname(#[from] tokio::io::Error),
     /// An error that occurred while checking if a program exists in `$PATH`.
     #[error("failed to detect if exe exists in path: {0}")]
     ExeExists(#[from] <ExeExists as TryInto<bool>>::Error),

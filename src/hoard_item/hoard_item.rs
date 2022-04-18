@@ -3,7 +3,7 @@ use crate::diff::FileContent;
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::path::Path;
-use std::io;
+use tokio::io;
 
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -123,12 +123,12 @@ impl HoardItem {
             && (sys_exists || hoard_exists)
     }
 
-    fn content(path: &Path) -> io::Result<FileContent> {
-        FileContent::read_path(path)
+    async fn content(path: &Path) -> io::Result<FileContent> {
+        FileContent::read_path(path).await
     }
 
-    fn raw_content(path: &Path) -> io::Result<Option<Vec<u8>>> {
-        Ok(match Self::content(path)? {
+    async fn raw_content(path: &Path) -> io::Result<Option<Vec<u8>>> {
+        Ok(match Self::content(path).await? {
             FileContent::Missing => None,
             FileContent::Binary(data) => Some(data),
             FileContent::Text(s) => Some(s.into_bytes()),
@@ -141,8 +141,8 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
-    pub fn system_content(&self) -> io::Result<FileContent> {
-        Self::content(self.system_path())
+    pub async fn system_content(&self) -> io::Result<FileContent> {
+        Self::content(self.system_path()).await
     }
 
     /// Returns the content, as bytes, of the Hoard version of the file.
@@ -151,8 +151,8 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
-    pub fn hoard_content(&self) -> io::Result<FileContent> {
-        Self::content(self.hoard_path())
+    pub async fn hoard_content(&self) -> io::Result<FileContent> {
+        Self::content(self.hoard_path()).await
     }
 
     /// Returns the requested [`ChecksumType`] for the Hoard version of the file.
@@ -164,10 +164,10 @@ impl HoardItem {
     ///
     /// If always calling this function with a constant or programmer-determined value,
     /// consider using [`hoard_md5`] or [`hoard_sha256`] instead.
-    pub fn hoard_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
+    pub async fn hoard_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
         match typ {
-            ChecksumType::MD5 => self.hoard_md5(),
-            ChecksumType::SHA256 => self.hoard_sha256(),
+            ChecksumType::MD5 => self.hoard_md5().await,
+            ChecksumType::SHA256 => self.hoard_sha256().await,
         }
     }
 
@@ -177,8 +177,8 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
-    pub fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.hoard_path()).map(|content| content.as_deref().map(Self::md5))
+    pub async fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
+        Self::raw_content(self.hoard_path()).await.map(|content| content.as_deref().map(Self::md5))
     }
 
     /// Returns the SHA256 checksum for the Hoard version of the file.
@@ -187,8 +187,8 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
-    pub fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.hoard_path()).map(|content| content.as_deref().map(Self::sha256))
+    pub async fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
+        Self::raw_content(self.hoard_path()).await.map(|content| content.as_deref().map(Self::sha256))
     }
 
     /// Returns the requested [`ChecksumType`] for the system version of the file.
@@ -200,10 +200,10 @@ impl HoardItem {
     ///
     /// If always calling this function with a constant or programmer-determined value,
     /// consider using [`system_md5`] or [`system_sha256`] instead.
-    pub fn system_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
+    pub async fn system_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
         match typ {
-            ChecksumType::MD5 => self.system_md5(),
-            ChecksumType::SHA256 => self.system_sha256(),
+            ChecksumType::MD5 => self.system_md5().await,
+            ChecksumType::SHA256 => self.system_sha256().await,
         }
     }
 
@@ -213,8 +213,8 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
-    pub fn system_md5(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.system_path()).map(|content| content.as_deref().map(Self::md5))
+    pub async fn system_md5(&self) -> io::Result<Option<Checksum>> {
+        Self::raw_content(self.system_path()).await.map(|content| content.as_deref().map(Self::md5))
     }
 
     /// Returns the SHA256 checksum for the system version of the file.
@@ -223,8 +223,8 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
-    pub fn system_sha256(&self) -> io::Result<Option<Checksum>> {
-        Self::raw_content(self.system_path()).map(|content| content.as_deref().map(Self::sha256))
+    pub async fn system_sha256(&self) -> io::Result<Option<Checksum>> {
+        Self::raw_content(self.system_path()).await.map(|content| content.as_deref().map(Self::sha256))
     }
 
     fn md5(content: &[u8]) -> Checksum {
@@ -259,78 +259,78 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_system_methods() {
+    #[tokio::test]
+    async fn test_system_methods() {
         let tester = Tester::new().unwrap();
         let item = hoard_item(&tester);
 
-        assert_eq!(item.system_content().unwrap(), FileContent::Missing);
-        assert_eq!(item.system_md5().unwrap(), None);
-        assert_eq!(item.system_checksum(ChecksumType::MD5).unwrap(), None);
-        assert_eq!(item.system_sha256().unwrap(), None);
-        assert_eq!(item.system_checksum(ChecksumType::SHA256).unwrap(), None);
+        assert_eq!(item.system_content().await.unwrap(), FileContent::Missing);
+        assert_eq!(item.system_md5().await.unwrap(), None);
+        assert_eq!(item.system_checksum(ChecksumType::MD5).await.unwrap(), None);
+        assert_eq!(item.system_sha256().await.unwrap(), None);
+        assert_eq!(item.system_checksum(ChecksumType::SHA256).await.unwrap(), None);
 
         fs::write(item.system_path(), CONTENT_A).unwrap();
 
         assert_eq!(
-            item.system_content().unwrap(),
+            item.system_content().await.unwrap(),
             FileContent::Text(CONTENT_A.to_string())
         );
         assert_eq!(
-            item.system_md5().unwrap(),
+            item.system_md5().await.unwrap(),
             Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
         );
         assert_eq!(
-            item.system_checksum(ChecksumType::MD5).unwrap(),
+            item.system_checksum(ChecksumType::MD5).await.unwrap(),
             Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
         );
         assert_eq!(
-            item.system_sha256().unwrap(),
+            item.system_sha256().await.unwrap(),
             Some(Checksum::SHA256(
                 SHA256_CONTENT_A.parse::<SHA256>().unwrap()
             ))
         );
         assert_eq!(
-            item.system_checksum(ChecksumType::SHA256).unwrap(),
+            item.system_checksum(ChecksumType::SHA256).await.unwrap(),
             Some(Checksum::SHA256(
                 SHA256_CONTENT_A.parse::<SHA256>().unwrap()
             ))
         );
     }
 
-    #[test]
-    fn test_hoard_methods() {
+    #[tokio::test]
+    async fn test_hoard_methods() {
         let tester = Tester::new().unwrap();
         let item = hoard_item(&tester);
 
-        assert_eq!(item.hoard_content().unwrap(), FileContent::Missing);
-        assert_eq!(item.hoard_md5().unwrap(), None);
-        assert_eq!(item.hoard_checksum(ChecksumType::MD5).unwrap(), None);
-        assert_eq!(item.hoard_sha256().unwrap(), None);
-        assert_eq!(item.hoard_checksum(ChecksumType::SHA256).unwrap(), None);
+        assert_eq!(item.hoard_content().await.unwrap(), FileContent::Missing);
+        assert_eq!(item.hoard_md5().await.unwrap(), None);
+        assert_eq!(item.hoard_checksum(ChecksumType::MD5).await.unwrap(), None);
+        assert_eq!(item.hoard_sha256().await.unwrap(), None);
+        assert_eq!(item.hoard_checksum(ChecksumType::SHA256).await.unwrap(), None);
 
         fs::write(item.hoard_path(), CONTENT_A).unwrap();
 
         assert_eq!(
-            item.hoard_content().unwrap(),
+            item.hoard_content().await.unwrap(),
             FileContent::Text(CONTENT_A.to_string())
         );
         assert_eq!(
-            item.hoard_md5().unwrap(),
+            item.hoard_md5().await.unwrap(),
             Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
         );
         assert_eq!(
-            item.hoard_checksum(ChecksumType::MD5).unwrap(),
+            item.hoard_checksum(ChecksumType::MD5).await.unwrap(),
             Some(Checksum::MD5(MD5_CONTENT_A.parse::<MD5>().unwrap()))
         );
         assert_eq!(
-            item.hoard_sha256().unwrap(),
+            item.hoard_sha256().await.unwrap(),
             Some(Checksum::SHA256(
                 SHA256_CONTENT_A.parse::<SHA256>().unwrap()
             ))
         );
         assert_eq!(
-            item.hoard_checksum(ChecksumType::SHA256).unwrap(),
+            item.hoard_checksum(ChecksumType::SHA256).await.unwrap(),
             Some(Checksum::SHA256(
                 SHA256_CONTENT_A.parse::<SHA256>().unwrap()
             ))

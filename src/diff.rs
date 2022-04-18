@@ -2,9 +2,8 @@
 //!
 //! Unified diffs are optionally available for text files. Following Git's example,
 //! non-text binary files can only be detected as differing or the same.
-use std::io::Read;
 use std::path::Path;
-use std::{fs, io};
+use tokio::{fs, io, io::AsyncReadExt};
 
 use crate::paths::{HoardPath, SystemPath};
 use similar::{ChangeTag, TextDiff};
@@ -20,17 +19,18 @@ pub enum FileContent {
 }
 
 impl FileContent {
-    pub fn read(file: fs::File) -> io::Result<Self> {
-        let bytes: Vec<u8> = file.bytes().collect::<io::Result<_>>()?;
+    pub async fn read(mut file: fs::File) -> io::Result<Self> {
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).await?;
         match String::from_utf8(bytes) {
             Ok(s) => Ok(Self::Text(s)),
             Err(err) => Ok(Self::Binary(err.into_bytes())),
         }
     }
 
-    pub fn read_path(path: &Path) -> io::Result<Self> {
-        match fs::File::open(path) {
-            Ok(file) => FileContent::read(file),
+    pub async fn read_path(path: &Path) -> io::Result<Self> {
+        match fs::File::open(path).await {
+            Ok(file) => FileContent::read(file).await,
             Err(err) => match err.kind() {
                 io::ErrorKind::NotFound => Ok(FileContent::Missing),
                 _ => Err(err),

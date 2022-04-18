@@ -2,7 +2,7 @@
 //! [`Config`] type that is used by `hoard`.
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use std::io;
+use tokio::{fs, io};
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
@@ -18,6 +18,7 @@ use crate::CONFIG_FILE_STEM;
 use super::Config;
 use crate::hoard::PileConfig;
 use crate::newtypes::{EnvironmentName, HoardName};
+use futures::TryStreamExt;
 
 pub mod environment;
 pub mod envtrie;
@@ -121,10 +122,10 @@ impl Builder {
     /// # Errors
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
-    pub fn from_file(path: &Path) -> Result<Self, Error> {
+    pub async fn from_file(path: &Path) -> Result<Self, Error> {
         let _span = tracing::debug_span!("config_from_file", ?path).entered();
         tracing::debug!("reading configuration");
-        let s = std::fs::read_to_string(path).map_err(Error::ReadConfig)?;
+        let s = fs::read_to_string(path).await.map_err(Error::ReadConfig)?;
         // Necessary because Deserialize on enums erases any errors returned by each variant.
         let result = match path.extension().and_then(std::ffi::OsStr::to_str) {
             None => Err(Error::InvalidExtension(path.to_owned())),
@@ -152,7 +153,7 @@ impl Builder {
     ///
     /// - Any errors from attempting to parse the file.
     /// - A custom not found error if no default file is found.
-    pub fn from_default_file() -> Result<Self, Error> {
+    pub async fn from_default_file() -> Result<Self, Error> {
         let error_closure = || {
             let path = Self::default_config_file();
             Error::ReadConfig(io::Error::new(
@@ -177,24 +178,25 @@ impl Builder {
             .canonicalize()
             .map_err(Error::ReadConfig)?;
 
-        SUPPORTED_CONFIG_EXTS
-            .iter()
-            .find_map(|suffix| {
+        Box::pin(tokio_stream::iter(SUPPORTED_CONFIG_EXTS.iter().map(|suffix| Ok((suffix, parent.clone()))))
+            .try_filter_map(|(suffix, parent)| async move {
                 let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
                 let path = parent.join(path);
-                match Self::from_file(&path) {
+                match Self::from_file(&path).await {
                     Err(Error::ReadConfig(err)) => {
                         if let io::ErrorKind::NotFound = err.kind() {
-                            None
+                            Ok(None)
                         } else {
-                            Some(Err(Error::ReadConfig(err)))
+                            Err(Error::ReadConfig(err))
                         }
                     }
-                    Ok(config) => Some(Ok(config)),
-                    Err(err) => Some(Err(err)),
+                    Ok(config) => Ok(Some(config)),
+                    Err(err) => Err(err),
                 }
-            })
-            .ok_or_else(error_closure)?
+            }))
+            .try_next()
+            .await?
+            .ok_or_else(error_closure)
     }
 
     /// Helper method to process command-line arguments and the config file specified on CLI
@@ -203,24 +205,23 @@ impl Builder {
     /// # Errors
     ///
     /// See [`Builder::from_file`]
-    pub fn from_args_then_file() -> Result<Self, Error> {
+    pub async fn from_args_then_file() -> Result<Self, Error> {
         tracing::debug!("loading configuration from cli arguments");
         let from_args = Self::parse();
 
         tracing::trace!("attempting to get configuration file from cli arguments or use default");
-        let from_file =
-            from_args
-                .config_file
-                .as_ref()
-                .map_or_else(Self::from_default_file, |config_file| {
-                    tracing::trace!(
-                        ?config_file,
-                        "configuration file is \"{}\"",
-                        config_file.to_string_lossy()
-                    );
+        let from_file = match from_args.config_file.as_ref() {
+            Some(config_file) => {
+                tracing::trace!(
+                    ?config_file,
+                    "configuration file is \"{}\"",
+                    config_file.to_string_lossy()
+                );
 
-                    Self::from_file(config_file)
-                })?;
+                Self::from_file(config_file).await?
+            },
+            None => Self::from_default_file().await?,
+        };
 
         tracing::debug!("merging configuration file and cli arguments");
         Ok(from_file.layer(from_args))

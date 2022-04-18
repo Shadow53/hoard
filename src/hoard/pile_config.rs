@@ -4,7 +4,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::{fs, io};
+use tokio::{fs, io};
+use std::fs::Permissions as StdPermissions;
 
 /// Configuration for symmetric (password) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -132,7 +133,7 @@ impl Permissions {
         }
     }
 
-    pub fn set_permissions(self, mut perms: fs::Permissions) -> fs::Permissions {
+    pub fn set_permissions(self, mut perms: StdPermissions) -> StdPermissions {
         #[cfg(unix)]
         perms.set_mode(self.as_mode());
         #[cfg(not(unix))]
@@ -140,8 +141,9 @@ impl Permissions {
         perms
     }
 
-    pub fn set_on_path(self, path: &Path) -> io::Result<()> {
+    pub async fn set_on_path(self, path: &Path) -> io::Result<()> {
         let perms = fs::metadata(path)
+            .await
             .map_err(|err| {
                 tracing::error!(
                     "failed to read current permissions for {}: {}",
@@ -152,7 +154,7 @@ impl Permissions {
             })?
             .permissions();
         let perms = self.set_permissions(perms);
-        fs::set_permissions(path, perms).map_err(|err| {
+        fs::set_permissions(path, perms).await.map_err(|err| {
             tracing::error!("failed to set permissions on {}: {}", path.display(), err);
             err
         })

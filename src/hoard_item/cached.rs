@@ -4,7 +4,8 @@ use crate::diff::{FileContent, Diff, str_diff};
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::collections::BTreeMap;
-use std::io;
+use tokio::io;
+use tokio::try_join;
 
 /// Wrapper around [`HoardItem`] that accesses the filesystem at creation time and
 /// caches file data.
@@ -36,10 +37,31 @@ impl From<CachedHoardItem> for HoardItem {
     }
 }
 
-impl TryFrom<HoardItem> for CachedHoardItem {
-    type Error = io::Error;
+impl CachedHoardItem {
+    /// Create a new `CachedHoardItem`.
+    ///
+    /// See [`HoardItem::new`] for more about usage.
+    ///
+    /// # Errors
+    ///
+    /// Will return I/O errors if they occur while processing file data, with the exception of
+    /// `NotFound` errors, which are translated into `None` values, as applicable.
+    pub async fn new(
+        pile_name: PileName,
+        hoard_prefix: HoardPath,
+        system_prefix: SystemPath,
+        relative_path: RelativePath,
+    ) -> io::Result<Self> {
+        let inner = HoardItem::new(pile_name, hoard_prefix, system_prefix, relative_path);
+        Self::try_from_hoard_item(inner).await
+    }
 
-    fn try_from(inner: HoardItem) -> Result<Self, Self::Error> {
+    /// Attempt to create a cached version of the given [`HoardItem`]
+    ///
+    /// # Errors
+    ///
+    /// Any I/O errors while reading the associated files, etc.
+    pub async fn try_from_hoard_item(inner: HoardItem) -> io::Result<Self> {
         let (is_file, is_dir) = {
             let system_exists = inner.system_path().exists();
             let hoard_exists = inner.hoard_path().exists();
@@ -56,8 +78,9 @@ impl TryFrom<HoardItem> for CachedHoardItem {
         };
 
         let (system_content, hoard_content) = if is_file {
-            let system_content = inner.system_content()?;
-            let hoard_content = inner.hoard_content()?;
+            let system_content = inner.system_content();
+            let hoard_content = inner.hoard_content();
+            let (system_content, hoard_content) = try_join!(system_content, hoard_content)?;
             (Some(system_content), Some(hoard_content))
         } else {
             (None, None)
@@ -101,27 +124,6 @@ impl TryFrom<HoardItem> for CachedHoardItem {
             is_text,
             exists,
         })
-    }
-}
-
-impl CachedHoardItem {
-    /// Create a new `CachedHoardItem`.
-    ///
-    /// See [`HoardItem::new`] for more about usage.
-    ///
-    /// # Errors
-    ///
-    /// Will return I/O errors if they occur while processing file data, with the exception of
-    /// `NotFound` errors, which are translated into `None` values, as applicable.
-    pub fn new(
-        pile_name: PileName,
-        hoard_prefix: HoardPath,
-        system_prefix: SystemPath,
-        relative_path: RelativePath,
-    ) -> io::Result<Self> {
-        let inner = HoardItem::new(pile_name, hoard_prefix, system_prefix, relative_path);
-
-        Self::try_from(inner)
     }
 
     /// Returns the name of the pile this item belongs to, if any.

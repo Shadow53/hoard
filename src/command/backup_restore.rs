@@ -6,7 +6,7 @@ use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::fs;
+use tokio::fs;
 use std::path::Path;
 use thiserror::Error;
 
@@ -18,94 +18,97 @@ pub enum Error {
     Consistency(#[from] ConsistencyError),
     /// An I/O error occurred.
     #[error("I/O error: {0}")]
-    IO(#[from] std::io::Error),
+    IO(#[from] tokio::io::Error),
     /// An error while iterating files to modify.
     #[error("failed to iterate files: {0}")]
     Iterator(#[from] IterError),
 }
 
 #[allow(single_use_lifetimes)]
-pub(crate) fn run_backup<'a>(
+pub(crate) async fn run_backup<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
-    backup_or_restore(hoards_root, Direction::Backup, hoards, force).map_err(super::Error::Backup)
+    backup_or_restore(hoards_root, Direction::Backup, hoards, force).await.map_err(super::Error::Backup)
 }
 
 #[allow(single_use_lifetimes)]
-pub(crate) fn run_restore<'a>(
+pub(crate) async fn run_restore<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
-    backup_or_restore(hoards_root, Direction::Restore, hoards, force).map_err(super::Error::Restore)
+    backup_or_restore(hoards_root, Direction::Restore, hoards, force).await.map_err(super::Error::Restore)
 }
 
-fn recursively_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> Result<(), Error> {
+#[async_recursion::async_recursion]
+async fn recursively_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> Result<(), Error> {
     let full_path = root.join(path);
     set_permissions(
         &full_path,
         Permissions::file_default(),
         Permissions::folder_default(),
-    )?;
+    ).await?;
     if path.as_path().is_some() {
         let new_rel = path.parent();
-        recursively_set_hoard_permissions(root, &new_rel)
+        recursively_set_hoard_permissions(root, &new_rel).await
     } else {
         Ok(())
     }
 }
 
-fn recursively_set_system_permissions(
+#[async_recursion::async_recursion]
+async fn recursively_set_system_permissions(
     root: &SystemPath,
     path: &RelativePath,
     file_perms: Permissions,
     dir_perms: Permissions,
 ) -> Result<(), Error> {
     let full_path = root.join(path);
-    set_permissions(&full_path, file_perms, dir_perms)?;
+    set_permissions(&full_path, file_perms, dir_perms).await?;
     if path.as_path().is_some() {
         let new_rel = path.parent();
-        recursively_set_system_permissions(root, &new_rel, file_perms, dir_perms)
+        recursively_set_system_permissions(root, &new_rel, file_perms, dir_perms).await
     } else {
         Ok(())
     }
 }
 
-fn set_permissions(
+async fn set_permissions(
     path: &Path,
     file_perms: Permissions,
     dir_perms: Permissions,
 ) -> Result<(), Error> {
     if path.is_file() {
-        file_perms.set_on_path(path).map_err(Error::IO)
+        file_perms.set_on_path(path).await.map_err(Error::IO)
     } else {
-        dir_perms.set_on_path(path).map_err(Error::IO)
+        dir_perms.set_on_path(path).await.map_err(Error::IO)
     }
 }
 
-fn create_all_with_perms(path: &Path, perms: Permissions) -> Result<(), Error> {
+#[async_recursion::async_recursion]
+async fn create_all_with_perms(path: &Path, perms: Permissions) -> Result<(), Error> {
     if path.is_dir() {
-        perms.set_on_path(path).map_err(Error::IO)
+        perms.set_on_path(path).await.map_err(Error::IO)
     } else {
         if let Some(parent) = path.parent() {
-            create_all_with_perms(parent, perms)?;
+            create_all_with_perms(parent, perms).await?;
         }
 
-        fs::create_dir(path)?;
-        perms.set_on_path(path).map_err(Error::IO)
+        fs::create_dir(path).await?;
+        perms.set_on_path(path).await.map_err(Error::IO)
     }
 }
 
-fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
+async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
     let (src, dest) = match direction {
         Direction::Backup => (file.system_path().as_ref(), file.hoard_path().as_ref()),
         Direction::Restore => (file.hoard_path().as_ref(), file.system_path().as_ref()),
     };
     if let Some(parent) = dest.parent() {
         tracing::trace!(?parent, "ensuring parent dirs");
-        if let Err(err) = create_all_with_perms(parent, Permissions::folder_default()) {
+        if let Err(err) = create_all_with_perms(parent, Permissions::folder_default()).await {
             tracing::error!(
                 "failed to create parent directories for {}: {}",
                 dest.display(),
@@ -115,7 +118,7 @@ fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
         }
     }
     tracing::debug!("copying {} to {}", src.display(), dest.display());
-    if let Err(err) = fs::copy(src, dest) {
+    if let Err(err) = fs::copy(src, dest).await {
         tracing::error!(
             "failed to copy {} to {}: {}",
             src.display(),
@@ -128,7 +131,7 @@ fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
     Ok(())
 }
 
-fn fix_permissions(
+async fn fix_permissions(
     hoard: &Hoard,
     operation: &ItemOperation,
     direction: Direction,
@@ -140,7 +143,7 @@ fn fix_permissions(
     {
         match direction {
             Direction::Backup => {
-                recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path())?;
+                recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path()).await?;
             }
             Direction::Restore => {
                 let pile = hoard
@@ -165,7 +168,7 @@ fn fix_permissions(
                     file.relative_path(),
                     file_perms,
                     dir_perms,
-                )?;
+                ).await?;
             }
         }
     }
@@ -174,16 +177,16 @@ fn fix_permissions(
 }
 
 #[allow(single_use_lifetimes)]
-fn backup_or_restore<'a>(
+async fn backup_or_restore<'a>(
     hoards_root: &HoardPath,
     direction: Direction,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), Error> {
-    let mut checkers = Checkers::new(hoards_root, hoards.clone(), direction)?;
+    let mut checkers = Checkers::new(hoards_root, hoards.clone(), direction).await?;
     tracing::debug!(?checkers, "================");
     if !force {
-        checkers.check()?;
+        checkers.check().await?;
     }
 
     for (name, hoard) in hoards {
@@ -203,7 +206,7 @@ fn backup_or_restore<'a>(
             tracing::trace!("found operation: {:?}", operation);
             match &operation {
                 ItemOperation::Create(file) | ItemOperation::Modify(file) => {
-                    copy_file(file, direction)?;
+                    copy_file(file, direction).await?;
                 }
                 ItemOperation::Delete(file) => {
                     let to_remove = match direction {
@@ -212,7 +215,7 @@ fn backup_or_restore<'a>(
                     };
                     if to_remove.exists() {
                         tracing::debug!("deleting {}", to_remove.display());
-                        if let Err(err) = fs::remove_file(to_remove) {
+                        if let Err(err) = fs::remove_file(to_remove).await {
                             tracing::error!("failed to delete {}: {}", to_remove.display(), err);
                             return Err(Error::IO(err));
                         }
@@ -226,9 +229,9 @@ fn backup_or_restore<'a>(
                 }
             }
 
-            fix_permissions(hoard, &operation, direction)?;
+            fix_permissions(hoard, &operation, direction).await?;
         }
     }
 
-    checkers.commit_to_disk().map_err(Error::Consistency)
+    checkers.commit_to_disk().await.map_err(Error::Consistency)
 }
