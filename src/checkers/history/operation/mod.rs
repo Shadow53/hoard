@@ -59,19 +59,20 @@ pub enum Error {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(clippy::module_name_repetitions)]
 #[allow(missing_docs)]
-pub enum ItemOperation {
-    Create(HoardItem),
-    Modify(HoardItem),
-    Delete(HoardItem),
+pub enum ItemOperation<T> {
+    Create(T),
+    Modify(T),
+    Delete(T),
     /// Indicates a file that is unchanged.
-    Nothing(HoardItem),
+    Nothing(T),
     /// Indicates a file that does not exist but is listed directly in the config.
-    DoesNotExist(HoardItem),
+    DoesNotExist(T),
 }
 
-impl From<ItemOperation> for HoardItem {
-    fn from(op: ItemOperation) -> Self {
-        match op {
+impl<T> ItemOperation<T> {
+    /// Converts into the contained item.
+    pub fn into_inner(self) -> T {
+        match self {
             ItemOperation::Create(item)
             | ItemOperation::Modify(item)
             | ItemOperation::Delete(item)
@@ -146,7 +147,7 @@ pub trait OperationImpl {
         &'a self,
         _hoard_path: &HoardPath,
         _hoard: &Hoard,
-    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         Err(Error::UpgradeRequired)
     }
 
@@ -219,7 +220,7 @@ impl OperationImpl for OperationVersion {
         &'a self,
         hoard_root: &HoardPath,
         hoard: &Hoard,
-    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         match &self {
             OperationVersion::V1(v1) => v1.hoard_operations_iter(hoard_root, hoard),
             OperationVersion::V2(v2) => v2.hoard_operations_iter(hoard_root, hoard),
@@ -279,7 +280,7 @@ impl OperationImpl for Operation {
         &'a self,
         hoard_root: &HoardPath,
         hoard: &Hoard,
-    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         self.0.hoard_operations_iter(hoard_root, hoard)
     }
 

@@ -5,6 +5,7 @@
 pub mod iter;
 pub(crate) mod pile_config;
 
+use std::fmt;
 use crate::filters::Error as FilterError;
 use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
@@ -69,6 +70,15 @@ pub enum Direction {
     Backup,
     /// Restoring from hoards to system.
     Restore,
+}
+
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Backup => write!(f, "backup"),
+            Self::Restore => write!(f, "restore"),
+        }
+    }
 }
 
 /// A single path to hoard, with configuration.

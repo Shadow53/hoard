@@ -109,7 +109,7 @@ impl AllFilesIter {
         hoard_name_root: &HoardPath,
     ) -> Result<Vec<RootPathItem>, super::Error> {
         // This is used to detect files deleted locally and remotely
-        let from_logs: Vec<ItemOperation> = {
+        let from_logs: Vec<ItemOperation<HoardItem>> = {
             let _span = tracing::trace_span!("load_paths_from_logs").entered();
             let local = Operation::latest_local(hoard_name, None).await.map_err(Box::new)?;
             let remote =
@@ -149,7 +149,7 @@ impl AllFilesIter {
             .into_iter()
             .map(|item| {
                 RootPathItem {
-                    hoard_file: HoardItem::from(item),
+                    hoard_file: item.into_inner(),
                     filters: Filters::default(),
                 }
             })

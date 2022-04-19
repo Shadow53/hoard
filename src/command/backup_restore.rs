@@ -133,7 +133,7 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
 
 async fn fix_permissions(
     hoard: &Hoard,
-    operation: &ItemOperation,
+    operation: &ItemOperation<HoardItem>,
     direction: Direction,
 ) -> Result<(), Error> {
     // Set permissions if file exists, regardless of if it was modified.
@@ -183,6 +183,7 @@ async fn backup_or_restore<'a>(
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), Error> {
+    tracing::info!("processing files before {}", direction);
     let mut checkers = Checkers::new(hoards_root, hoards.clone(), direction).await?;
     tracing::debug!(?checkers, "================");
     if !force {

@@ -63,6 +63,7 @@
     variant_size_differences,
     while_true
 )]
+
 pub use config::Config;
 
 pub mod checkers;

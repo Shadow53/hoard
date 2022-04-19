@@ -12,7 +12,7 @@ use crate::checkers::history::operation::{OperationFileInfo, OperationImpl, Oper
 use crate::checksum::{Checksum, ChecksumType};
 use crate::hoard::iter::operation_stream;
 use crate::hoard::{Direction, Hoard as ConfigHoard};
-use crate::hoard_item::HoardItem;
+use crate::hoard_item::{CachedHoardItem, HoardItem};
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 use futures::TryStreamExt;
@@ -201,7 +201,7 @@ impl OperationImpl for OperationV2 {
         &'a self,
         hoard_root: &HoardPath,
         hoard: &crate::hoard::Hoard,
-    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         let iter = hoard
             .get_paths(hoard_root.clone())
             .filter_map(|(pile_name, hoard_path, system_path)| {
@@ -304,7 +304,7 @@ impl Hoard {
         }).map(Ok).unwrap()
     }
 
-    fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardItem) -> ChecksumType {
+    fn checksum_type(hoard: &ConfigHoard, hoard_file: &CachedHoardItem) -> ChecksumType {
         match (hoard, hoard_file.pile_name().as_ref()) {
             (ConfigHoard::Anonymous(pile), None) => pile.config.checksum_type,
             (ConfigHoard::Named(piles), Some(name)) => piles
@@ -336,11 +336,11 @@ impl Hoard {
                         ItemOperation::Create(file) => {
                             let checksum = match direction {
                                 Direction::Backup => Self::require_checksum(
-                                    file.system_checksum(Self::checksum_type(hoard, &file)).await?,
+                                    file.system_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                                 Direction::Restore => Self::require_checksum(
-                                    file.hoard_checksum(Self::checksum_type(hoard, &file)).await?,
+                                    file.hoard_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                             };
@@ -350,11 +350,11 @@ impl Hoard {
                         ItemOperation::Modify(file) => {
                             let checksum = match direction {
                                 Direction::Backup => Self::require_checksum(
-                                    file.system_checksum(Self::checksum_type(hoard, &file)).await?,
+                                    file.system_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                                 Direction::Restore => Self::require_checksum(
-                                    file.hoard_checksum(Self::checksum_type(hoard, &file)).await?,
+                                    file.hoard_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                             };
@@ -367,7 +367,7 @@ impl Hoard {
                         }
                         ItemOperation::Nothing(file) => {
                             let checksum = Self::require_checksum(
-                                file.system_checksum(Self::checksum_type(hoard, &file)).await?,
+                                file.system_checksum(Self::checksum_type(hoard, &file)),
                                 file.relative_path(),
                             )?;
                             Self::get_or_create_pile(&mut acc, file.pile_name())
