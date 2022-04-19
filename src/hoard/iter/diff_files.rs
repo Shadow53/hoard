@@ -1,18 +1,18 @@
 #![allow(unused)]
+use super::all_files::all_files_stream;
 use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
 use crate::diff::Diff;
 use crate::hoard::Hoard;
 use crate::hoard_item::{CachedHoardItem, HoardItem};
+use futures::{TryStream, TryStreamExt};
 use std::cmp::Ordering;
 use std::fmt;
 use std::fs::Permissions;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::{TryStream, TryStreamExt};
 use tokio::io;
-use tracing::trace_span;
 use tokio_stream::{Iter, Stream, StreamExt};
-use super::all_files::all_files_stream;
+use tracing::trace_span;
 
 use crate::checksum::Checksum;
 use crate::hoard::iter::Error;
@@ -251,11 +251,13 @@ impl ProcessedFile {
             }
             // File/dir never existed in hoard but is listed as a named pile
             (false, None, None, None, None) => HoardFileDiff::Nonexistent(file),
-            (true, None, None, None, None) => if file.is_file() {
-                HoardFileDiff::Unchanged(file)
-            } else {
-                HoardFileDiff::Nonexistent(file)
-            },
+            (true, None, None, None, None) => {
+                if file.is_file() {
+                    HoardFileDiff::Unchanged(file)
+                } else {
+                    HoardFileDiff::Nonexistent(file)
+                }
+            }
             (_, None, None, None, Some(_)) => {
                 unreachable!("cannot have a diff if there are no changes");
             }
@@ -648,14 +650,16 @@ pub async fn diff_stream(
     hoards_root: &HoardPath,
     hoard_name: HoardName,
     hoard: &Hoard,
-) -> Result<impl TryStream<Ok=HoardFileDiff, Error=Error>, Error> {
+) -> Result<impl TryStream<Ok = HoardFileDiff, Error = Error>, Error> {
     let _span = tracing::trace_span!("file_diffs_iterator").entered();
     tracing::trace!("creating new diff iterator");
     let stream = all_files_stream(hoards_root, &hoard_name, hoard)
         .await?
-        .map_ok(move |file| (file, hoard_name.clone()) )
+        .map_ok(move |file| (file, hoard_name.clone()))
         .and_then(|(file, hoard_name)| async move {
-            let file = CachedHoardItem::try_from_hoard_item(file).await.map_err(Error::IO)?;
+            let file = CachedHoardItem::try_from_hoard_item(file)
+                .await
+                .map_err(Error::IO)?;
             let _span = trace_span!("diff_iterator_next", ?file);
             let processed: ProcessedFile = ProcessedFile::process(&hoard_name, file).await?;
             Ok(processed.get_hoard_diff())

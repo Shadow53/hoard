@@ -11,9 +11,9 @@ use crate::paths::{HoardPath, RelativePath, SystemPath};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use tokio::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
+use tokio::{fs, io};
 
 const FILE_NAME: &str = "last_paths.json";
 

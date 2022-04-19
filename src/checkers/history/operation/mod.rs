@@ -7,9 +7,9 @@ use futures::stream::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use tokio::{fs, io};
 use thiserror::Error;
 use time::OffsetDateTime;
+use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
 pub mod util;
@@ -339,29 +339,34 @@ impl Operation {
 
     async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::trace!(path=%path.display(), "loading operation log from path");
-        let file = fs::File::open(path).await.map_err(|err| {
-            tracing::error!("failed to open file at {}: {}", path.display(), err);
-            Error::from(err)
-        })?.into_std().await;
-        serde_json::from_reader(file)
+        let file = fs::File::open(path)
+            .await
             .map_err(|err| {
-                tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
+                tracing::error!("failed to open file at {}: {}", path.display(), err);
                 Error::from(err)
-            })
+            })?
+            .into_std()
+            .await;
+        serde_json::from_reader(file).map_err(|err| {
+            tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
+            Error::from(err)
+        })
     }
 
     async fn reduce_latest(left: Option<Self>, right: Self) -> Result<Option<Self>, Error> {
         match left {
             None => Ok(Some(right)),
-            Some(left) => if left.timestamp() > right.timestamp() {
-                // grcov: ignore-start
-                // This branch doesn't seem to be taken by tests, at least locally.
-                // I don't know of a way to force this branch to be taken and it is simple
-                // enough that I feel comfortable marking it ignored.
-                Ok(Some(left))
-                // grcov: ignore-end
-            } else {
-                Ok(Some(right))
+            Some(left) => {
+                if left.timestamp() > right.timestamp() {
+                    // grcov: ignore-start
+                    // This branch doesn't seem to be taken by tests, at least locally.
+                    // I don't know of a way to force this branch to be taken and it is simple
+                    // enough that I feel comfortable marking it ignored.
+                    Ok(Some(left))
+                    // grcov: ignore-end
+                } else {
+                    Ok(Some(right))
+                }
             }
         }
     }
@@ -436,11 +441,10 @@ impl Operation {
             .try_filter_map(|operation| async {
                 match file {
                     None => Ok(Some(operation)),
-                    Some((pile_name, path)) => {
-                        operation.contains_file(pile_name, path, only_modified)
-                            .then(|| Ok(operation))
-                            .transpose()
-                    },
+                    Some((pile_name, path)) => operation
+                        .contains_file(pile_name, path, only_modified)
+                        .then(|| Ok(operation))
+                        .transpose(),
                 }
             })
             .try_fold(None, Self::reduce_latest)
@@ -485,9 +489,10 @@ impl Operation {
         let other_folders = super::get_history_dirs_not_for_id(&uuid).await?;
         tokio_stream::iter(other_folders.into_iter().map(Ok))
             .try_filter_map(|dir| async move {
-                Self::latest_hoard_operation_from_local_dir(&dir, hoard, file, true, only_modified).await
+                Self::latest_hoard_operation_from_local_dir(&dir, hoard, file, true, only_modified)
+                    .await
             })
-            .try_fold(None,Self::reduce_latest)
+            .try_fold(None, Self::reduce_latest)
             .await?
             .map(Self::into_latest_version)
             .transpose()
@@ -535,12 +540,8 @@ impl Checker for Operation {
         }
 
         match (last_local, last_remote) {
-            (_, None) => {
-                Ok(())
-            }
-            (None, Some(last_remote)) => {
-                self.check_has_same_files(&last_remote)
-            }
+            (_, None) => Ok(()),
+            (None, Some(last_remote)) => self.check_has_same_files(&last_remote),
             (Some(last_local), Some(last_remote)) => {
                 if last_local.timestamp() > last_remote.timestamp() {
                     // Allow if the last operation on this machine

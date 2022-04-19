@@ -1,11 +1,11 @@
 use super::Editor;
 use registry::{key::Error as RegError, Data, Hive, Security};
 use std::ffi::OsString;
-use tokio::fs;
-use tokio::runtime::Handle;
-use tokio::io::AsyncWriteExt;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use tokio::runtime::Handle;
 
 const EDITOR_NAME: &str = "editor.ps1";
 const EDITOR_ID: &str = "hoard.test.editor";
@@ -78,8 +78,9 @@ impl Drop for EditorGuard {
 async fn create_script_file(editor: Editor) -> EditorGuard {
     let temp_dir = tempfile::tempdir().expect("creating tempdir should succeed");
     let script_file = temp_dir.path().join(EDITOR_NAME);
-    let mut script =
-        fs::File::create(&script_file).await.expect("creating script file should not succeed");
+    let mut script = fs::File::create(&script_file)
+        .await
+        .expect("creating script file should not succeed");
     script
         .write_all(editor.file_content().as_bytes())
         .await

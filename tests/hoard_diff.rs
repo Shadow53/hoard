@@ -4,9 +4,9 @@ use common::tester::Tester;
 use hoard::command::Command;
 use hoard::newtypes::HoardName;
 use std::collections::BTreeMap;
-use tokio::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use tokio::fs;
 
 const DIFF_TOML: &str = r#"
 exclusivity = [
@@ -99,19 +99,27 @@ async fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
     match content {
         None => {
             if path.exists() {
-                fs::remove_file(path).await.expect("removing file should succeed");
+                fs::remove_file(path)
+                    .await
+                    .expect("removing file should succeed");
                 assert!(!path.exists());
             }
         }
         Some(Content((text, binary))) => {
             if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).await.expect("should be able to create file parents");
+                fs::create_dir_all(parent)
+                    .await
+                    .expect("should be able to create file parents");
             }
 
             if is_text {
-                fs::write(path, text).await.expect("writing text to file should succeed");
+                fs::write(path, text)
+                    .await
+                    .expect("writing text to file should succeed");
             } else {
-                fs::write(path, binary).await.expect("writing text to file should succeed");
+                fs::write(path, binary)
+                    .await
+                    .expect("writing text to file should succeed");
             }
 
             assert!(
@@ -166,10 +174,12 @@ async fn assert_diff_contains(
     is_verbose: bool,
 ) {
     tester.use_local_uuid().await;
-    tester.expect_command(Command::Diff {
-        hoard: hoard.clone(),
-        verbose: is_verbose,
-    }).await;
+    tester
+        .expect_command(Command::Diff {
+            hoard: hoard.clone(),
+            verbose: is_verbose,
+        })
+        .await;
     if invert {
         tester.assert_not_has_output(&content);
     } else if is_partial {

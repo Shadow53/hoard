@@ -18,8 +18,8 @@ use crate::paths::{HoardPath, RelativePath};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use tokio::io;
 use time::OffsetDateTime;
+use tokio::io;
 
 /// Errors that may occur while working with operation logs.
 
@@ -296,12 +296,15 @@ impl Hoard {
         checksum: Option<Checksum>,
         path: &RelativePath,
     ) -> Result<Checksum, Error> {
-        checksum.ok_or_else(|| {
-            Error::IO(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("could not find item at \"{}\"", path),
-            ))
-        }).map(Ok).unwrap()
+        checksum
+            .ok_or_else(|| {
+                Error::IO(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("could not find item at \"{}\"", path),
+                ))
+            })
+            .map(Ok)
+            .unwrap()
     }
 
     fn checksum_type(hoard: &ConfigHoard, hoard_file: &CachedHoardItem) -> ChecksumType {
@@ -327,11 +330,10 @@ impl Hoard {
         direction: Direction,
     ) -> Result<Self, Error> {
         let mut inner: HashMap<PileName, Pile> =
-            operation_stream(hoards_root, hoard_name.clone(), hoard, direction).await?
+            operation_stream(hoards_root, hoard_name.clone(), hoard, direction)
+                .await?
                 .map_err(Error::Iterator)
-                .try_fold(
-                HashMap::new(),
-                |mut acc, op| async move {
+                .try_fold(HashMap::new(), |mut acc, op| async move {
                     match op {
                         ItemOperation::Create(file) => {
                             let checksum = match direction {
@@ -377,8 +379,8 @@ impl Hoard {
                     }
 
                     Ok(acc)
-                },
-            ).await?;
+                })
+                .await?;
 
         let empty = PileName::anonymous();
         if inner.len() == 1 && inner.contains_key(&empty) {

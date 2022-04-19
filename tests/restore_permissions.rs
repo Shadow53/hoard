@@ -2,9 +2,9 @@ mod common;
 
 use common::tester::Tester;
 use hoard::command::Command;
-use tokio::fs;
 #[cfg(unix)]
 use std::fs::Permissions;
+use tokio::fs;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -76,18 +76,30 @@ async fn test_default_permissions() {
     fs::create_dir_all(ignored.parent().unwrap()).await.unwrap();
     fs::write(&file, "test content").await.unwrap();
     fs::write(&ignored, "ignore me!").await.unwrap();
-    tester.expect_command(Command::Backup {
-        hoards: hoards.clone(),
-    }).await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: hoards.clone(),
+        })
+        .await;
 
     #[cfg(unix)]
     {
         // Set permissions to something other than the expected value.
-        fs::set_permissions(tester.home_dir(), Permissions::from_mode(0o755)).await.unwrap();
-        fs::set_permissions(&root, Permissions::from_mode(0o755)).await.unwrap();
-        fs::set_permissions(&ignored.parent().unwrap(), Permissions::from_mode(0o755)).await.unwrap();
-        fs::set_permissions(&file, Permissions::from_mode(0o644)).await.unwrap();
-        fs::set_permissions(&ignored, Permissions::from_mode(0o644)).await.unwrap();
+        fs::set_permissions(tester.home_dir(), Permissions::from_mode(0o755))
+            .await
+            .unwrap();
+        fs::set_permissions(&root, Permissions::from_mode(0o755))
+            .await
+            .unwrap();
+        fs::set_permissions(&ignored.parent().unwrap(), Permissions::from_mode(0o755))
+            .await
+            .unwrap();
+        fs::set_permissions(&file, Permissions::from_mode(0o644))
+            .await
+            .unwrap();
+        fs::set_permissions(&ignored, Permissions::from_mode(0o644))
+            .await
+            .unwrap();
     }
 
     tester.expect_command(Command::Restore { hoards }).await;
@@ -136,9 +148,11 @@ async fn test_anon_txt_configured_perms() {
 
     fs::write(&file, "content").await.unwrap();
 
-    tester.expect_command(Command::Backup {
-        hoards: hoards.clone(),
-    }).await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: hoards.clone(),
+        })
+        .await;
 
     fs::remove_file(&file).await.unwrap();
 
@@ -160,9 +174,11 @@ async fn test_anon_bin_configured_perms() {
 
     fs::write(&file, [0xFF, 0xFF, 0xFF, 0xDE]).await.unwrap();
 
-    tester.expect_command(Command::Backup {
-        hoards: hoards.clone(),
-    }).await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: hoards.clone(),
+        })
+        .await;
 
     tester.expect_command(Command::Restore { hoards }).await;
 
@@ -186,9 +202,11 @@ async fn test_anon_dir_configured_perms() {
     fs::write(&file1, "content 1").await.unwrap();
     fs::write(&file2, "content 2").await.unwrap();
 
-    tester.expect_command(Command::Backup {
-        hoards: hoards.clone(),
-    }).await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: hoards.clone(),
+        })
+        .await;
 
     fs::remove_dir_all(&sub_dir).await.unwrap();
     fs::remove_file(&file1).await.unwrap();
@@ -230,9 +248,11 @@ async fn test_readonly_dir() {
     fs::create_dir_all(&sub_dir).await.unwrap();
     fs::write(&file, "content").await.unwrap();
 
-    tester.expect_command(Command::Backup {
-        hoards: hoards.clone(),
-    }).await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: hoards.clone(),
+        })
+        .await;
 
     for path in [&file, &sub_dir, &root] {
         let mut perms = fs::metadata(&path).await.unwrap().permissions();

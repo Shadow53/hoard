@@ -3,12 +3,12 @@ mod common;
 use common::base::DefaultConfigTester;
 use common::base::{HOARD_ANON_DIR, HOARD_ANON_FILE, HOARD_NAMED};
 use common::UuidLocation;
+use futures::{StreamExt, TryStreamExt};
 use hoard::command::Command;
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
-use tokio::fs;
 use std::path::{Path, PathBuf};
-use futures::{StreamExt, TryStreamExt};
+use tokio::fs;
 use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
@@ -100,7 +100,9 @@ async fn run_operation(
     };
 
     if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent).await.expect("creating parent directories should succeed");
+        fs::create_dir_all(parent)
+            .await
+            .expect("creating parent directories should succeed");
     }
     fs::write(file_path, uuid::Uuid::new_v4().as_bytes())
         .await
@@ -112,12 +114,20 @@ async fn run_operation(
     }
 
     match direction {
-        Direction::Backup => tester.expect_command(Command::Backup {
-            hoards: vec![hoard.parse().unwrap()],
-        }).await,
-        Direction::Restore => tester.expect_command(Command::Restore {
-            hoards: vec![hoard.parse().unwrap()],
-        }).await,
+        Direction::Backup => {
+            tester
+                .expect_command(Command::Backup {
+                    hoards: vec![hoard.parse().unwrap()],
+                })
+                .await
+        }
+        Direction::Restore => {
+            tester
+                .expect_command(Command::Restore {
+                    hoards: vec![hoard.parse().unwrap()],
+                })
+                .await
+        }
     }
 }
 
@@ -126,9 +136,11 @@ async fn files_in_dir(root: &Path) -> Vec<PathBuf> {
         .await
         .map(ReadDirStream::new)
         .expect("failed to read from directory");
-    stream.and_then(|entry| async move { Ok(entry.path()) })
+    stream
+        .and_then(|entry| async move { Ok(entry.path()) })
         .try_collect()
-        .await.unwrap()
+        .await
+        .unwrap()
 }
 
 #[tokio::test]
@@ -143,38 +155,39 @@ async fn test_operation_cleanup() {
     let data_dir = tester.data_dir();
     let local_uuid = tester.local_uuid().to_hyphenated().to_string();
     let remote_uuid = tester.remote_uuid().to_hyphenated().to_string();
-    let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> = tokio_stream::iter(RETAINED.iter())
-        .map(|(location, retained)| {
-            let system_id = match location {
-                UuidLocation::Local => local_uuid.clone(),
-                UuidLocation::Remote => remote_uuid.clone(),
-            };
-            (*location, system_id, retained.clone())
-        })
-        .then(|(location, system_id, retained)| async move {
-            let retained: HashMap<&'static str, HashSet<PathBuf>> = tokio_stream::iter(retained.iter())
-                .map(|(hoard, indices)| (system_id.clone(), hoard, indices))
-                .then(|(system_id, hoard, indices)| async move {
-                    let path = data_dir
-                        .join("history")
-                        .join(system_id)
-                        .join(hoard);
-                    let mut files = files_in_dir(&path).await;
-                    files.sort_unstable();
+    let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> =
+        tokio_stream::iter(RETAINED.iter())
+            .map(|(location, retained)| {
+                let system_id = match location {
+                    UuidLocation::Local => local_uuid.clone(),
+                    UuidLocation::Remote => remote_uuid.clone(),
+                };
+                (*location, system_id, retained.clone())
+            })
+            .then(|(location, system_id, retained)| async move {
+                let retained: HashMap<&'static str, HashSet<PathBuf>> =
+                    tokio_stream::iter(retained.iter())
+                        .map(|(hoard, indices)| (system_id.clone(), hoard, indices))
+                        .then(|(system_id, hoard, indices)| async move {
+                            let path = data_dir.join("history").join(system_id).join(hoard);
+                            let mut files = files_in_dir(&path).await;
+                            files.sort_unstable();
 
-                    let files = files
-                        .into_iter()
-                        .filter(|path| !path.to_string_lossy().contains("last_paths"))
-                        .enumerate()
-                        .filter_map(|(i, path)| indices.contains(&i).then(|| path))
-                        .collect();
-                    (*hoard, files)
-                })
-                .collect().await;
+                            let files = files
+                                .into_iter()
+                                .filter(|path| !path.to_string_lossy().contains("last_paths"))
+                                .enumerate()
+                                .filter_map(|(i, path)| indices.contains(&i).then(|| path))
+                                .collect();
+                            (*hoard, files)
+                        })
+                        .collect()
+                        .await;
 
-            (location, retained)
-        })
-        .collect().await;
+                (location, retained)
+            })
+            .collect()
+            .await;
 
     tester.expect_command(Command::Cleanup).await;
 
@@ -212,10 +225,14 @@ async fn test_operation_cleanup() {
         .await
         .expect_err("backing up named hoard should fail");
 
-    tester.expect_command(Command::Backup {
-        hoards: vec![HOARD_ANON_DIR.parse().unwrap()],
-    }).await;
-    tester.expect_command(Command::Backup {
-        hoards: vec![HOARD_ANON_FILE.parse().unwrap()],
-    }).await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: vec![HOARD_ANON_DIR.parse().unwrap()],
+        })
+        .await;
+    tester
+        .expect_command(Command::Backup {
+            hoards: vec![HOARD_ANON_FILE.parse().unwrap()],
+        })
+        .await;
 }

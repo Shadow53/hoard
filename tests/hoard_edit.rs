@@ -5,10 +5,10 @@ mod fake_editors;
 use common::tester::Tester;
 use fake_editors::Editor;
 
-use tokio::fs;
-use tokio::runtime::Handle;
 use std::path::Path;
+use tokio::fs;
 use tokio::process::Command;
+use tokio::runtime::Handle;
 
 #[cfg(unix)]
 use pty_closure::{run_in_pty, Error as PtyError};
@@ -100,7 +100,9 @@ async fn verify_editor_called_on(tester: &Tester, _file: &Path) {
         watchdog_path.exists(),
         "watchdog file should have been created"
     );
-    fs::remove_file(&watchdog_path).await.expect("deleting the watchdog file should not fail");
+    fs::remove_file(&watchdog_path)
+        .await
+        .expect("deleting the watchdog file should not fail");
 }
 
 #[tokio::test]

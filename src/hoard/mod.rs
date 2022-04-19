@@ -5,16 +5,16 @@
 pub mod iter;
 pub(crate) mod pile_config;
 
-use std::fmt;
 use crate::filters::Error as FilterError;
 use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tokio::io;
+use std::fmt;
 use std::path::PathBuf;
 use thiserror::Error;
+use tokio::io;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]

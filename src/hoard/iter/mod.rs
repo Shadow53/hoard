@@ -9,7 +9,7 @@ mod diff_files;
 mod operation;
 
 pub use all_files::all_files_stream;
-pub use diff_files::{DiffSource, diff_stream, changed_diff_only_stream, HoardFileDiff};
+pub use diff_files::{changed_diff_only_stream, diff_stream, DiffSource, HoardFileDiff};
 pub use operation::operation_stream;
 
 /// Errors that may occur while using a stream.

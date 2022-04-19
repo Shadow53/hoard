@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use hoard::hoard_item::HoardItem;
 use hoard::newtypes::PileName;
 use hoard::paths::{HoardPath, RelativePath, SystemPath};
@@ -6,10 +7,9 @@ use sha2::digest::generic_array::GenericArray;
 use sha2::digest::OutputSizeUser;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use tokio::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use futures::TryStreamExt;
+use tokio::fs;
 use tokio_stream::wrappers::ReadDirStream;
 
 use super::tester::Tester;
@@ -341,7 +341,9 @@ impl DefaultConfigTester {
 
         for file in paths {
             if let Some(parent) = file.parent() {
-                fs::create_dir_all(parent).await.expect("creating parent dirs should not fail");
+                fs::create_dir_all(parent)
+                    .await
+                    .expect("creating parent dirs should not fail");
             }
 
             super::create_file_with_random_data::<2048>(&file).await;
@@ -396,23 +398,28 @@ impl DefaultConfigTester {
         Self::assert_same_tree(
             &self.home_dir().join("first_anon_file"),
             &hoards_root.join("anon_file"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("first_anon_dir"),
             &hoards_root.join("anon_dir"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("first_named_file"),
             &hoards_root.join("named").join("file"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("first_named_dir1"),
             &hoards_root.join("named").join("dir1"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("first_named_dir2"),
             &hoards_root.join("named").join("dir2"),
-        ).await;
+        )
+        .await;
     }
 
     pub async fn assert_second_tree(&self) {
@@ -420,22 +427,27 @@ impl DefaultConfigTester {
         Self::assert_same_tree(
             &self.home_dir().join("second_anon_file"),
             &hoards_root.join("anon_file"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("second_anon_dir"),
             &hoards_root.join("anon_dir"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("second_named_file"),
             &hoards_root.join("named").join("file"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("second_named_dir1"),
             &hoards_root.join("named").join("dir1"),
-        ).await;
+        )
+        .await;
         Self::assert_same_tree(
             &self.home_dir().join("second_named_dir2"),
             &hoards_root.join("named").join("dir2"),
-        ).await;
+        )
+        .await;
     }
 }

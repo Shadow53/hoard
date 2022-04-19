@@ -49,70 +49,110 @@ exclusivity = [
 
 async fn setup_no_changes(tester: &Tester) {
     let path = tester.home_dir().join("unchanged.txt");
-    fs::write(&path, DEFAULT_CONTENT).await.expect("writing to file should succeed");
+    fs::write(&path, DEFAULT_CONTENT)
+        .await
+        .expect("writing to file should succeed");
     tester.use_local_uuid().await;
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_NO_CHANGES.parse().unwrap()],
-    }).await;
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_NO_CHANGES.parse().unwrap()],
+        })
+        .await;
 }
 
 async fn setup_local_changes(tester: &Tester) {
     let path = tester.home_dir().join("local.txt");
-    fs::write(&path, DEFAULT_CONTENT).await.expect("writing to file should succeed");
+    fs::write(&path, DEFAULT_CONTENT)
+        .await
+        .expect("writing to file should succeed");
     tester.use_remote_uuid().await;
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_LOCAL_CHANGES.parse().unwrap()],
-    }).await;
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_LOCAL_CHANGES.parse().unwrap()],
+        })
+        .await;
     tester.use_local_uuid().await;
-    tester.expect_forced_command(Command::Restore {
-        hoards: vec![HOARD_LOCAL_CHANGES.parse().unwrap()],
-    }).await;
-    fs::write(&path, CHANGED_CONTENT).await.expect("writing to file should succeed");
+    tester
+        .expect_forced_command(Command::Restore {
+            hoards: vec![HOARD_LOCAL_CHANGES.parse().unwrap()],
+        })
+        .await;
+    fs::write(&path, CHANGED_CONTENT)
+        .await
+        .expect("writing to file should succeed");
 }
 
 async fn setup_remote_changes(tester: &Tester) {
     let path = tester.home_dir().join("remote.txt");
-    fs::write(&path, DEFAULT_CONTENT).await.expect("writing to file should succeed");
+    fs::write(&path, DEFAULT_CONTENT)
+        .await
+        .expect("writing to file should succeed");
     tester.use_local_uuid().await;
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
-    }).await;
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
+        })
+        .await;
     tester.use_remote_uuid().await;
-    tester.expect_forced_command(Command::Restore {
-        hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
-    }).await;
-    fs::write(&path, CHANGED_CONTENT).await.expect("writing to file should succeed");
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
-    }).await;
-    fs::write(&path, DEFAULT_CONTENT).await.expect("writing to file should succeed");
+    tester
+        .expect_forced_command(Command::Restore {
+            hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
+        })
+        .await;
+    fs::write(&path, CHANGED_CONTENT)
+        .await
+        .expect("writing to file should succeed");
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_REMOTE_CHANGES.parse().unwrap()],
+        })
+        .await;
+    fs::write(&path, DEFAULT_CONTENT)
+        .await
+        .expect("writing to file should succeed");
 }
 
 async fn setup_mixed_changes(tester: &Tester) {
     let path = tester.home_dir().join("mixed.txt");
     tester.use_local_uuid().await;
-    fs::write(&path, DEFAULT_CONTENT).await.expect("writing to file should succeed");
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_MIXED_CHANGES.parse().unwrap()],
-    }).await;
+    fs::write(&path, DEFAULT_CONTENT)
+        .await
+        .expect("writing to file should succeed");
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_MIXED_CHANGES.parse().unwrap()],
+        })
+        .await;
     tester.use_remote_uuid().await;
-    fs::write(&path, CHANGED_CONTENT).await.expect("writing to file should succeed");
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_MIXED_CHANGES.parse().unwrap()],
-    }).await;
+    fs::write(&path, CHANGED_CONTENT)
+        .await
+        .expect("writing to file should succeed");
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_MIXED_CHANGES.parse().unwrap()],
+        })
+        .await;
     tester.use_local_uuid().await;
-    fs::write(&path, OTHER_CONTENT).await.expect("writing to file should succeed");
+    fs::write(&path, OTHER_CONTENT)
+        .await
+        .expect("writing to file should succeed");
 }
 
 async fn setup_unexpected_changes(tester: &Tester) {
     let path = tester.home_dir().join("unexpected.txt");
     let hoard_path = tester.data_dir().join("hoards").join("unexpected_changes");
     tester.use_local_uuid().await;
-    fs::write(&path, DEFAULT_CONTENT).await.expect("writing to file should succeed");
-    tester.expect_forced_command(Command::Backup {
-        hoards: vec![HOARD_UNEXPECTED_CHANGES.parse().unwrap()],
-    }).await;
-    fs::write(&hoard_path, CHANGED_CONTENT).await.expect("writing to file should succeed");
+    fs::write(&path, DEFAULT_CONTENT)
+        .await
+        .expect("writing to file should succeed");
+    tester
+        .expect_forced_command(Command::Backup {
+            hoards: vec![HOARD_UNEXPECTED_CHANGES.parse().unwrap()],
+        })
+        .await;
+    fs::write(&hoard_path, CHANGED_CONTENT)
+        .await
+        .expect("writing to file should succeed");
 }
 
 #[tokio::test]

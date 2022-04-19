@@ -1,11 +1,11 @@
+use futures::TryStreamExt;
 use std::io::ErrorKind;
 use std::ops::DerefMut;
 use std::{
     ops::Deref,
     path::{Path, PathBuf},
 };
-use futures::TryStreamExt;
-use tokio::{io, fs};
+use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
 use super::test_subscriber::MemorySubscriber;
@@ -92,9 +92,15 @@ impl Tester {
             )
         };
 
-        fs::create_dir_all(&config_dir).await.expect("failed to create test config dir");
-        fs::create_dir_all(&home_dir).await.expect("failed to create test home dir");
-        fs::create_dir_all(&data_dir).await.expect("failed to create test data dir");
+        fs::create_dir_all(&config_dir)
+            .await
+            .expect("failed to create test config dir");
+        fs::create_dir_all(&home_dir)
+            .await
+            .expect("failed to create test home dir");
+        fs::create_dir_all(&data_dir)
+            .await
+            .expect("failed to create test data dir");
 
         let config = {
             ::toml::from_str::<Builder>(toml_str)
@@ -209,7 +215,7 @@ impl Tester {
             Err(error) => format!("ERROR: {}", error),
             Ok(iter) => ReadDirStream::new(iter)
                 .and_then(|entry| async move {
-                    let entry_str =  {
+                    let entry_str = {
                         let sub_entry = if entry.path().is_dir() && depth < max_depth {
                             format!(
                                 "\n{}",
@@ -225,7 +231,9 @@ impl Tester {
 
                     Ok(format!("\n{} {}", prefix, entry_str))
                 })
-                .try_collect::<String>().await.unwrap(),
+                .try_collect::<String>()
+                .await
+                .unwrap(),
         };
         format!("{}{}", this_path, content)
     }
@@ -312,7 +320,10 @@ impl Tester {
     }
 
     pub async fn clear_data_dir(&self) {
-        let mut stream = fs::read_dir(self.data_dir()).await.map(ReadDirStream::new).unwrap();
+        let mut stream = fs::read_dir(self.data_dir())
+            .await
+            .map(ReadDirStream::new)
+            .unwrap();
         while let Some(entry) = stream.try_next().await.unwrap() {
             if entry.path().is_file() {
                 fs::remove_file(entry.path()).await.unwrap();

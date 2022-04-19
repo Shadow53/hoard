@@ -1,6 +1,6 @@
 use super::hoard_item::HoardItem;
 use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
-use crate::diff::{FileContent, Diff, str_diff};
+use crate::diff::{str_diff, Diff, FileContent};
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::collections::BTreeMap;
@@ -88,29 +88,39 @@ impl CachedHoardItem {
 
         let system_checksums = system_content.as_ref().and_then(Self::checksums);
         let hoard_checksums = hoard_content.as_ref().and_then(Self::checksums);
-        let diff = if let (Some(system_content), Some(hoard_content)) = (&system_content, &hoard_content) {
+        let diff = if let (Some(system_content), Some(hoard_content)) =
+            (&system_content, &hoard_content)
+        {
             match (system_content, hoard_content) {
                 (FileContent::Missing, FileContent::Missing) => None,
-                (FileContent::Missing, FileContent::Binary(_) | FileContent::Text(_)) => Some(Diff::SystemNotExists),
-                (FileContent::Binary(_) | FileContent::Text(_), FileContent::Missing) => Some(Diff::HoardNotExists),
-                (FileContent::Binary(_), FileContent::Text(_)) | (FileContent::Text(_), FileContent::Binary(_)) => Some(Diff::Binary),
-                (FileContent::Binary(_), FileContent::Binary(_)) => (system_checksums != hoard_checksums).then(|| Diff::Binary),
-                (FileContent::Text(system_text), FileContent::Text(hoard_text)) => {
-                    str_diff(
-                        (inner.hoard_path(), hoard_text),
-                        (inner.system_path(), system_text),
-                    )
+                (FileContent::Missing, FileContent::Binary(_) | FileContent::Text(_)) => {
+                    Some(Diff::SystemNotExists)
                 }
+                (FileContent::Binary(_) | FileContent::Text(_), FileContent::Missing) => {
+                    Some(Diff::HoardNotExists)
+                }
+                (FileContent::Binary(_), FileContent::Text(_))
+                | (FileContent::Text(_), FileContent::Binary(_)) => Some(Diff::Binary),
+                (FileContent::Binary(_), FileContent::Binary(_)) => {
+                    (system_checksums != hoard_checksums).then(|| Diff::Binary)
+                }
+                (FileContent::Text(system_text), FileContent::Text(hoard_text)) => str_diff(
+                    (inner.hoard_path(), hoard_text),
+                    (inner.system_path(), system_text),
+                ),
             }
         } else {
             None
         };
 
-        let is_text = is_file && matches!(
-            (system_content, hoard_content),
-            (Some(FileContent::Text(_)), Some(FileContent::Text(_) | FileContent::Missing)) |
-            (Some(FileContent::Missing), Some(FileContent::Text(_)))
-        );
+        let is_text = is_file
+            && matches!(
+                (system_content, hoard_content),
+                (
+                    Some(FileContent::Text(_)),
+                    Some(FileContent::Text(_) | FileContent::Missing)
+                ) | (Some(FileContent::Missing), Some(FileContent::Text(_)))
+            );
 
         let exists = inner.hoard_path().exists() || inner.system_path().exists();
 

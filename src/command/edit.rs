@@ -54,7 +54,9 @@ pub(crate) async fn run_edit(path: &Path) -> Result<(), super::Error> {
     if path.exists() {
         fs::copy(path, &tmp_file).await.map_err(Error::IO)?;
     } else {
-        fs::write(&tmp_file, DEFAULT_CONFIG.as_bytes()).await.map_err(Error::IO)?;
+        fs::write(&tmp_file, DEFAULT_CONFIG.as_bytes())
+            .await
+            .map_err(Error::IO)?;
     }
 
     let mut cmd = if atty::is(Stream::Stdout) && atty::is(Stream::Stderr) && atty::is(Stream::Stdin)

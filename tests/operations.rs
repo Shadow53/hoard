@@ -11,19 +11,22 @@ async fn last_op(file: &HoardItem) -> Operation {
     Operation::latest_local(
         &HOARD_ANON_FILE.parse().unwrap(),
         Some((&PileName::anonymous(), file.relative_path())),
-    ).await
+    )
+    .await
     .expect("finding a recent operation should not fail")
     .expect("a recent operation should exist")
 }
 
 async fn last_checksum(file: &HoardItem) -> Checksum {
-    last_op(file).await
+    last_op(file)
+        .await
         .checksum_for(&PileName::anonymous(), file.relative_path())
         .expect("checksum should exist for file")
 }
 
 async fn current_checksum(file: &HoardItem) -> Checksum {
-    file.system_sha256().await
+    file.system_sha256()
+        .await
         .expect("getting checksum should not fail")
         .expect("file should exist to checksum")
 }

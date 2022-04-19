@@ -2,8 +2,8 @@
 //! [`Config`] type that is used by `hoard`.
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use tokio::{fs, io};
 use std::path::{Path, PathBuf};
+use tokio::{fs, io};
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -178,7 +178,12 @@ impl Builder {
             .canonicalize()
             .map_err(Error::ReadConfig)?;
 
-        Box::pin(tokio_stream::iter(SUPPORTED_CONFIG_EXTS.iter().map(|suffix| Ok((suffix, parent.clone()))))
+        Box::pin(
+            tokio_stream::iter(
+                SUPPORTED_CONFIG_EXTS
+                    .iter()
+                    .map(|suffix| Ok((suffix, parent.clone()))),
+            )
             .try_filter_map(|(suffix, parent)| async move {
                 let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
                 let path = parent.join(path);
@@ -193,10 +198,11 @@ impl Builder {
                     Ok(config) => Ok(Some(config)),
                     Err(err) => Err(err),
                 }
-            }))
-            .try_next()
-            .await?
-            .ok_or_else(error_closure)
+            }),
+        )
+        .try_next()
+        .await?
+        .ok_or_else(error_closure)
     }
 
     /// Helper method to process command-line arguments and the config file specified on CLI
@@ -219,7 +225,7 @@ impl Builder {
                 );
 
                 Self::from_file(config_file).await?
-            },
+            }
             None => Self::from_default_file().await?,
         };
 

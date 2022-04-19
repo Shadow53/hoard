@@ -14,15 +14,16 @@ pub(crate) async fn run_diff(
 ) -> Result<(), super::Error> {
     let _span = tracing::trace_span!("run_diff").entered();
     tracing::trace!("running the diff command");
-    let diffs: BTreeSet<HoardFileDiff> = changed_diff_only_stream(hoards_root, hoard_name.clone(), hoard)
-        .await
-        .map_err(|err| {
-            tracing::error!("failed to create diff stream: {}", err);
-            super::Error::Diff(err)
-        })?
-        .try_collect()
-        .await
-        .map_err(super::Error::Diff)?;
+    let diffs: BTreeSet<HoardFileDiff> =
+        changed_diff_only_stream(hoards_root, hoard_name.clone(), hoard)
+            .await
+            .map_err(|err| {
+                tracing::error!("failed to create diff stream: {}", err);
+                super::Error::Diff(err)
+            })?
+            .try_collect()
+            .await
+            .map_err(super::Error::Diff)?;
     for hoard_diff in diffs {
         tracing::trace!("printing diff: {:?}", hoard_diff);
         match hoard_diff {

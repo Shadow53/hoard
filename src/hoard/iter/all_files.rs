@@ -4,11 +4,11 @@ use crate::hoard::Hoard;
 use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::collections::BTreeSet;
 use futures::stream::Peekable;
+use futures::{StreamExt, TryStream};
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::pin::Pin;
-use futures::{StreamExt, TryStream};
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
@@ -60,17 +60,15 @@ impl AllFilesIter {
                 let filters = Filters::new(&pile.config)?;
                 match path {
                     None => Ok(Vec::default()),
-                    Some(system_prefix) => std::iter::once(
-                        Ok(RootPathItem {
-                            hoard_file: HoardItem::new(
-                                PileName::anonymous(),
-                                hoard_name_root.clone(),
-                                system_prefix,
-                                RelativePath::none(),
-                            ),
-                            filters,
-                        })
-                    )
+                    Some(system_prefix) => std::iter::once(Ok(RootPathItem {
+                        hoard_file: HoardItem::new(
+                            PileName::anonymous(),
+                            hoard_name_root.clone(),
+                            system_prefix,
+                            RelativePath::none(),
+                        ),
+                        filters,
+                    }))
                     .collect(),
                 }
             }
@@ -111,9 +109,12 @@ impl AllFilesIter {
         // This is used to detect files deleted locally and remotely
         let from_logs: Vec<ItemOperation<HoardItem>> = {
             let _span = tracing::trace_span!("load_paths_from_logs").entered();
-            let local = Operation::latest_local(hoard_name, None).await.map_err(Box::new)?;
-            let remote =
-                Operation::latest_remote_backup(hoard_name, None, false).await.map_err(Box::new)?;
+            let local = Operation::latest_local(hoard_name, None)
+                .await
+                .map_err(Box::new)?;
+            let remote = Operation::latest_remote_backup(hoard_name, None, false)
+                .await
+                .map_err(Box::new)?;
 
             match (local, remote) {
                 (None, None) => Vec::new(),
@@ -147,11 +148,9 @@ impl AllFilesIter {
 
         let list = from_logs
             .into_iter()
-            .map(|item| {
-                RootPathItem {
-                    hoard_file: item.into_inner(),
-                    filters: Filters::default(),
-                }
+            .map(|item| RootPathItem {
+                hoard_file: item.into_inner(),
+                filters: Filters::default(),
             })
             .collect::<Vec<_>>();
 
@@ -409,7 +408,7 @@ pub async fn all_files_stream(
     hoards_root: &HoardPath,
     hoard_name: &HoardName,
     hoard: &Hoard,
-) -> Result<impl TryStream<Ok=HoardItem, Error=super::Error>, super::Error> {
+) -> Result<impl TryStream<Ok = HoardItem, Error = super::Error>, super::Error> {
     let mut all_files = AllFilesIter::new(hoards_root, hoard_name, hoard).await?;
     let stream = async_stream::try_stream! {
         while let Some(item) = all_files.next_item().await {

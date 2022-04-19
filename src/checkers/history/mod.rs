@@ -2,8 +2,8 @@
 //! and accidental overwrites or deletions.
 
 use crate::paths::{HoardPath, RelativePath};
-use std::path::PathBuf;
 use futures::TryStreamExt;
+use std::path::PathBuf;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 use uuid::Uuid;
@@ -107,7 +107,9 @@ pub async fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
                 uuid_file
                     .parent()
                     .expect("uuid file should always have a parent directory"),
-            ).await {
+            )
+            .await
+            {
                 tracing::error!(error = %err, "error while create parent dir");
                 return Err(err);
             }

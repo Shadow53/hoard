@@ -13,7 +13,9 @@ use hoard::config::Error as ConfigError;
 use hoard::paths::SystemPath;
 
 async fn assert_expected_paths(tester: &Tester, expected: &LastPaths) {
-    let current = LastPaths::from_default_file().await.expect("reading last_paths.json should not fail");
+    let current = LastPaths::from_default_file()
+        .await
+        .expect("reading last_paths.json should not fail");
     let anon_file = HOARD_ANON_FILE.parse().unwrap();
     let anon_dir = HOARD_ANON_DIR.parse().unwrap();
     let named = HOARD_NAMED.parse().unwrap();

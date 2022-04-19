@@ -1,11 +1,11 @@
 use crate::checksum::ChecksumType;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fs::Permissions as StdPermissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tokio::{fs, io};
-use std::fs::Permissions as StdPermissions;
 
 /// Configuration for symmetric (password) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -13,15 +13,21 @@ async fn test_invalid_uuid() {
     let uuid_path = tester.config_dir().join("uuid");
     let bad_content = "INVALID UUID";
     {
-        let mut file = fs::File::create(&uuid_path).await.expect("failed to create uuid file");
+        let mut file = fs::File::create(&uuid_path)
+            .await
+            .expect("failed to create uuid file");
         file.write_all(bad_content.as_bytes())
             .await
             .expect("failed to write to uuid file");
     }
 
-    tester.expect_command(Command::Backup { hoards: Vec::new() }).await;
+    tester
+        .expect_command(Command::Backup { hoards: Vec::new() })
+        .await;
 
-    let content = fs::read_to_string(&uuid_path).await.expect("failed to read uuid file");
+    let content = fs::read_to_string(&uuid_path)
+        .await
+        .expect("failed to read uuid file");
     assert_ne!(content, bad_content);
 
     tester.assert_has_output("failed to parse uuid in file");
@@ -34,10 +40,13 @@ async fn test_invalid_config_extensions() {
 
     let path = tester.config_dir().join("config_file");
     {
-        fs::File::create(&path).await.expect("failed to create config_file");
+        fs::File::create(&path)
+            .await
+            .expect("failed to create config_file");
     }
-    let error =
-        Builder::from_file(&path).await.expect_err("config file without file extension should fail");
+    let error = Builder::from_file(&path)
+        .await
+        .expect_err("config file without file extension should fail");
     assert!(matches!(error, BuilderError::InvalidExtension(bad_path) if path == bad_path));
 
     tester.assert_has_output(expected_output);
@@ -45,10 +54,13 @@ async fn test_invalid_config_extensions() {
 
     let path = tester.config_dir().join("config_file.txt");
     {
-        fs::File::create(&path).await.expect("failed to create config_file.txt");
+        fs::File::create(&path)
+            .await
+            .expect("failed to create config_file.txt");
     }
-    let error =
-        Builder::from_file(&path).await.expect_err("config file with bad file extension should fail");
+    let error = Builder::from_file(&path)
+        .await
+        .expect_err("config file with bad file extension should fail");
     assert!(matches!(error, BuilderError::InvalidExtension(bad_path) if path == bad_path));
 
     tester.assert_has_output(expected_output);
@@ -57,7 +69,9 @@ async fn test_invalid_config_extensions() {
 #[tokio::test]
 async fn test_missing_config_dir() {
     let tester = Tester::new(common::base::BASE_CONFIG).await;
-    fs::remove_dir(tester.config_dir()).await.expect("failed to delete config dir");
+    fs::remove_dir(tester.config_dir())
+        .await
+        .expect("failed to delete config dir");
     tester
         .run_command(Command::Backup { hoards: Vec::new() })
         .await

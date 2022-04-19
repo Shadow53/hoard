@@ -1,12 +1,12 @@
 use super::Editor;
 use std::ffi::OsString;
-use tokio::fs;
-use tokio::io::AsyncWriteExt;
-use tokio::runtime::Handle;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use tokio::process::Command;
 use tempfile::TempDir;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
+use tokio::runtime::Handle;
 
 const EDITOR_NAME: &str = "com.shadow53.hoard.test-editor";
 const EDITOR_DESKTOP: &str = "com.shadow53.hoard-test-editor.desktop";
@@ -86,8 +86,9 @@ async fn set_desktop_file_default(mime_type: &str) {
 async fn create_script_file(editor: Editor) -> EditorGuard {
     let temp_dir = tempfile::tempdir().expect("creating tempdir should succeed");
     let script_file = temp_dir.path().join(EDITOR_NAME);
-    let mut script =
-        fs::File::create(&script_file).await.expect("creating script file should not succeed");
+    let mut script = fs::File::create(&script_file)
+        .await
+        .expect("creating script file should not succeed");
     script
         .write_all(editor.file_content().as_bytes())
         .await
@@ -135,7 +136,9 @@ Exec={} %f
 "#,
         guard.script_path().display()
     );
-    fs::write(&desktop_path, content).await.expect("writing to desktop file should succeed");
+    fs::write(&desktop_path, content)
+        .await
+        .expect("writing to desktop file should succeed");
     xdg_desktop_menu("install", &desktop_path.to_string_lossy());
     // The mime type reported by xdg-mime for TOML files
     set_desktop_file_default("text/plain");

@@ -1,11 +1,11 @@
 mod common;
 
 use common::tester::Tester;
-use std::collections::{HashMap, HashSet};
-use tokio::fs;
-use std::path::PathBuf;
 use futures::TryStreamExt;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use time::Duration;
+use tokio::fs;
 use tokio_stream::wrappers::ReadDirStream;
 
 use hoard::checkers::history::operation::util::TIME_FORMAT;
@@ -150,7 +150,12 @@ async fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
         let path = tester
             .data_dir()
             .join("history")
-            .join(tester.get_uuid().await.expect("getting uuid should succeed"))
+            .join(
+                tester
+                    .get_uuid()
+                    .await
+                    .expect("getting uuid should succeed"),
+            )
             .join(op.hoard_name().as_ref())
             .join(format!(
                 "{}.log",
@@ -160,10 +165,16 @@ async fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
             ));
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await.expect("creating parent dirs should succeed");
+            fs::create_dir_all(parent)
+                .await
+                .expect("creating parent dirs should succeed");
         }
 
-        let file = fs::File::create(path).await.expect("creating an operation file should not fail").into_std().await;
+        let file = fs::File::create(path)
+            .await
+            .expect("creating an operation file should not fail")
+            .into_std()
+            .await;
 
         serde_json::to_writer(file, &op).expect("writing a V1 operation file should succeed");
     }
@@ -173,20 +184,35 @@ async fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
     let path = tester
         .data_dir()
         .join("history")
-        .join(tester.get_uuid().await.expect("getting uuid should succeed"))
+        .join(
+            tester
+                .get_uuid()
+                .await
+                .expect("getting uuid should succeed"),
+        )
         .join(hoard);
     let mut list: Vec<_> = fs::read_dir(&path)
         .await
-        .map_or_else(|_| {
-            panic!(
-                "reading history directory {} should not fail",
-                path.display()
-            )
-        }, ReadDirStream::new)
+        .map_or_else(
+            |_| {
+                panic!(
+                    "reading history directory {} should not fail",
+                    path.display()
+                )
+            },
+            ReadDirStream::new,
+        )
         .try_filter_map(|entry| async move {
             if entry.file_name() != "last_paths.json" {
-                let file = fs::File::open(entry.path()).await.expect("opening file should succeed").into_std().await;
-                serde_json::from_reader::<_, OperationV2>(file).map(Some).map(Ok).unwrap()
+                let file = fs::File::open(entry.path())
+                    .await
+                    .expect("opening file should succeed")
+                    .into_std()
+                    .await;
+                serde_json::from_reader::<_, OperationV2>(file)
+                    .map(Some)
+                    .map(Ok)
+                    .unwrap()
             } else {
                 Ok(None)
             }

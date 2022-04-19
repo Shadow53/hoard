@@ -1,14 +1,14 @@
+use std::fs::Metadata;
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tokio::fs::File;
-use std::fs::Metadata;
 
 use hoard::checksum::Checksum;
 use hoard::hoard_item::HoardItem;
 use tempfile::{NamedTempFile, TempDir};
-use tokio::io::{AsyncSeekExt, AsyncReadExt, SeekFrom};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 
 pub fn get_temp_file() -> NamedTempFile {
     NamedTempFile::new().expect("failed to create temp file")

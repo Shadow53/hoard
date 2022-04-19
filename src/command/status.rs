@@ -1,4 +1,4 @@
-use crate::hoard::iter::{DiffSource, diff_stream, HoardFileDiff};
+use crate::hoard::iter::{diff_stream, DiffSource, HoardFileDiff};
 use crate::hoard::Hoard;
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
@@ -30,18 +30,20 @@ pub(crate) async fn run_status<'a>(
                 match acc {
                     None => Ok(Some(source)),
                     Some(acc) => {
-                        let new_source = if acc == DiffSource::Unknown || source == DiffSource::Unknown {
-                            DiffSource::Unknown
-                        } else if acc == source {
-                            acc
-                        } else {
-                            DiffSource::Mixed
-                        };
+                        let new_source =
+                            if acc == DiffSource::Unknown || source == DiffSource::Unknown {
+                                DiffSource::Unknown
+                            } else if acc == source {
+                                acc
+                            } else {
+                                DiffSource::Mixed
+                            };
 
                         Ok(Some(new_source))
                     }
                 }
-            }).await?;
+            })
+            .await?;
 
         match source {
             None => tracing::info!("{}: up to date", hoard_name),

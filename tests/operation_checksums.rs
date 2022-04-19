@@ -41,9 +41,13 @@ async fn test_operation_checksums() {
     let rel_file = RelativePath::none();
     common::create_file_with_random_data::<2048>(&file_path).await;
 
-    tester.expect_command(Command::Backup { hoards: Vec::new() }).await;
+    tester
+        .expect_command(Command::Backup { hoards: Vec::new() })
+        .await;
 
-    let data = fs::read(&file_path).await.expect("reading data from test file should succeed");
+    let data = fs::read(&file_path)
+        .await
+        .expect("reading data from test file should succeed");
     let md5 = Checksum::MD5(MD5::from_data(&data));
     let sha256 = Checksum::SHA256(SHA256::from_data(&data));
 

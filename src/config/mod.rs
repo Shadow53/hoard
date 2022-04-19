@@ -123,7 +123,8 @@ impl Config {
                     hoard,
                     &crate::paths::hoards_dir(),
                     *verbose,
-                ).await?;
+                )
+                .await?;
             }
             Command::Edit => {
                 command::run_edit(&self.config_file).await?;

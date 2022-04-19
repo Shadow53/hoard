@@ -6,9 +6,9 @@ use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use tokio::fs;
 use std::path::Path;
 use thiserror::Error;
+use tokio::fs;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -30,7 +30,9 @@ pub(crate) async fn run_backup<'a>(
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
-    backup_or_restore(hoards_root, Direction::Backup, hoards, force).await.map_err(super::Error::Backup)
+    backup_or_restore(hoards_root, Direction::Backup, hoards, force)
+        .await
+        .map_err(super::Error::Backup)
 }
 
 #[allow(single_use_lifetimes)]
@@ -39,17 +41,23 @@ pub(crate) async fn run_restore<'a>(
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
     force: bool,
 ) -> Result<(), super::Error> {
-    backup_or_restore(hoards_root, Direction::Restore, hoards, force).await.map_err(super::Error::Restore)
+    backup_or_restore(hoards_root, Direction::Restore, hoards, force)
+        .await
+        .map_err(super::Error::Restore)
 }
 
 #[async_recursion::async_recursion]
-async fn recursively_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> Result<(), Error> {
+async fn recursively_set_hoard_permissions(
+    root: &HoardPath,
+    path: &RelativePath,
+) -> Result<(), Error> {
     let full_path = root.join(path);
     set_permissions(
         &full_path,
         Permissions::file_default(),
         Permissions::folder_default(),
-    ).await?;
+    )
+    .await?;
     if path.as_path().is_some() {
         let new_rel = path.parent();
         recursively_set_hoard_permissions(root, &new_rel).await
@@ -143,7 +151,8 @@ async fn fix_permissions(
     {
         match direction {
             Direction::Backup => {
-                recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path()).await?;
+                recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path())
+                    .await?;
             }
             Direction::Restore => {
                 let pile = hoard
@@ -168,7 +177,8 @@ async fn fix_permissions(
                     file.relative_path(),
                     file_perms,
                     dir_perms,
-                ).await?;
+                )
+                .await?;
             }
         }
     }
