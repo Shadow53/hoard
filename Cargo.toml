@@ -52,6 +52,8 @@ windows = { version = "0.35", features = ["Storage", "Win32_UI_Shell", "Win32_Fo
 maplit = "1.0"
 rand = "0.8"
 serde_test = "1.0"
+futures = { version = "0.3", default-features = false, features = ["executor"] }
+tokio = { version = "1.17", default-features = false, features = ["process"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 registry = "1.2"

@@ -6,8 +6,10 @@ use common::UuidLocation;
 use hoard::command::Command;
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
-use std::fs;
+use tokio::fs;
 use std::path::{Path, PathBuf};
+use futures::{StreamExt, TryStreamExt};
+use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 enum Direction {
@@ -80,7 +82,7 @@ static RETAINED: Lazy<HashMap<UuidLocation, HashMap<&'static str, Vec<usize>>>> 
 // |         | RSTR x 4 | RSTR x 2  | rstr x 1 |
 // +---------+----------+-----------+----------+
 
-fn run_operation(
+async fn run_operation(
     tester: &DefaultConfigTester,
     location: UuidLocation,
     direction: Direction,
@@ -98,59 +100,66 @@ fn run_operation(
     };
 
     if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent).expect("creating parent directories should succeed");
+        fs::create_dir_all(parent).await.expect("creating parent directories should succeed");
     }
     fs::write(file_path, uuid::Uuid::new_v4().as_bytes())
+        .await
         .expect("failed to write new content to file");
 
     match location {
-        UuidLocation::Local => tester.use_local_uuid(),
-        UuidLocation::Remote => tester.use_remote_uuid(),
+        UuidLocation::Local => tester.use_local_uuid().await,
+        UuidLocation::Remote => tester.use_remote_uuid().await,
     }
 
     match direction {
         Direction::Backup => tester.expect_command(Command::Backup {
             hoards: vec![hoard.parse().unwrap()],
-        }),
+        }).await,
         Direction::Restore => tester.expect_command(Command::Restore {
             hoards: vec![hoard.parse().unwrap()],
-        }),
+        }).await,
     }
 }
 
-fn files_in_dir(root: &Path) -> Vec<PathBuf> {
-    fs::read_dir(&root)
-        .expect("failed to read from directory")
-        .into_iter()
-        .map(|entry| entry.expect("failed to read directory entry").path())
-        .collect()
+async fn files_in_dir(root: &Path) -> Vec<PathBuf> {
+    let stream = fs::read_dir(&root)
+        .await
+        .map(ReadDirStream::new)
+        .expect("failed to read from directory");
+    stream.and_then(|entry| async move { Ok(entry.path()) })
+        .try_collect()
+        .await.unwrap()
 }
 
-#[test]
-fn test_operation_cleanup() {
-    let mut tester = DefaultConfigTester::new();
+#[tokio::test]
+async fn test_operation_cleanup() {
+    let mut tester = DefaultConfigTester::new().await;
     tester.use_first_env();
-    tester.setup_files();
+    tester.setup_files().await;
     for (location, direction, hoard) in &STRATEGY {
-        run_operation(&tester, *location, *direction, hoard);
+        run_operation(&tester, *location, *direction, hoard).await;
     }
 
-    let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> = RETAINED
-        .iter()
+    let data_dir = tester.data_dir();
+    let local_uuid = tester.local_uuid().to_hyphenated().to_string();
+    let remote_uuid = tester.remote_uuid().to_hyphenated().to_string();
+    let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> = tokio_stream::iter(RETAINED.iter())
         .map(|(location, retained)| {
-            let retained = retained
-                .iter()
-                .map(|(hoard, indices)| {
-                    let system_id = match location {
-                        UuidLocation::Local => tester.local_uuid().to_hyphenated().to_string(),
-                        UuidLocation::Remote => tester.remote_uuid().to_hyphenated().to_string(),
-                    };
-                    let path = tester
-                        .data_dir()
+            let system_id = match location {
+                UuidLocation::Local => local_uuid.clone(),
+                UuidLocation::Remote => remote_uuid.clone(),
+            };
+            (*location, system_id, retained.clone())
+        })
+        .then(|(location, system_id, retained)| async move {
+            let retained: HashMap<&'static str, HashSet<PathBuf>> = tokio_stream::iter(retained.iter())
+                .map(|(hoard, indices)| (system_id.clone(), hoard, indices))
+                .then(|(system_id, hoard, indices)| async move {
+                    let path = data_dir
                         .join("history")
                         .join(system_id)
                         .join(hoard);
-                    let mut files = files_in_dir(&path);
+                    let mut files = files_in_dir(&path).await;
                     files.sort_unstable();
 
                     let files = files
@@ -161,13 +170,13 @@ fn test_operation_cleanup() {
                         .collect();
                     (*hoard, files)
                 })
-                .collect();
+                .collect().await;
 
-            (*location, retained)
+            (location, retained)
         })
-        .collect();
+        .collect().await;
 
-    tester.expect_command(Command::Cleanup);
+    tester.expect_command(Command::Cleanup).await;
 
     for (location, retained) in RETAINED.iter() {
         for hoard in retained.keys() {
@@ -180,7 +189,7 @@ fn test_operation_cleanup() {
                 .join("history")
                 .join(system_id)
                 .join(hoard);
-            let files: HashSet<PathBuf> = files_in_dir(&path).into_iter().collect();
+            let files: HashSet<PathBuf> = files_in_dir(&path).await.into_iter().collect();
             let expected_files = expected
                 .get(location)
                 .expect("location should exist")
@@ -194,18 +203,19 @@ fn test_operation_cleanup() {
         }
     }
 
-    tester.use_local_uuid();
-    common::create_file_with_random_data::<2048>(tester.named_file().system_path());
+    tester.use_local_uuid().await;
+    common::create_file_with_random_data::<2048>(tester.named_file().system_path()).await;
     tester
         .run_command(Command::Backup {
             hoards: vec![HOARD_NAMED.parse().unwrap()],
         })
+        .await
         .expect_err("backing up named hoard should fail");
 
     tester.expect_command(Command::Backup {
         hoards: vec![HOARD_ANON_DIR.parse().unwrap()],
-    });
+    }).await;
     tester.expect_command(Command::Backup {
         hoards: vec![HOARD_ANON_FILE.parse().unwrap()],
-    });
+    }).await;
 }

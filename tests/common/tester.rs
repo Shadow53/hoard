@@ -1,10 +1,12 @@
 use std::io::ErrorKind;
 use std::ops::DerefMut;
 use std::{
-    fs, io,
     ops::Deref,
     path::{Path, PathBuf},
 };
+use futures::TryStreamExt;
+use tokio::{io, fs};
+use tokio_stream::wrappers::ReadDirStream;
 
 use super::test_subscriber::MemorySubscriber;
 use hoard::dirs::{COMPANY, PROJECT, TLD};
@@ -35,11 +37,11 @@ impl Drop for Tester {
 }
 
 impl Tester {
-    pub fn new(toml_str: &str) -> Self {
-        Self::with_log_level(toml_str, tracing::Level::INFO)
+    pub async fn new(toml_str: &str) -> Self {
+        Self::with_log_level(toml_str, tracing::Level::INFO).await
     }
 
-    pub fn with_log_level(toml_str: &str, log_level: tracing::Level) -> Self {
+    pub async fn with_log_level(toml_str: &str, log_level: tracing::Level) -> Self {
         #[cfg(all(not(unix), not(windows)))]
         panic!("this target is not supported!");
 
@@ -90,9 +92,9 @@ impl Tester {
             )
         };
 
-        ::std::fs::create_dir_all(&config_dir).expect("failed to create test config dir");
-        ::std::fs::create_dir_all(&home_dir).expect("failed to create test home dir");
-        ::std::fs::create_dir_all(&data_dir).expect("failed to create test data dir");
+        fs::create_dir_all(&config_dir).await.expect("failed to create test config dir");
+        fs::create_dir_all(&home_dir).await.expect("failed to create test home dir");
+        fs::create_dir_all(&data_dir).await.expect("failed to create test data dir");
 
         let config = {
             ::toml::from_str::<Builder>(toml_str)
@@ -123,13 +125,15 @@ impl Tester {
         &self.remote_uuid
     }
 
-    pub fn use_local_uuid(&self) {
+    pub async fn use_local_uuid(&self) {
         fs::write(self.uuid_path(), self.local_uuid.to_string())
+            .await
             .expect("failed to write to uuid file");
     }
 
-    pub fn use_remote_uuid(&self) {
+    pub async fn use_remote_uuid(&self) {
         fs::write(self.uuid_path(), self.remote_uuid.to_string())
+            .await
             .expect("failed to write to uuid file");
     }
 
@@ -160,7 +164,7 @@ impl Tester {
         &self.data_dir
     }
 
-    fn inner_run_command(&self, command: Command, force: bool) -> Result<(), Error> {
+    async fn inner_run_command(&self, command: Command, force: bool) -> Result<(), Error> {
         let config = Config {
             command,
             force,
@@ -168,22 +172,22 @@ impl Tester {
         };
 
         self.clear_output();
-        config.run()
+        config.run().await
     }
 
     #[inline]
-    pub fn run_command(&self, command: Command) -> Result<(), Error> {
-        self.inner_run_command(command, false)
+    pub async fn run_command(&self, command: Command) -> Result<(), Error> {
+        self.inner_run_command(command, false).await
     }
 
     #[inline]
-    pub fn force_command(&self, command: Command) -> Result<(), Error> {
-        self.inner_run_command(command, true)
+    pub async fn force_command(&self, command: Command) -> Result<(), Error> {
+        self.inner_run_command(command, true).await
     }
 
-    pub fn extra_logging_output(&self) -> String {
-        let list_home = Self::list_dir_to_string(self.home_dir(), 3, 0);
-        let list_data = Self::list_dir_to_string(self.data_dir(), 4, 0);
+    pub async fn extra_logging_output(&self) -> String {
+        let list_home = Self::list_dir_to_string(self.home_dir(), 3, 0).await;
+        let list_data = Self::list_dir_to_string(self.data_dir(), 4, 0).await;
         let list_env: String = std::env::vars()
             .map(|(key, val)| format!("{} = {}", key, val))
             .collect::<Vec<String>>()
@@ -198,39 +202,37 @@ impl Tester {
         )
     }
 
-    fn list_dir_to_string(dir: &Path, max_depth: u8, depth: u8) -> String {
+    #[async_recursion::async_recursion]
+    async fn list_dir_to_string(dir: &Path, max_depth: u8, depth: u8) -> String {
         let this_path = format!("{}|- {}", " ".repeat(depth.into()), dir.display());
-        let content = match fs::read_dir(dir) {
+        let content = match fs::read_dir(dir).await {
             Err(error) => format!("ERROR: {}", error),
-            Ok(iter) => iter
-                .map(|entry| {
-                    let entry_str = match entry {
-                        Err(error) => format!("ERROR: {}", error),
-                        Ok(entry) => {
-                            let sub_entry = if entry.path().is_dir() && depth < max_depth {
-                                format!(
-                                    "\n{}",
-                                    Self::list_dir_to_string(&entry.path(), max_depth, depth + 1)
-                                )
-                            } else {
-                                String::new()
-                            };
-                            format!("{}{}", entry.path().display(), sub_entry)
-                        }
+            Ok(iter) => ReadDirStream::new(iter)
+                .and_then(|entry| async move {
+                    let entry_str =  {
+                        let sub_entry = if entry.path().is_dir() && depth < max_depth {
+                            format!(
+                                "\n{}",
+                                Self::list_dir_to_string(&entry.path(), max_depth, depth + 1).await
+                            )
+                        } else {
+                            String::new()
+                        };
+                        format!("{}{}", entry.path().display(), sub_entry)
                     };
 
                     let prefix = format!("{}|-", " ".repeat(depth.into()));
 
-                    format!("\n{} {}", prefix, entry_str)
+                    Ok(format!("\n{} {}", prefix, entry_str))
                 })
-                .collect::<String>(),
+                .try_collect::<String>().await.unwrap(),
         };
         format!("{}{}", this_path, content)
     }
 
-    fn handle_command_result(&self, command: Command, result: Result<(), Error>) {
+    async fn handle_command_result(&self, command: Command, result: Result<(), Error>) {
         if let Err(error) = result {
-            let debug_output = Self::extra_logging_output(self);
+            let debug_output = Self::extra_logging_output(self).await;
             panic!(
                 "command {:?} failed: {:?}\n{}",
                 command, error, debug_output
@@ -238,12 +240,12 @@ impl Tester {
         }
     }
 
-    pub fn expect_command(&self, command: Command) {
-        self.handle_command_result(command.clone(), self.run_command(command));
+    pub async fn expect_command(&self, command: Command) {
+        self.handle_command_result(command.clone(), self.run_command(command).await);
     }
 
-    pub fn expect_forced_command(&self, command: Command) {
-        self.handle_command_result(command.clone(), self.force_command(command));
+    pub async fn expect_forced_command(&self, command: Command) {
+        self.handle_command_result(command.clone(), self.force_command(command).await);
     }
 
     pub fn clear_output(&self) {
@@ -267,8 +269,8 @@ impl Tester {
             .any(|window| window == as_bytes)
     }
 
-    fn assert_output(&self, output: &str, matches: bool) {
-        let debug_output = self.extra_logging_output();
+    async fn assert_output(&self, output: &str, matches: bool) {
+        let debug_output = self.extra_logging_output().await;
         let not_or_not = if matches { "" } else { "not " };
         assert!(
             self.has_output(output) == matches,
@@ -291,12 +293,12 @@ impl Tester {
         self.config_dir().join("uuid")
     }
 
-    pub fn get_uuid(&self) -> io::Result<String> {
-        fs::read_to_string(self.uuid_path())
+    pub async fn get_uuid(&self) -> io::Result<String> {
+        fs::read_to_string(self.uuid_path()).await
     }
 
-    pub fn current_uuid(&self) -> Option<uuid::Uuid> {
-        match self.get_uuid() {
+    pub async fn current_uuid(&self) -> Option<uuid::Uuid> {
+        match self.get_uuid().await {
             Ok(s) => s.parse().ok(),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => None,
@@ -305,17 +307,17 @@ impl Tester {
         }
     }
 
-    pub fn set_uuid(&self, content: &str) -> io::Result<()> {
-        fs::write(self.uuid_path(), content)
+    pub async fn set_uuid(&self, content: &str) -> io::Result<()> {
+        fs::write(self.uuid_path(), content).await
     }
 
-    pub fn clear_data_dir(&self) {
-        for entry in fs::read_dir(self.data_dir()).unwrap() {
-            let entry = entry.unwrap();
+    pub async fn clear_data_dir(&self) {
+        let mut stream = fs::read_dir(self.data_dir()).await.map(ReadDirStream::new).unwrap();
+        while let Some(entry) = stream.try_next().await.unwrap() {
             if entry.path().is_file() {
-                fs::remove_file(entry.path()).unwrap();
+                fs::remove_file(entry.path()).await.unwrap();
             } else if entry.path().is_dir() {
-                fs::remove_dir_all(entry.path()).unwrap();
+                fs::remove_dir_all(entry.path()).await.unwrap();
             }
         }
     }

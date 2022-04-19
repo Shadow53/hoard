@@ -5,9 +5,10 @@ mod fake_editors;
 use common::tester::Tester;
 use fake_editors::Editor;
 
-use std::fs;
+use tokio::fs;
+use tokio::runtime::Handle;
 use std::path::Path;
-use std::process::Command;
+use tokio::process::Command;
 
 #[cfg(unix)]
 use pty_closure::{run_in_pty, Error as PtyError};
@@ -31,7 +32,7 @@ fn error_is_editor_exit(err: &ConfigError) -> bool {
     )
 }
 
-fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) {
+async fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) {
     let config_path = tester.config_dir().join("config.toml");
 
     #[cfg(unix)]
@@ -40,12 +41,14 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
         const BAD_ERROR: i32 = 2;
         let result = unsafe {
             run_in_pty(move || {
-                tester.run_command(HoardCommand::Edit).map_err(|err| {
-                    if should_fail && error_is_editor_exit(&err) {
-                        GOOD_ERROR
-                    } else {
-                        BAD_ERROR
-                    }
+                Handle::current().block_on(async {
+                    tester.run_command(HoardCommand::Edit).await.map_err(|err| {
+                        if should_fail && error_is_editor_exit(&err) {
+                            GOOD_ERROR
+                        } else {
+                            BAD_ERROR
+                        }
+                    })
                 })
             })
         };
@@ -61,7 +64,7 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
                 "expected editor to exit without error, got {:?}",
                 result
             );
-            verify_editor_called_on(tester, &config_path);
+            verify_editor_called_on(tester, &config_path).await;
         }
 
         return;
@@ -70,7 +73,7 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
     #[cfg(windows)]
     if interface == InterfaceType::CommandLine {}
 
-    let result = tester.run_command(HoardCommand::Edit);
+    let result = tester.run_command(HoardCommand::Edit).await;
     if should_fail {
         if let Err(err) = result {
             assert!(
@@ -87,45 +90,46 @@ fn run_hoard_edit(tester: &Tester, interface: InterfaceType, should_fail: bool) 
             "expected editor to exit without error, got this instead: {:?}",
             result
         );
-        verify_editor_called_on(tester, &config_path);
+        verify_editor_called_on(tester, &config_path).await;
     }
 }
 
-fn verify_editor_called_on(tester: &Tester, _file: &Path) {
+async fn verify_editor_called_on(tester: &Tester, _file: &Path) {
     let watchdog_path = tester.home_dir().join(WATCHDOG_FILE_NAME);
     assert!(
         watchdog_path.exists(),
         "watchdog file should have been created"
     );
-    fs::remove_file(&watchdog_path).expect("deleting the watchdog file should not fail");
+    fs::remove_file(&watchdog_path).await.expect("deleting the watchdog file should not fail");
 }
 
-#[test]
-fn verify_watchdog_works() {
+#[tokio::test]
+async fn verify_watchdog_works() {
     for editor in [Editor::Good, Editor::Error] {
         for interface in [InterfaceType::Graphical, InterfaceType::CommandLine] {
-            let tester = Tester::new("");
+            let tester = Tester::new("").await;
             let file = tester.home_dir().join("watchdog_test.txt");
 
             let guard = match interface {
-                InterfaceType::Graphical => editor.set_as_default_gui_editor(),
-                InterfaceType::CommandLine => editor.set_as_default_cli_editor(),
+                InterfaceType::Graphical => editor.set_as_default_gui_editor().await,
+                InterfaceType::CommandLine => editor.set_as_default_cli_editor().await,
             };
 
             #[cfg(unix)]
-            let result = Command::new(guard.script_path()).arg(&file).status();
+            let result = Command::new(guard.script_path()).arg(&file).status().await;
 
             #[cfg(windows)]
             let result = Command::new("powershell.exe")
                 .arg(guard.script_path())
                 .arg(&file)
-                .status();
+                .status()
+                .await;
 
             let status =
                 result.expect("no I/O errors should have occurred while running the editor");
             if editor.is_good() {
                 assert!(status.success(), "expected editor to exit with success");
-                verify_editor_called_on(&tester, &file);
+                verify_editor_called_on(&tester, &file).await;
             } else {
                 assert!(!status.success(), "expected editor to exit with error");
             }
@@ -136,30 +140,30 @@ fn verify_watchdog_works() {
 // TODO: disabled tests because they are not passing on CI, but do pass when run manually.
 // Probably because it expects a graphical environment.
 
-#[test]
-fn test_hoard_edit_good_cli() {
-    let tester = Tester::new("");
-    let _guard = Editor::Good.set_as_default_cli_editor();
-    run_hoard_edit(&tester, InterfaceType::CommandLine, false);
+#[tokio::test]
+async fn test_hoard_edit_good_cli() {
+    let tester = Tester::new("").await;
+    let _guard = Editor::Good.set_as_default_cli_editor().await;
+    run_hoard_edit(&tester, InterfaceType::CommandLine, false).await;
 }
 
-#[test]
-fn test_hoard_edit_good_gui() {
-    let tester = Tester::new("");
-    let _guard = Editor::Good.set_as_default_gui_editor();
-    run_hoard_edit(&tester, InterfaceType::Graphical, false);
+#[tokio::test]
+async fn test_hoard_edit_good_gui() {
+    let tester = Tester::new("").await;
+    let _guard = Editor::Good.set_as_default_gui_editor().await;
+    run_hoard_edit(&tester, InterfaceType::Graphical, false).await;
 }
 
-#[test]
-fn test_hoard_edit_error_cli() {
-    let tester = Tester::new("");
-    let _guard = Editor::Error.set_as_default_cli_editor();
-    run_hoard_edit(&tester, InterfaceType::CommandLine, true);
+#[tokio::test]
+async fn test_hoard_edit_error_cli() {
+    let tester = Tester::new("").await;
+    let _guard = Editor::Error.set_as_default_cli_editor().await;
+    run_hoard_edit(&tester, InterfaceType::CommandLine, true).await;
 }
 
-#[test]
-fn test_hoard_edit_error_gui() {
-    let tester = Tester::new("");
-    let _guard = Editor::Error.set_as_default_gui_editor();
-    run_hoard_edit(&tester, InterfaceType::Graphical, true);
+#[tokio::test]
+async fn test_hoard_edit_error_gui() {
+    let tester = Tester::new("").await;
+    let _guard = Editor::Error.set_as_default_gui_editor().await;
+    run_hoard_edit(&tester, InterfaceType::Graphical, true).await;
 }

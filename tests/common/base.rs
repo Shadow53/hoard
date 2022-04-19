@@ -6,9 +6,11 @@ use sha2::digest::generic_array::GenericArray;
 use sha2::digest::OutputSizeUser;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::fs;
+use tokio::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use futures::TryStreamExt;
+use tokio_stream::wrappers::ReadDirStream;
 
 use super::tester::Tester;
 
@@ -113,13 +115,13 @@ impl DerefMut for DefaultConfigTester {
 }
 
 impl DefaultConfigTester {
-    pub fn new() -> Self {
-        Self::with_log_level(tracing::Level::INFO)
+    pub async fn new() -> Self {
+        Self::with_log_level(tracing::Level::INFO).await
     }
 
-    pub fn with_log_level(log_level: tracing::Level) -> Self {
+    pub async fn with_log_level(log_level: tracing::Level) -> Self {
         Self {
-            tester: Tester::with_log_level(BASE_CONFIG, log_level),
+            tester: Tester::with_log_level(BASE_CONFIG, log_level).await,
             is_first_env: None,
         }
     }
@@ -325,7 +327,7 @@ impl DefaultConfigTester {
         result
     }
 
-    pub fn setup_files(&mut self) {
+    pub async fn setup_files(&mut self) {
         // First Env
         let first_paths = self.first_env_files();
 
@@ -339,19 +341,20 @@ impl DefaultConfigTester {
 
         for file in paths {
             if let Some(parent) = file.parent() {
-                fs::create_dir_all(parent).expect("creating parent dirs should not fail");
+                fs::create_dir_all(parent).await.expect("creating parent dirs should not fail");
             }
 
-            super::create_file_with_random_data::<2048>(&file);
+            super::create_file_with_random_data::<2048>(&file).await;
         }
     }
 
-    fn hash_file(file: &Path) -> GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize> {
-        let data = fs::read(file).expect("file should always exist");
+    async fn hash_file(file: &Path) -> GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize> {
+        let data = fs::read(file).await.expect("file should always exist");
         Sha256::digest(&data)
     }
 
-    fn file_contents(
+    #[async_recursion::async_recursion]
+    async fn file_contents(
         path: &Path,
         root: &Path,
     ) -> HashMap<PathBuf, GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>> {
@@ -360,23 +363,25 @@ impl DefaultConfigTester {
                 .strip_prefix(root)
                 .expect("path should always have root as prefix")
                 .to_path_buf();
-            maplit::hashmap! { key => Self::hash_file(path) }
+            maplit::hashmap! { key => Self::hash_file(path).await }
         } else if path.is_dir() {
             let mut map = HashMap::new();
-            for entry in fs::read_dir(path).expect("reading dir should not fail") {
-                let entry = entry.expect("reading entry should not fail");
-                let nested = Self::file_contents(&entry.path(), root);
+            let mut stream = ReadDirStream::new(fs::read_dir(path).await.unwrap());
+            while let Some(entry) = stream.try_next().await.unwrap() {
+                let nested = Self::file_contents(&entry.path(), root).await;
                 map.extend(nested);
             }
             map
-        } else {
+        } else if !path.exists() {
             panic!("{} does not exist", path.display());
+        } else {
+            panic!("{} exists but is not a file or directory", path.display());
         }
     }
 
-    fn assert_same_tree(left: &Path, right: &Path) {
-        let left_content = Self::file_contents(left, left);
-        let right_content = Self::file_contents(right, right);
+    async fn assert_same_tree(left: &Path, right: &Path) {
+        let left_content = Self::file_contents(left, left).await;
+        let right_content = Self::file_contents(right, right).await;
         assert_eq!(
             left_content,
             right_content,
@@ -386,51 +391,51 @@ impl DefaultConfigTester {
         );
     }
 
-    pub fn assert_first_tree(&self) {
+    pub async fn assert_first_tree(&self) {
         let hoards_root = self.data_dir().join("hoards");
         Self::assert_same_tree(
             &self.home_dir().join("first_anon_file"),
             &hoards_root.join("anon_file"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("first_anon_dir"),
             &hoards_root.join("anon_dir"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("first_named_file"),
             &hoards_root.join("named").join("file"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("first_named_dir1"),
             &hoards_root.join("named").join("dir1"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("first_named_dir2"),
             &hoards_root.join("named").join("dir2"),
-        );
+        ).await;
     }
 
-    pub fn assert_second_tree(&self) {
+    pub async fn assert_second_tree(&self) {
         let hoards_root = self.data_dir().join("hoards");
         Self::assert_same_tree(
             &self.home_dir().join("second_anon_file"),
             &hoards_root.join("anon_file"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("second_anon_dir"),
             &hoards_root.join("anon_dir"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("second_named_file"),
             &hoards_root.join("named").join("file"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("second_named_dir1"),
             &hoards_root.join("named").join("dir1"),
-        );
+        ).await;
         Self::assert_same_tree(
             &self.home_dir().join("second_named_dir2"),
             &hoards_root.join("named").join("dir2"),
-        );
+        ).await;
     }
 }

@@ -2,9 +2,11 @@ mod common;
 
 use common::tester::Tester;
 use std::collections::{HashMap, HashSet};
-use std::fs;
+use tokio::fs;
 use std::path::PathBuf;
+use futures::TryStreamExt;
 use time::Duration;
+use tokio_stream::wrappers::ReadDirStream;
 
 use hoard::checkers::history::operation::util::TIME_FORMAT;
 use hoard::checkers::history::operation::v1::{Hoard as HoardV1, OperationV1, Pile as PileV1};
@@ -143,12 +145,12 @@ fn convert_vec(v1: &[OperationV1]) -> Vec<OperationV2> {
     new_ops
 }
 
-fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
+async fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
     for op in ops {
         let path = tester
             .data_dir()
             .join("history")
-            .join(tester.get_uuid().expect("getting uuid should succeed"))
+            .join(tester.get_uuid().await.expect("getting uuid should succeed"))
             .join(op.hoard_name().as_ref())
             .join(format!(
                 "{}.log",
@@ -158,45 +160,48 @@ fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
             ));
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).expect("creating parent dirs should succeed");
+            fs::create_dir_all(parent).await.expect("creating parent dirs should succeed");
         }
 
-        let file = fs::File::create(path).expect("creating an operation file should not fail");
+        let file = fs::File::create(path).await.expect("creating an operation file should not fail").into_std().await;
 
         serde_json::to_writer(file, &op).expect("writing a V1 operation file should succeed");
     }
 }
 
-fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
+async fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
     let path = tester
         .data_dir()
         .join("history")
-        .join(tester.get_uuid().expect("getting uuid should succeed"))
+        .join(tester.get_uuid().await.expect("getting uuid should succeed"))
         .join(hoard);
     let mut list: Vec<_> = fs::read_dir(&path)
-        .unwrap_or_else(|_| {
+        .await
+        .map_or_else(|_| {
             panic!(
                 "reading history directory {} should not fail",
                 path.display()
             )
+        }, ReadDirStream::new)
+        .try_filter_map(|entry| async move {
+            if entry.file_name() != "last_paths.json" {
+                let file = fs::File::open(entry.path()).await.expect("opening file should succeed").into_std().await;
+                serde_json::from_reader::<_, OperationV2>(file).map(Some).map(Ok).unwrap()
+            } else {
+                Ok(None)
+            }
         })
-        .filter_map(|entry| {
-            let entry = entry.expect("reading dir entry should not fail");
-            (entry.file_name() != "last_paths.json").then(|| {
-                let file = fs::File::open(entry.path()).expect("opening file should succeed");
-                serde_json::from_reader::<_, OperationV2>(file)
-                    .expect("parsing json should not fail")
-            })
-        })
-        .collect();
+        .try_collect()
+        .await
+        .unwrap();
     list.sort_unstable_by_key(|left| left.timestamp());
     list
 }
 
-#[test]
-fn test_hoard_upgrade() {
-    let tester = Tester::new("");
-    tester.use_local_uuid();
+#[tokio::test]
+async fn test_hoard_upgrade() {
+    let tester = Tester::new("").await;
+    tester.use_local_uuid().await;
 
     let v1_anon_file = anon_file_operations();
     let v1_anon_dir = anon_dir_operations();
@@ -206,16 +211,16 @@ fn test_hoard_upgrade() {
     let v2_anon_dir = convert_vec(&v1_anon_dir);
     let v2_named = convert_vec(&v1_named);
 
-    write_to_files(&tester, &v1_anon_file);
-    write_to_files(&tester, &v1_anon_dir);
-    write_to_files(&tester, &v1_named);
+    write_to_files(&tester, &v1_anon_file).await;
+    write_to_files(&tester, &v1_anon_dir).await;
+    write_to_files(&tester, &v1_named).await;
 
-    tester.expect_command(Command::Upgrade);
-    println!("{}", tester.extra_logging_output());
+    tester.expect_command(Command::Upgrade).await;
+    println!("{}", tester.extra_logging_output().await);
 
-    let converted_anon_file = read_from_files(&tester, "anon_file");
-    let converted_anon_dir = read_from_files(&tester, "anon_dir");
-    let converted_named = read_from_files(&tester, "named");
+    let converted_anon_file = read_from_files(&tester, "anon_file").await;
+    let converted_anon_dir = read_from_files(&tester, "anon_dir").await;
+    let converted_named = read_from_files(&tester, "named").await;
 
     println!("{:#?}\n{:#?}", v2_anon_file, converted_anon_file);
 
