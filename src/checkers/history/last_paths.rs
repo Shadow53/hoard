@@ -56,10 +56,10 @@ async fn get_last_paths_file_path() -> Result<HoardPath, io::Error> {
     ))
 }
 
-async fn read_last_paths_file() -> io::Result<fs::File> {
+async fn read_last_paths_file() -> io::Result<Vec<u8>> {
     let path = get_last_paths_file_path().await?;
     tracing::debug!(?path, "opening lastpaths file at path");
-    fs::File::open(path).await
+    fs::read(path).await
 }
 
 #[async_trait::async_trait(?Send)]
@@ -132,8 +132,8 @@ impl LastPaths {
     /// `LastPaths`.
     pub async fn from_default_file() -> Result<Self, Error> {
         tracing::debug!("reading lastpaths from file");
-        let reader = match read_last_paths_file().await {
-            Ok(file) => file.into_std().await,
+        let content = match read_last_paths_file().await {
+            Ok(content) => content,
             Err(err) => {
                 if err.kind() == io::ErrorKind::NotFound {
                     tracing::debug!("lastpaths file not found, creating new instance");
@@ -144,7 +144,7 @@ impl LastPaths {
             }
         };
 
-        serde_json::from_reader(reader).map_err(Into::into)
+        serde_json::from_slice(&content).map_err(Into::into)
     }
 }
 

@@ -91,7 +91,11 @@ async fn looped_set_system_permissions(
 }
 
 async fn create_all_with_perms(root: PathBuf, path: &Path, perms: Permissions) -> Result<(), Error> {
-    let rel_path = path.strip_prefix(&root).expect("root should always be a prefix of path");
+    let rel_path = if path.is_absolute() {
+        path.strip_prefix(&root).expect("root should always be a prefix of path")
+    } else {
+        path
+    };
     let mut full_path = root;
     for component in rel_path.components() {
         match component {
@@ -120,7 +124,13 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
     };
     if let Some(parent) = dest.parent() {
         tracing::trace!(?parent, "ensuring parent dirs");
-        if let Err(err) = create_all_with_perms(dest_root.to_path_buf(), parent, Permissions::folder_default()).await {
+        // Handle cases where pile == file and prefix == dest path
+        let root = if dest_root == dest {
+            parent.to_path_buf()
+        } else {
+            dest_root.to_path_buf()
+        };
+        if let Err(err) = create_all_with_perms(root, parent, Permissions::folder_default()).await {
             tracing::error!(
                 "failed to create parent directories for {}: {}",
                 dest.display(),

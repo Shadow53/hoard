@@ -339,15 +339,12 @@ impl Operation {
 
     async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::trace!(path=%path.display(), "loading operation log from path");
-        let file = fs::File::open(path)
-            .await
+        let content = fs::read(path).await
             .map_err(|err| {
                 tracing::error!("failed to open file at {}: {}", path.display(), err);
                 Error::from(err)
-            })?
-            .into_std()
-            .await;
-        serde_json::from_reader(file).map_err(|err| {
+            })?;
+        serde_json::from_slice(&content).map_err(|err| {
             tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
             Error::from(err)
         })
@@ -572,8 +569,8 @@ impl Checker for Operation {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        let file = fs::File::create(path).await?.into_std().await;
-        serde_json::to_writer(file, &self)?;
+        let content = serde_json::to_vec(&self)?;
+        fs::write(path, &content).await?;
         Ok(())
     }
 }

@@ -170,13 +170,8 @@ async fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
                 .expect("creating parent dirs should succeed");
         }
 
-        let file = fs::File::create(path)
-            .await
-            .expect("creating an operation file should not fail")
-            .into_std()
-            .await;
-
-        serde_json::to_writer(file, &op).expect("writing a V1 operation file should succeed");
+        let content = serde_json::to_vec(&op).expect("writing a V1 operation file should succeed");
+        fs::write(path, &content).await.expect("writing file content should succeed");
     }
 }
 
@@ -204,12 +199,8 @@ async fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
         )
         .try_filter_map(|entry| async move {
             if entry.file_name() != "last_paths.json" {
-                let file = fs::File::open(entry.path())
-                    .await
-                    .expect("opening file should succeed")
-                    .into_std()
-                    .await;
-                serde_json::from_reader::<_, OperationV2>(file)
+                let content = fs::read(entry.path()).await.expect("reading from file should succeed");
+                serde_json::from_slice::<OperationV2>(&content)
                     .map(Some)
                     .map(Ok)
                     .unwrap()

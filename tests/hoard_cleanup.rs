@@ -145,7 +145,7 @@ async fn files_in_dir(root: &Path) -> Vec<PathBuf> {
 
 #[tokio::test]
 async fn test_operation_cleanup() {
-    let mut tester = DefaultConfigTester::new().await;
+    let mut tester = DefaultConfigTester::with_log_level(tracing::Level::TRACE).await;
     tester.use_first_env();
     tester.setup_files().await;
     for (location, direction, hoard) in &STRATEGY {
@@ -173,9 +173,10 @@ async fn test_operation_cleanup() {
                             let mut files = files_in_dir(&path).await;
                             files.sort_unstable();
 
+                            println!("===\nindices: {:?}\nfiles: {:#?}\n===", indices, files);
+
                             let files = files
                                 .into_iter()
-                                .filter(|path| !path.to_string_lossy().contains("last_paths"))
                                 .enumerate()
                                 .filter_map(|(i, path)| indices.contains(&i).then(|| path))
                                 .collect();
@@ -183,6 +184,8 @@ async fn test_operation_cleanup() {
                         })
                         .collect()
                         .await;
+
+                println!("retained: {:#?}", retained);
 
                 (location, retained)
             })
@@ -202,7 +205,10 @@ async fn test_operation_cleanup() {
                 .join("history")
                 .join(system_id)
                 .join(hoard);
-            let files: HashSet<PathBuf> = files_in_dir(&path).await.into_iter().collect();
+            let files: HashSet<PathBuf> = files_in_dir(&path)
+                .await
+                .into_iter()
+                .collect();
             let expected_files = expected
                 .get(location)
                 .expect("location should exist")

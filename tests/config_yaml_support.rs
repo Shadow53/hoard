@@ -3,21 +3,16 @@ mod common;
 use crate::common::base::DefaultConfigTester;
 use common::tester::Tester;
 use hoard::config::builder::{environment::Environment, Builder};
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::fs;
 
 #[tokio::test]
 async fn test_yaml_support() {
     let tester = Tester::new(common::base::BASE_CONFIG).await;
     let path = tester.config_dir().join("config.yaml");
 
-    let mut file = fs::File::create(&path)
-        .await
-        .expect("failed to create YAML config file")
-        .into_std()
-        .await;
     let builder: Builder = toml::from_str(common::base::BASE_CONFIG).expect("failed to parse TOML");
-    serde_yaml::to_writer(&mut file, &builder).expect("failed to serialize to YAML");
-    drop(file);
+    let content = serde_yaml::to_vec(&builder).expect("failed to serialize to YAML");
+    fs::write(&path, &content).await.expect("failed to write to YAML config file");
 
     let config = Builder::from_file(&path)
         .await
@@ -53,29 +48,17 @@ async fn test_toml_takes_precedence() {
     let yaml_config = Builder::new()
         .set_environments(maplit::btreemap! { "yaml".parse().unwrap() => Environment::default() });
     {
-        let mut file = fs::File::create(&toml_path)
-            .await
-            .expect("failed to create TOML config file");
+
         let toml_bytes = toml::to_vec(&toml_config).expect("failed to serialize TOML");
-        file.write_all(&toml_bytes)
-            .await
-            .expect("failed to write TOML to file");
+        fs::write(&toml_path, &toml_bytes).await.expect("failed to write TOML to file");
     }
     {
-        let mut file = fs::File::create(yaml_path)
-            .await
-            .expect("failed to create YAML config file")
-            .into_std()
-            .await;
-        serde_yaml::to_writer(&mut file, &yaml_config).expect("failed to write YAML to file");
+        let content = serde_yaml::to_vec(&yaml_config).expect("failed to serialize YAML");
+        fs::write(&yaml_path, &content).await.expect("failed to write to YAML file");
     }
     {
-        let mut file = fs::File::create(yml_path)
-            .await
-            .expect("failed to create YML config file")
-            .into_std()
-            .await;
-        serde_yaml::to_writer(&mut file, &yaml_config).expect("failed to write YML to file");
+        let content = serde_yaml::to_vec(&yaml_config).expect("failed to serialize YAML");
+        fs::write(&yml_path, &content).await.expect("failed to write to YML file");
     }
 
     std::thread::sleep(std::time::Duration::from_millis(500));
