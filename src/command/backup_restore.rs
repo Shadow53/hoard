@@ -6,7 +6,7 @@ use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 use tokio::fs;
 
@@ -46,77 +46,81 @@ pub(crate) async fn run_restore<'a>(
         .map_err(super::Error::Restore)
 }
 
-#[async_recursion::async_recursion]
-async fn recursively_set_hoard_permissions(
+async fn looped_set_permissions(root: &Path, mut path: PathBuf, file_perms: Permissions, dir_perms: Permissions) -> Result<(), Error> {
+    while path != root {
+        if path.is_file() {
+            file_perms.set_on_path(&path).await.map_err(Error::IO)?;
+        } else {
+            dir_perms.set_on_path(&path).await.map_err(Error::IO)?;
+        }
+
+        if let Some(parent) = path.parent() {
+            path = parent.to_path_buf();
+        } else {
+            return Ok(());
+        }
+    }
+
+    Ok(())
+}
+
+async fn looped_set_hoard_permissions(
     root: &HoardPath,
     path: &RelativePath,
 ) -> Result<(), Error> {
-    let full_path = root.join(path);
-    set_permissions(
-        &full_path,
+    looped_set_permissions(
+        root,
+        root.join(path).to_path_buf(),
         Permissions::file_default(),
         Permissions::folder_default(),
-    )
-    .await?;
-    if path.as_path().is_some() {
-        let new_rel = path.parent();
-        recursively_set_hoard_permissions(root, &new_rel).await
-    } else {
-        Ok(())
-    }
+    ).await
 }
 
-#[async_recursion::async_recursion]
-async fn recursively_set_system_permissions(
+async fn looped_set_system_permissions(
     root: &SystemPath,
     path: &RelativePath,
     file_perms: Permissions,
     dir_perms: Permissions,
 ) -> Result<(), Error> {
-    let full_path = root.join(path);
-    set_permissions(&full_path, file_perms, dir_perms).await?;
-    if path.as_path().is_some() {
-        let new_rel = path.parent();
-        recursively_set_system_permissions(root, &new_rel, file_perms, dir_perms).await
-    } else {
-        Ok(())
-    }
+    looped_set_permissions(
+        root,
+        root.join(path).to_path_buf(),
+        file_perms,
+        dir_perms,
+    ).await
 }
 
-async fn set_permissions(
-    path: &Path,
-    file_perms: Permissions,
-    dir_perms: Permissions,
-) -> Result<(), Error> {
-    if path.is_file() {
-        file_perms.set_on_path(path).await.map_err(Error::IO)
-    } else {
-        dir_perms.set_on_path(path).await.map_err(Error::IO)
-    }
-}
-
-#[async_recursion::async_recursion]
-async fn create_all_with_perms(path: &Path, perms: Permissions) -> Result<(), Error> {
-    if path.is_dir() {
-        perms.set_on_path(path).await.map_err(Error::IO)
-    } else {
-        if let Some(parent) = path.parent() {
-            create_all_with_perms(parent, perms).await?;
+async fn create_all_with_perms(root: PathBuf, path: &Path, perms: Permissions) -> Result<(), Error> {
+    let rel_path = path.strip_prefix(&root).expect("root should always be a prefix of path");
+    let mut full_path = root;
+    for component in rel_path.components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => unreachable!("relative path should never have absolute prefixes"),
+            Component::CurDir => {},
+            Component::ParentDir => if let Some(parent) = full_path.parent() {
+                full_path = parent.to_path_buf();
+            },
+            Component::Normal(seg) => full_path = full_path.join(seg),
         }
 
-        fs::create_dir(path).await?;
-        perms.set_on_path(path).await.map_err(Error::IO)
+        if !full_path.exists() {
+            fs::create_dir(&full_path).await?;
+        }
+
+        perms.set_on_path(path).await?;
     }
+
+    Ok(())
 }
 
 async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
-    let (src, dest) = match direction {
-        Direction::Backup => (file.system_path().as_ref(), file.hoard_path().as_ref()),
-        Direction::Restore => (file.hoard_path().as_ref(), file.system_path().as_ref()),
+    let (src, dest, dest_root) = match direction {
+        Direction::Backup => (file.system_path().as_ref(), file.hoard_path().as_ref(), file.hoard_prefix().as_ref()),
+        Direction::Restore => (file.hoard_path().as_ref(), file.system_path().as_ref(), file.system_prefix().as_ref()),
     };
     if let Some(parent) = dest.parent() {
         tracing::trace!(?parent, "ensuring parent dirs");
-        if let Err(err) = create_all_with_perms(parent, Permissions::folder_default()).await {
+        if let Err(err) = create_all_with_perms(dest_root.to_path_buf(), parent, Permissions::folder_default()).await {
             tracing::error!(
                 "failed to create parent directories for {}: {}",
                 dest.display(),
@@ -151,7 +155,7 @@ async fn fix_permissions(
     {
         match direction {
             Direction::Backup => {
-                recursively_set_hoard_permissions(file.hoard_prefix(), file.relative_path())
+                looped_set_hoard_permissions(file.hoard_prefix(), file.relative_path())
                     .await?;
             }
             Direction::Restore => {
@@ -172,7 +176,7 @@ async fn fix_permissions(
                     file_perms.as_mode(),
                     dir_perms.as_mode()
                 );
-                recursively_set_system_permissions(
+                looped_set_system_permissions(
                     file.system_prefix(),
                     file.relative_path(),
                     file_perms,

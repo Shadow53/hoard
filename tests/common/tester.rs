@@ -192,8 +192,8 @@ impl Tester {
     }
 
     pub async fn extra_logging_output(&self) -> String {
-        let list_home = Self::list_dir_to_string(self.home_dir(), 3, 0).await;
-        let list_data = Self::list_dir_to_string(self.data_dir(), 4, 0).await;
+        let list_home = Self::list_dir_to_string(self.home_dir(), 3).await;
+        let list_data = Self::list_dir_to_string(self.data_dir(), 4).await;
         let list_env: String = std::env::vars()
             .map(|(key, val)| format!("{} = {}", key, val))
             .collect::<Vec<String>>()
@@ -208,34 +208,24 @@ impl Tester {
         )
     }
 
-    #[async_recursion::async_recursion]
-    async fn list_dir_to_string(dir: &Path, max_depth: u8, depth: u8) -> String {
-        let this_path = format!("{}|- {}", " ".repeat(depth.into()), dir.display());
-        let content = match fs::read_dir(dir).await {
-            Err(error) => format!("ERROR: {}", error),
-            Ok(iter) => ReadDirStream::new(iter)
-                .and_then(|entry| async move {
-                    let entry_str = {
-                        let sub_entry = if entry.path().is_dir() && depth < max_depth {
-                            format!(
-                                "\n{}",
-                                Self::list_dir_to_string(&entry.path(), max_depth, depth + 1).await
-                            )
-                        } else {
-                            String::new()
-                        };
-                        format!("{}{}", entry.path().display(), sub_entry)
-                    };
+    // Avoid recursion because that isn't supported well with async
+    async fn list_dir_to_string(dir: &Path, max_depth: u8) -> String {
+        let mut dir_stack = vec![(0, dir.to_path_buf())];
+        let mut output_list = Vec::new();
 
-                    let prefix = format!("{}|-", " ".repeat(depth.into()));
+        while let Some((depth, path)) = dir_stack.pop() {
+            if depth > max_depth { continue; }
 
-                    Ok(format!("\n{} {}", prefix, entry_str))
-                })
-                .try_collect::<String>()
-                .await
-                .unwrap(),
-        };
-        format!("{}{}", this_path, content)
+            output_list.push(format!("|-{}{}", " ".repeat(depth.into()), path.display()));
+            if depth < max_depth {
+                let mut stream = fs::read_dir(&path).await.unwrap();
+                while let Some(entry) = stream.next_entry().await.unwrap() {
+                    dir_stack.push((depth + 1, entry.path()));
+                }
+            }
+        }
+
+        output_list.join("\n")
     }
 
     async fn handle_command_result(&self, command: Command, result: Result<(), Error>) {
@@ -280,8 +270,9 @@ impl Tester {
     async fn assert_output(&self, output: &str, matches: bool) {
         let debug_output = self.extra_logging_output().await;
         let not_or_not = if matches { "" } else { "not " };
-        assert!(
-            self.has_output(output) == matches,
+        assert_eq!(
+            self.has_output(output),
+            matches,
             "expected \"{}\" {}in program output\n{}",
             output,
             not_or_not,

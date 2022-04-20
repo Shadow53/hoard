@@ -355,30 +355,33 @@ impl DefaultConfigTester {
         Sha256::digest(&data)
     }
 
-    #[async_recursion::async_recursion]
     async fn file_contents(
         path: &Path,
         root: &Path,
     ) -> HashMap<PathBuf, GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>> {
-        if path.is_file() {
-            let key = path
-                .strip_prefix(root)
-                .expect("path should always have root as prefix")
-                .to_path_buf();
-            maplit::hashmap! { key => Self::hash_file(path).await }
-        } else if path.is_dir() {
-            let mut map = HashMap::new();
-            let mut stream = ReadDirStream::new(fs::read_dir(path).await.unwrap());
-            while let Some(entry) = stream.try_next().await.unwrap() {
-                let nested = Self::file_contents(&entry.path(), root).await;
-                map.extend(nested);
+        let mut path_stack = vec![path.to_path_buf()];
+        let mut contents_map = HashMap::new();
+
+        while let Some(path) = path_stack.pop() {
+            if path.is_file() {
+                let key = path
+                    .strip_prefix(root)
+                    .expect("path should always have root as prefix")
+                    .to_path_buf();
+                contents_map.insert(key, Self::hash_file(&path).await);
+            } else if path.is_dir() {
+                let mut stream = ReadDirStream::new(fs::read_dir(path).await.unwrap());
+                while let Some(entry) = stream.try_next().await.unwrap() {
+                    path_stack.push(entry.path());
+                }
+            } else if !path.exists() {
+                panic!("{} does not exist", path.display());
+            } else {
+                panic!("{} exists but is not a file or directory", path.display());
             }
-            map
-        } else if !path.exists() {
-            panic!("{} does not exist", path.display());
-        } else {
-            panic!("{} exists but is not a file or directory", path.display());
         }
+
+        contents_map
     }
 
     async fn assert_same_tree(left: &Path, right: &Path) {
