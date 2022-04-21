@@ -219,7 +219,7 @@ impl Tester {
             }
 
             output_list.push(format!("|-{}{}", " ".repeat(depth.into()), path.display()));
-            if depth < max_depth {
+            if path.is_dir() && depth < max_depth {
                 let mut stream = fs::read_dir(&path).await.unwrap();
                 while let Some(entry) = stream.next_entry().await.unwrap() {
                     dir_stack.push((depth + 1, entry.path()));
