@@ -98,7 +98,10 @@ impl fmt::Display for PathWithEnv {
 /// use hoard::env_vars::PathWithEnv;
 /// use hoard::paths::SystemPath;
 ///
+/// #[cfg(unix)]
 /// let template = "/some/${CUSTOM_VAR}/path";
+/// #[cfg(windows)]
+/// let template = "C:/some/${CUSTOM_VAR}/path";
 /// std::env::set_var("CUSTOM_VAR", "foobar");
 /// let path = PathWithEnv::from(template)
 ///     .process()
