@@ -186,8 +186,8 @@ mod tests {
 
     mod display {
         use super::*;
-        use std::path::PathBuf;
         use crate::paths::SystemPath;
+        use std::path::PathBuf;
 
         #[test]
         fn test_display_with_none() {
