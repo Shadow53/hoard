@@ -1,10 +1,11 @@
 use super::Editor;
 use registry::{key::Error as RegError, Data, Hive, Security};
 use std::ffi::OsString;
-use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use tokio::runtime::Handle;
 
 const EDITOR_NAME: &str = "editor.ps1";
 const EDITOR_ID: &str = "hoard.test.editor";
@@ -68,19 +69,21 @@ impl EditorGuard {
 impl Drop for EditorGuard {
     fn drop(&mut self) {
         if self.modified_registry {
-            remove_default_editor();
+            Handle::current().block_on(remove_default_editor());
         }
         std::env::set_var("PATH", &self.old_path);
     }
 }
 
-fn create_script_file(editor: Editor) -> EditorGuard {
+async fn create_script_file(editor: Editor) -> EditorGuard {
     let temp_dir = tempfile::tempdir().expect("creating tempdir should succeed");
     let script_file = temp_dir.path().join(EDITOR_NAME);
-    let mut script =
-        fs::File::create(&script_file).expect("creating script file should not succeed");
+    let mut script = fs::File::create(&script_file)
+        .await
+        .expect("creating script file should not succeed");
     script
         .write_all(editor.file_content().as_bytes())
+        .await
         .expect("writing to script file should succeed");
 
     let old_path = std::env::var_os("PATH").expect("windows systems should always have PATH set");
@@ -97,8 +100,8 @@ const SHELL_EDITOR_COMMAND: &str = "Unknown\\shell\\editor\\command";
 const SHELL_OPEN_COMMAND: &str = "Unknown\\shell\\Open\\command";
 const TXTFILE_OPEN_COMMAND: &str = "txtfile\\shell\\Open\\command";
 
-pub fn set_default_gui_editor(editor: Editor) -> EditorGuard {
-    let mut guard = create_script_file(editor);
+pub async fn set_default_gui_editor(editor: Editor) -> EditorGuard {
+    let mut guard = create_script_file(editor).await;
     let command = format!(
         "powershell.exe -Path {} \"%1\"",
         guard.script_path().display()
@@ -112,8 +115,8 @@ pub fn set_default_gui_editor(editor: Editor) -> EditorGuard {
     guard
 }
 
-pub fn set_default_cli_editor(editor: Editor) -> EditorGuard {
-    let mut guard = create_script_file(editor);
+pub async fn set_default_cli_editor(editor: Editor) -> EditorGuard {
+    let mut guard = create_script_file(editor).await;
     std::env::set_var("EDITOR", EDITOR_NAME);
     let mut path: OsString = guard.temp_dir.path().into();
     path.push(";");

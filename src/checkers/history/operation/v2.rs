@@ -10,15 +10,16 @@
 use super::{Error, ItemOperation};
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl, OperationType};
 use crate::checksum::{Checksum, ChecksumType};
-use crate::hoard::iter::OperationIter;
+use crate::hoard::iter::operation_stream;
 use crate::hoard::{Direction, Hoard as ConfigHoard};
-use crate::hoard_item::HoardItem;
+use crate::hoard_item::{CachedHoardItem, HoardItem};
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath};
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::io;
 use time::OffsetDateTime;
+use tokio::io;
 
 /// Errors that may occur while working with operation logs.
 
@@ -41,7 +42,7 @@ pub struct OperationV2 {
 }
 
 impl OperationV2 {
-    pub(super) fn new(
+    pub(super) async fn new(
         hoards_root: &HoardPath,
         name: &HoardName,
         hoard: &ConfigHoard,
@@ -51,7 +52,7 @@ impl OperationV2 {
             timestamp: OffsetDateTime::now_utc(),
             direction,
             hoard: name.clone(),
-            files: Hoard::new(hoards_root, name, hoard, direction)?,
+            files: Hoard::new(hoards_root, name, hoard, direction).await?,
         })
     }
 
@@ -200,7 +201,7 @@ impl OperationImpl for OperationV2 {
         &'a self,
         hoard_root: &HoardPath,
         hoard: &crate::hoard::Hoard,
-    ) -> Result<Box<dyn Iterator<Item = ItemOperation> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         let iter = hoard
             .get_paths(hoard_root.clone())
             .filter_map(|(pile_name, hoard_path, system_path)| {
@@ -295,15 +296,18 @@ impl Hoard {
         checksum: Option<Checksum>,
         path: &RelativePath,
     ) -> Result<Checksum, Error> {
-        checksum.ok_or_else(|| {
-            Error::IO(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("could not find {}", path),
-            ))
-        })
+        checksum
+            .ok_or_else(|| {
+                Error::IO(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("could not find item at \"{}\"", path),
+                ))
+            })
+            .map(Ok)
+            .unwrap()
     }
 
-    fn checksum_type(hoard: &ConfigHoard, hoard_file: &HoardItem) -> ChecksumType {
+    fn checksum_type(hoard: &ConfigHoard, hoard_file: &CachedHoardItem) -> ChecksumType {
         match (hoard, hoard_file.pile_name().as_ref()) {
             (ConfigHoard::Anonymous(pile), None) => pile.config.checksum_type,
             (ConfigHoard::Named(piles), Some(name)) => piles
@@ -319,28 +323,26 @@ impl Hoard {
         .unwrap_or_default()
     }
 
-    fn new(
+    async fn new(
         hoards_root: &HoardPath,
         hoard_name: &HoardName,
         hoard: &crate::hoard::Hoard,
         direction: Direction,
     ) -> Result<Self, Error> {
         let mut inner: HashMap<PileName, Pile> =
-            OperationIter::new(hoards_root, hoard_name.clone(), hoard, direction)?.fold(
-                Ok(HashMap::new()),
-                |acc, op| -> Result<HashMap<PileName, Pile>, Error> {
-                    let mut acc = acc?;
-                    let op = op?;
-
+            operation_stream(hoards_root, hoard_name.clone(), hoard, direction)
+                .await?
+                .map_err(Error::Iterator)
+                .try_fold(HashMap::new(), |mut acc, op| async move {
                     match op {
                         ItemOperation::Create(file) => {
                             let checksum = match direction {
                                 Direction::Backup => Self::require_checksum(
-                                    file.system_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.system_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                                 Direction::Restore => Self::require_checksum(
-                                    file.hoard_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.hoard_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                             };
@@ -350,11 +352,11 @@ impl Hoard {
                         ItemOperation::Modify(file) => {
                             let checksum = match direction {
                                 Direction::Backup => Self::require_checksum(
-                                    file.system_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.system_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                                 Direction::Restore => Self::require_checksum(
-                                    file.hoard_checksum(Self::checksum_type(hoard, &file))?,
+                                    file.hoard_checksum(Self::checksum_type(hoard, &file)),
                                     file.relative_path(),
                                 )?,
                             };
@@ -367,7 +369,7 @@ impl Hoard {
                         }
                         ItemOperation::Nothing(file) => {
                             let checksum = Self::require_checksum(
-                                file.system_checksum(Self::checksum_type(hoard, &file))?,
+                                file.system_checksum(Self::checksum_type(hoard, &file)),
                                 file.relative_path(),
                             )?;
                             Self::get_or_create_pile(&mut acc, file.pile_name())
@@ -377,8 +379,8 @@ impl Hoard {
                     }
 
                     Ok(acc)
-                },
-            )?;
+                })
+                .await?;
 
         let empty = PileName::anonymous();
         if inner.len() == 1 && inner.contains_key(&empty) {

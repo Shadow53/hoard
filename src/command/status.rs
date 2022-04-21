@@ -1,49 +1,53 @@
-use crate::hoard::iter::{DiffSource, HoardDiffIter, HoardFileDiff};
+use crate::hoard::iter::{diff_stream, DiffSource, HoardFileDiff};
 use crate::hoard::Hoard;
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
+use futures::TryStreamExt;
 
-pub(crate) fn run_status<'a>(
+pub(crate) async fn run_status<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)>,
 ) -> Result<(), super::Error> {
     for (hoard_name, hoard) in hoards {
         let _span = tracing::error_span!("run_status", hoard=%hoard_name).entered();
-        let source = HoardDiffIter::new(hoards_root, hoard_name.clone(), hoard)
+        let source = diff_stream(hoards_root, hoard_name.clone(), hoard)
+            .await
             .map_err(super::Error::Status)?
-            .filter_map(|hoard_diff| {
-                let hoard_diff = match hoard_diff {
-                    Ok(hoard_diff) => hoard_diff,
-                    Err(err) => return Some(Err(err)),
-                };
-
+            .map_err(super::Error::Status)
+            .try_filter_map(|hoard_diff| async move {
                 #[allow(clippy::match_same_arms)]
                 let source = match hoard_diff {
                     HoardFileDiff::BinaryModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::TextModified { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Created { diff_source, .. } => Some(diff_source),
                     HoardFileDiff::Deleted { diff_source, .. } => Some(diff_source),
-                    HoardFileDiff::Unchanged(_) | HoardFileDiff::Nonexistent(_) => return None,
+                    HoardFileDiff::Unchanged(_) | HoardFileDiff::Nonexistent(_) => None,
                 };
 
-                source.map(Ok)
+                Ok(source)
             })
-            .reduce(|acc, source| {
-                let acc = acc?;
-                let source = source?;
-                if acc == DiffSource::Unknown || source == DiffSource::Unknown {
-                    Ok(DiffSource::Unknown)
-                } else if acc == source {
-                    Ok(acc)
-                } else {
-                    Ok(DiffSource::Mixed)
+            .try_fold(None, |acc, source| async move {
+                match acc {
+                    None => Ok(Some(source)),
+                    Some(acc) => {
+                        let new_source =
+                            if acc == DiffSource::Unknown || source == DiffSource::Unknown {
+                                DiffSource::Unknown
+                            } else if acc == source {
+                                acc
+                            } else {
+                                DiffSource::Mixed
+                            };
+
+                        Ok(Some(new_source))
+                    }
                 }
-            });
+            })
+            .await?;
 
         match source {
             None => tracing::info!("{}: up to date", hoard_name),
             Some(source) => {
-                let source = source.map_err(super::Error::Status)?;
                 match source {
                     DiffSource::Local => tracing::info!(
                         "{}: modified {} -- sync with `hoard backup {}`",

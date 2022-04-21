@@ -1,23 +1,36 @@
 #![allow(unused)]
+use super::all_files::all_files_stream;
 use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
-use crate::diff::{diff_files, Diff};
-use crate::hoard::iter::all_files::AllFilesIter;
+use crate::diff::Diff;
 use crate::hoard::Hoard;
-use crate::hoard_item::CachedHoardItem;
+use crate::hoard_item::{CachedHoardItem, HoardItem};
+use futures::{TryStream, TryStreamExt};
 use std::cmp::Ordering;
 use std::fmt;
 use std::fs::Permissions;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io;
+use tokio_stream::{Iter, Stream, StreamExt};
 use tracing::trace_span;
 
 use crate::checksum::Checksum;
+use crate::hoard::iter::Error;
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 
+/// Indicates where a given change originated from.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum DiffSource {
+pub enum DiffSource {
+    /// The local machine.
     Local,
+    /// Some other machine.
     Remote,
+    /// Changes found both locally and on another machine.
     Mixed,
+    /// Unknown source
+    ///
+    /// Likely someone edited a hoard file directly or a log file didn't get synced.
     Unknown,
 }
 
@@ -32,33 +45,53 @@ impl fmt::Display for DiffSource {
     }
 }
 
+/// What kind of diff occurred on the contained file, as well as useful associated info.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum HoardFileDiff {
+pub enum HoardFileDiff {
+    /// A binary file was modified.
+    ///
+    /// This applies if one or both of the associated files are non-text.
     BinaryModified {
+        /// The associated file item.
         file: CachedHoardItem,
+        /// The source of the change.
         diff_source: DiffSource,
     },
+    /// A text file was modified.
     TextModified {
+        /// The associated file item.
         file: CachedHoardItem,
+        /// A unified diff describing the changes.
+        ///
+        /// Is `None` if `diff_source == DiffSource::Mixed` and the same change was applied in
+        /// both locations.
         unified_diff: Option<String>,
+        /// The source of the change.
         diff_source: DiffSource,
     },
+    /// A file was created.
     Created {
+        /// The associated file item.
         file: CachedHoardItem,
+        /// A unified diff describing the changes.
+        ///
+        /// Is `Some(_)` if `diff_source == DiffSource::Mixed`, both files contain text,
+        /// and the contents differ in either location.
         unified_diff: Option<String>,
+        /// The source of the change.
         diff_source: DiffSource,
     },
+    /// A file was deleted.
     Deleted {
+        /// The associated file item.
         file: CachedHoardItem,
+        /// The source of the change.
         diff_source: DiffSource,
     },
+    /// A file is unchanged.
     Unchanged(CachedHoardItem),
+    /// A file or path is directly listed in the configuration but does not exist anywhere.
     Nonexistent(CachedHoardItem),
-}
-
-pub(crate) struct HoardDiffIter {
-    iterator: AllFilesIter,
-    hoard_name: HoardName,
 }
 
 #[derive(Debug, Clone)]
@@ -75,20 +108,13 @@ struct ProcessedFile {
 }
 
 impl ProcessedFile {
-    fn process(hoard_name: &HoardName, file: CachedHoardItem) -> Result<Self, super::Error> {
+    async fn process(hoard_name: &HoardName, file: CachedHoardItem) -> Result<Self, Error> {
         let _span = tracing::trace_span!("processing_file", hoard=%hoard_name, ?file).entered();
-        let diff = diff_files(file.hoard_path(), file.system_path()).map_err(|err| {
-            tracing::error!(
-                "failed to diff {} and {}: {}",
-                file.system_path().display(),
-                file.hoard_path().display(),
-                err
-            );
-            super::Error::IO(err)
-        })?;
+        let diff = file.diff().cloned();
 
         let latest_local_log =
             Operation::latest_local(hoard_name, Some((file.pile_name(), file.relative_path())))
+                .await
                 .map_err(Box::new)?
                 .map(Operation::into_latest_version)
                 .transpose()
@@ -98,6 +124,7 @@ impl ProcessedFile {
             Some((file.pile_name(), file.relative_path())),
             true,
         )
+        .await
         .map_err(Box::new)?
         .map(Operation::into_latest_version)
         .transpose()
@@ -224,7 +251,13 @@ impl ProcessedFile {
             }
             // File/dir never existed in hoard but is listed as a named pile
             (false, None, None, None, None) => HoardFileDiff::Nonexistent(file),
-            (true, None, None, None, None) => HoardFileDiff::Unchanged(file),
+            (true, None, None, None, None) => {
+                if file.is_file() {
+                    HoardFileDiff::Unchanged(file)
+                } else {
+                    HoardFileDiff::Nonexistent(file)
+                }
+            }
             (_, None, None, None, Some(_)) => {
                 unreachable!("cannot have a diff if there are no changes");
             }
@@ -608,40 +641,49 @@ impl ProcessedFile {
     }
 }
 
-impl HoardDiffIter {
-    pub(crate) fn new(
-        hoards_root: &HoardPath,
-        hoard_name: HoardName,
-        hoard: &Hoard,
-    ) -> Result<Self, super::Error> {
-        let _span = tracing::trace_span!("file_diffs_iterator").entered();
-        tracing::trace!("creating new diff iterator");
-        let iterator = AllFilesIter::new(hoards_root, &hoard_name, hoard)?;
-        tracing::trace!("created diff iterator: {:?}", iterator);
+/// A [`TryStream`] returning a [`HoardFileDiff`] for every Hoard-managed file in the given hoard.
+///
+/// # Errors
+///
+/// Any errors that may occur while creating the stream.
+pub async fn diff_stream(
+    hoards_root: &HoardPath,
+    hoard_name: HoardName,
+    hoard: &Hoard,
+) -> Result<impl TryStream<Ok = HoardFileDiff, Error = Error>, Error> {
+    let _span = tracing::trace_span!("file_diffs_iterator").entered();
+    tracing::trace!("creating new diff iterator");
+    let stream = all_files_stream(hoards_root, &hoard_name, hoard)
+        .await?
+        .map_ok(move |file| (file, hoard_name.clone()))
+        .and_then(|(file, hoard_name)| async move {
+            let file = CachedHoardItem::try_from_hoard_item(file)
+                .await
+                .map_err(Error::IO)?;
+            let _span = trace_span!("diff_iterator_next", ?file);
+            let processed: ProcessedFile = ProcessedFile::process(&hoard_name, file).await?;
+            Ok(processed.get_hoard_diff())
+        });
 
-        Ok(Self {
-            iterator,
-            hoard_name,
-        })
-    }
-
-    pub(crate) fn only_changed(self) -> impl Iterator<Item = <Self as Iterator>::Item> {
-        self.filter(|diff| !matches!(diff, Ok(HoardFileDiff::Unchanged(_))))
-    }
+    Ok(stream)
 }
 
-impl Iterator for HoardDiffIter {
-    type Item = Result<HoardFileDiff, super::Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(result) = self.iterator.by_ref().next() {
-            let file: CachedHoardItem = super::propagate_error!(result.map_err(super::Error::IO));
-            let _span = trace_span!("diff_iterator_next", ?file);
-            let processed: ProcessedFile =
-                super::propagate_error!(ProcessedFile::process(&self.hoard_name, file));
-            Some(Ok(processed.get_hoard_diff()))
-        } else {
-            None
+/// Like [`diff_stream`], but filters for modified files only.
+///
+/// # Errors
+///
+/// See [`diff_stream`]
+pub async fn changed_diff_only_stream(
+    hoards_root: &HoardPath,
+    hoard_name: HoardName,
+    hoard: &Hoard,
+) -> Result<impl Stream<Item = Result<HoardFileDiff, Error>>, Error> {
+    let stream = diff_stream(hoards_root, hoard_name, hoard).await?;
+    let stream = stream.try_filter_map(|item| async move {
+        match item {
+            HoardFileDiff::Unchanged(_) | HoardFileDiff::Nonexistent(_) => Ok(None),
+            item => Ok(Some(item)),
         }
-    }
+    });
+    Ok(stream)
 }

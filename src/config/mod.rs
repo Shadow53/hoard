@@ -66,9 +66,10 @@ impl Config {
     /// # Errors
     ///
     /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
-    pub fn load() -> Result<Self, Error> {
+    pub async fn load() -> Result<Self, Error> {
         tracing::debug!("loading configuration...");
         let config = Builder::from_args_then_file()
+            .await
             .map(Builder::build)?
             .map_err(Error::Builder)?;
         tracing::debug!("loaded configuration.");
@@ -109,12 +110,12 @@ impl Config {
     /// # Errors
     ///
     /// Any [`enum@Error`] that might happen while running the command.
-    pub fn run(&self) -> Result<(), Error> {
+    pub async fn run(&self) -> Result<(), Error> {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
             Command::Status => {
                 let iter = self.hoards.iter();
-                command::run_status(&crate::paths::hoards_dir(), iter)?;
+                command::run_status(&crate::paths::hoards_dir(), iter).await?;
             }
             Command::Diff { hoard, verbose } => {
                 command::run_diff(
@@ -122,10 +123,11 @@ impl Config {
                     hoard,
                     &crate::paths::hoards_dir(),
                     *verbose,
-                )?;
+                )
+                .await?;
             }
             Command::Edit => {
-                command::run_edit(&self.config_file)?;
+                command::run_edit(&self.config_file).await?;
             }
             Command::Validate => {
                 tracing::info!("configuration is valid");
@@ -134,20 +136,20 @@ impl Config {
                 command::run_list(self.hoards.keys());
             }
             Command::Cleanup => {
-                command::run_cleanup()?;
+                command::run_cleanup().await?;
             }
             Command::Backup { hoards } => {
                 let data_dir = crate::paths::hoards_dir();
                 let hoards = self.get_hoards(hoards)?;
-                command::run_backup(&data_dir, hoards, self.force)?;
+                command::run_backup(&data_dir, hoards, self.force).await?;
             }
             Command::Restore { hoards } => {
                 let data_dir = crate::paths::hoards_dir();
                 let hoards = self.get_hoards(hoards)?;
-                command::run_restore(&data_dir, hoards, self.force)?;
+                command::run_restore(&data_dir, hoards, self.force).await?;
             }
             Command::Upgrade => {
-                command::run_upgrade()?;
+                command::run_upgrade().await?;
             }
         }
 

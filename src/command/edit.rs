@@ -1,10 +1,10 @@
 use atty::Stream;
 use std::{
-    fs,
     path::{Path, PathBuf},
     process::ExitStatus,
 };
 use thiserror::Error;
+use tokio::{fs, io};
 
 /// Errors that may occur while running the edit command.
 #[derive(Debug, Error)]
@@ -18,7 +18,7 @@ pub enum Error {
     Exit(ExitStatus),
     /// An I/O error occurred while working with the temporary file.
     #[error("an I/O error occurred while setting up the temporary file: {0}")]
-    IO(#[from] std::io::Error),
+    IO(#[from] io::Error),
     /// A directory was provided as the configuration file path.
     #[error("expected a configuration file, found a directory: {0}")]
     IsDirectory(PathBuf),
@@ -42,7 +42,7 @@ const DEFAULT_CONFIG: &str = include_str!("../../config.toml.sample");
 /// # Errors
 ///
 /// See [`Error`].
-pub(crate) fn run_edit(path: &Path) -> Result<(), super::Error> {
+pub(crate) async fn run_edit(path: &Path) -> Result<(), super::Error> {
     let _span = tracing::trace_span!("edit", ?path).entered();
 
     let tmp_dir = tempfile::tempdir().map_err(Error::IO)?;
@@ -52,9 +52,11 @@ pub(crate) fn run_edit(path: &Path) -> Result<(), super::Error> {
     );
 
     if path.exists() {
-        fs::copy(path, &tmp_file).map_err(Error::IO)?;
+        fs::copy(path, &tmp_file).await.map_err(Error::IO)?;
     } else {
-        fs::write(&tmp_file, DEFAULT_CONFIG.as_bytes()).map_err(Error::IO)?;
+        fs::write(&tmp_file, DEFAULT_CONFIG.as_bytes())
+            .await
+            .map_err(Error::IO)?;
     }
 
     let mut cmd = if atty::is(Stream::Stdout) && atty::is(Stream::Stderr) && atty::is(Stream::Stdin)
@@ -72,7 +74,7 @@ pub(crate) fn run_edit(path: &Path) -> Result<(), super::Error> {
 
     if status.success() {
         tracing::debug!("editing exited without error, copying temporary file back to original");
-        fs::copy(tmp_file, path).map_err(Error::IO)?;
+        fs::copy(tmp_file, path).await.map_err(Error::IO)?;
     } else {
         tracing::error!("edit command exited with status {}", status);
         return Err(super::Error::Edit(Error::Exit(status)));

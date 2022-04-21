@@ -4,9 +4,9 @@ use common::tester::Tester;
 use hoard::command::Command;
 use hoard::newtypes::HoardName;
 use std::collections::BTreeMap;
-use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use tokio::fs;
 
 const DIFF_TOML: &str = r#"
 exclusivity = [
@@ -95,23 +95,31 @@ fn get_hoards(tester: &Tester) -> BTreeMap<HoardName, Vec<File>> {
     }
 }
 
-fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
+async fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
     match content {
         None => {
             if path.exists() {
-                fs::remove_file(path).expect("removing file should succeed");
+                fs::remove_file(path)
+                    .await
+                    .expect("removing file should succeed");
                 assert!(!path.exists());
             }
         }
         Some(Content((text, binary))) => {
             if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).expect("should be able to create file parents");
+                fs::create_dir_all(parent)
+                    .await
+                    .expect("should be able to create file parents");
             }
 
             if is_text {
-                fs::write(path, text).expect("writing text to file should succeed");
+                fs::write(path, text)
+                    .await
+                    .expect("writing text to file should succeed");
             } else {
-                fs::write(path, binary).expect("writing text to file should succeed");
+                fs::write(path, binary)
+                    .await
+                    .expect("writing text to file should succeed");
             }
 
             assert!(
@@ -123,8 +131,8 @@ fn modify_file(path: &Path, content: Option<Content>, is_text: bool) {
     }
 }
 
-fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
-    let file_content = match fs::read(path) {
+async fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
+    let file_content = match fs::read(path).await {
         Ok(bytes) => Some(bytes),
         Err(err) => match err.kind() {
             ErrorKind::NotFound => None,
@@ -157,7 +165,7 @@ fn assert_content(path: &Path, content: Option<Content>, is_text: bool) {
     }
 }
 
-fn assert_diff_contains(
+async fn assert_diff_contains(
     tester: &Tester,
     hoard: &HoardName,
     content: String,
@@ -165,11 +173,13 @@ fn assert_diff_contains(
     invert: bool,
     is_verbose: bool,
 ) {
-    tester.use_local_uuid();
-    tester.expect_command(Command::Diff {
-        hoard: hoard.clone(),
-        verbose: is_verbose,
-    });
+    tester.use_local_uuid().await;
+    tester
+        .expect_command(Command::Diff {
+            hoard: hoard.clone(),
+            verbose: is_verbose,
+        })
+        .await;
     if invert {
         tester.assert_not_has_output(&content);
     } else if is_partial {
@@ -302,9 +312,9 @@ macro_rules! test_diff_inner {
         setup: {backup; $($ops:tt)*}
     ) => {
         $hoard_content = $system_content.clone();
-        $tester.expect_command(Command::Backup { hoards: vec![$hoard_name.clone()] });
+        $tester.expect_command(Command::Backup { hoards: vec![$hoard_name.clone()] }).await;
         if let Some(hoard_path) = $file.hoard_path.as_deref() {
-            assert_content(hoard_path, $hoard_content.clone(), $file.is_text);
+            assert_content(hoard_path, $hoard_content.clone(), $file.is_text).await;
         }
         test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
@@ -318,9 +328,9 @@ macro_rules! test_diff_inner {
         setup: {restore; $($ops:tt)*}
     ) => {
         $system_content = $hoard_content.clone();
-        $tester.expect_command(Command::Restore { hoards: vec![$hoard_name.clone()] });
+        $tester.expect_command(Command::Restore { hoards: vec![$hoard_name.clone()] }).await;
         if $file.hoard_path.is_some() {
-            assert_content(&$file.path, $system_content.clone(), $file.is_text);
+            assert_content(&$file.path, $system_content.clone(), $file.is_text).await;
         }
         test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
@@ -333,11 +343,11 @@ macro_rules! test_diff_inner {
         file: $file:ident,
         setup: {local; $($ops:tt)*}
     ) => {
-        if $tester.current_uuid().as_ref() == Some($tester.remote_uuid()) {
+        if $tester.current_uuid().await.as_ref() == Some($tester.remote_uuid()) {
             ::std::mem::swap(&mut $system_content, &mut $other_content);
-            modify_file(&$file.path, $system_content.clone(), $file.is_text);
+            modify_file(&$file.path, $system_content.clone(), $file.is_text).await;
         }
-        $tester.use_local_uuid();
+        $tester.use_local_uuid().await;
         test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
@@ -349,11 +359,11 @@ macro_rules! test_diff_inner {
         file: $file:ident,
         setup: {remote; $($ops:tt)*}
     ) => {
-        if $tester.current_uuid().as_ref() == Some($tester.local_uuid()) {
+        if $tester.current_uuid().await.as_ref() == Some($tester.local_uuid()) {
             ::std::mem::swap(&mut $system_content, &mut $other_content);
-            modify_file(&$file.path, $system_content.clone(), $file.is_text);
+            modify_file(&$file.path, $system_content.clone(), $file.is_text).await;
         }
-        $tester.use_remote_uuid();
+        $tester.use_remote_uuid().await;
         test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
@@ -366,7 +376,7 @@ macro_rules! test_diff_inner {
         setup: {set_system_content: $content:expr; $($ops:tt)*}
     ) => {
         $system_content = $content;
-        modify_file(&$file.path, $content, $file.is_text);
+        modify_file(&$file.path, $content, $file.is_text).await;
         test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
     };
     (
@@ -380,7 +390,7 @@ macro_rules! test_diff_inner {
     ) => {
         if let Some(hoard_path) = $file.hoard_path.as_deref() {
             $hoard_content = $content;
-            modify_file(hoard_path, $content, $file.is_text);
+            modify_file(hoard_path, $content, $file.is_text).await;
             test_diff_inner! { tester: $tester, hoard_name: $hoard_name, hoard_content: $hoard_content, system_content: $system_content, other_content: $other_content, file: $file, setup: {$($ops)*} }
         }
     };
@@ -393,9 +403,9 @@ macro_rules! test_diff {
         location: $location:ident,
         setup: {$($ops:tt)*}
     ) => {
-        #[test]
-        fn $fn_name() {
-            let tester = Tester::with_log_level(DIFF_TOML, tracing::Level::INFO);
+        #[tokio::test]
+        async fn $fn_name() {
+            let tester = Tester::with_log_level(DIFF_TOML, tracing::Level::INFO).await;
             let hoards = get_hoards(&tester);
 
             for (hoard_name, files) in hoards {
@@ -451,7 +461,7 @@ macro_rules! test_diff {
                         true,
                         file.ignored,
                         false,
-                    );
+                    ).await;
 
                     assert_diff_contains(
                         &tester,
@@ -460,11 +470,11 @@ macro_rules! test_diff {
                         true,
                         file.ignored,
                         true,
-                    );
+                    ).await;
 
-                    tester.clear_data_dir();
+                    tester.clear_data_dir().await;
                     if file.path.exists() {
-                        fs::remove_file(&file.path).unwrap();
+                        fs::remove_file(&file.path).await.unwrap();
                     }
                 }
             }

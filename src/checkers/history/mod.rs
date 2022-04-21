@@ -2,8 +2,10 @@
 //! and accidental overwrites or deletions.
 
 use crate::paths::{HoardPath, RelativePath};
+use futures::TryStreamExt;
 use std::path::PathBuf;
-use std::{fs, io};
+use tokio::{fs, io};
+use tokio_stream::wrappers::ReadDirStream;
 use uuid::Uuid;
 
 pub mod last_paths;
@@ -31,7 +33,7 @@ fn get_history_dir_for_id(id: Uuid) -> HoardPath {
     )
 }
 
-fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {
+async fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {
     let _span = tracing::debug_span!("get_history_dir_not_for_id", %id).entered();
     let root = get_history_root_dir();
     if !root.exists() {
@@ -39,28 +41,24 @@ fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {
         return Ok(Vec::new());
     }
 
-    fs::read_dir(root)?
-        .filter_map(|entry| {
-            match entry {
-                Err(err) => Some(Err(err)),
-                Ok(entry) => {
-                    let path = entry.path();
-                    path.file_name().and_then(|file_name| {
-                        file_name.to_str().and_then(|file_str| {
-                            // Only directories that have UUIDs for names and do not match "this"
-                            // id.
-                            Uuid::parse_str(file_str)
-                                .ok()
-                                .and_then(|other_id| (&other_id != id).then(|| Ok({
-                                    HoardPath::try_from(path.clone())
-                                        .expect("dir entries based in a HoardPath are always valid HoardPaths")
-                                })))
-                        })
-                    })
-                }
-            }
+    fs::read_dir(root).await.map(ReadDirStream::new)?
+        .try_filter_map(|entry| async move {
+            let path = entry.path();
+            path.file_name().and_then(|file_name| {
+                file_name.to_str().and_then(|file_str| {
+                    // Only directories that have UUIDs for names and do not match "this"
+                    // id.
+                    Uuid::parse_str(file_str)
+                        .ok()
+                        .and_then(|other_id| (&other_id != id).then(|| Ok({
+                            HoardPath::try_from(path.clone())
+                                .expect("dir entries based in a HoardPath are always valid HoardPaths")
+                        })))
+                })
+            }).transpose()
         })
-        .collect()
+        .try_collect()
+        .await
 }
 
 /// Get this machine's unique UUID, creating if necessary.
@@ -73,12 +71,12 @@ fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {
 ///
 /// Any I/O unexpected errors that may occur while reading and/or
 /// writing the UUID file.
-pub fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
+pub async fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
     let uuid_file = get_uuid_file();
     let _span = tracing::debug_span!("get_or_generate_uuid", file = ?uuid_file);
 
     tracing::trace!("attempting to read uuid from file");
-    let id: Option<Uuid> = match fs::read_to_string(&uuid_file) {
+    let id: Option<Uuid> = match fs::read_to_string(&uuid_file).await {
         Ok(id) => match id.parse() {
             Ok(id) => {
                 tracing::trace!(uuid = %id, "successfully read uuid from file");
@@ -101,24 +99,26 @@ pub fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
     };
 
     // Return existing id or generate, save to file, and return.
-    id.map_or_else(
-        || {
+    match id {
+        None => {
             let new_id = Uuid::new_v4();
             tracing::debug!(new_uuid = %new_id, "generated new uuid");
             if let Err(err) = fs::create_dir_all(
                 uuid_file
                     .parent()
                     .expect("uuid file should always have a parent directory"),
-            ) {
+            )
+            .await
+            {
                 tracing::error!(error = %err, "error while create parent dir");
                 return Err(err);
             }
-            if let Err(err) = fs::write(&uuid_file, new_id.to_string()) {
+            if let Err(err) = fs::write(&uuid_file, new_id.to_string()).await {
                 tracing::error!(error = %err, "error while saving uuid to file");
                 return Err(err);
             }
             Ok(new_id)
-        },
-        Ok,
-    )
+        }
+        Some(id) => Ok(id),
+    }
 }

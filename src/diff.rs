@@ -2,9 +2,8 @@
 //!
 //! Unified diffs are optionally available for text files. Following Git's example,
 //! non-text binary files can only be detected as differing or the same.
-use std::io::Read;
 use std::path::Path;
-use std::{fs, io};
+use tokio::{fs, io, io::AsyncReadExt};
 
 use crate::paths::{HoardPath, SystemPath};
 use similar::{ChangeTag, TextDiff};
@@ -20,26 +19,37 @@ pub enum FileContent {
 }
 
 impl FileContent {
-    fn read(file: fs::File) -> io::Result<Self> {
-        let bytes: Vec<u8> = file.bytes().collect::<io::Result<_>>()?;
+    pub async fn read(mut file: fs::File) -> io::Result<Self> {
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).await?;
         match String::from_utf8(bytes) {
             Ok(s) => Ok(Self::Text(s)),
             Err(err) => Ok(Self::Binary(err.into_bytes())),
         }
     }
 
-    fn into_bytes(self) -> Option<Vec<u8>> {
+    pub async fn read_path(path: &Path) -> io::Result<Self> {
+        match fs::File::open(path).await {
+            Ok(file) => FileContent::read(file).await,
+            Err(err) => match err.kind() {
+                io::ErrorKind::NotFound => Ok(FileContent::Missing),
+                _ => Err(err),
+            },
+        }
+    }
+
+    pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
-            Self::Text(s) => Some(s.into_bytes()),
-            Self::Binary(v) => Some(v),
+            Self::Text(s) => Some(s.as_bytes()),
+            Self::Binary(v) => Some(v.as_slice()),
             Self::Missing => None,
         }
     }
 }
 
 #[allow(variant_size_differences)]
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Diff {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Diff {
     /// Text content differs. Contains the generated unified diff.
     Text(String),
     /// Binary content differs. Also occurs if a file changes between text and binary formats.
@@ -50,77 +60,34 @@ pub(crate) enum Diff {
     SystemNotExists,
 }
 
-fn content_for(path: &Path) -> io::Result<FileContent> {
-    match fs::File::open(path) {
-        Ok(file) => FileContent::read(file),
-        Err(err) => match err.kind() {
-            io::ErrorKind::NotFound => Ok(FileContent::Missing),
-            _ => Err(err),
-        },
+pub(crate) fn str_diff(
+    (hoard_path, hoard_text): (&HoardPath, &str),
+    (system_path, system_text): (&SystemPath, &str),
+) -> Option<Diff> {
+    let text_diff = TextDiff::from_lines(hoard_text, system_text);
+
+    let has_diff = text_diff
+        .iter_all_changes()
+        .any(|op| op.tag() != ChangeTag::Equal);
+
+    if has_diff {
+        let udiff = text_diff
+            .unified_diff()
+            .context_radius(CONTEXT_RADIUS)
+            .header(
+                &hoard_path.to_string_lossy(),
+                &system_path.to_string_lossy(),
+            )
+            .to_string();
+        Some(Diff::Text(udiff))
+    } else {
+        None
     }
-}
-
-pub(crate) fn diff_files(
-    hoard_path: &HoardPath,
-    system_path: &SystemPath,
-) -> io::Result<Option<Diff>> {
-    let hoard_content = content_for(hoard_path)?;
-    let system_content = content_for(system_path)?;
-
-    let diff = match (hoard_content, system_content) {
-        (FileContent::Missing, FileContent::Missing) => None,
-        (FileContent::Missing, _) => Some(Diff::HoardNotExists),
-        (_, FileContent::Missing) => Some(Diff::SystemNotExists),
-        (FileContent::Text(hoard_text), FileContent::Text(system_text)) => {
-            let text_diff = TextDiff::from_lines(&hoard_text, &system_text);
-
-            let has_diff = text_diff
-                .iter_all_changes()
-                .any(|op| op.tag() != ChangeTag::Equal);
-
-            if has_diff {
-                let udiff = text_diff
-                    .unified_diff()
-                    .context_radius(CONTEXT_RADIUS)
-                    .header(
-                        &hoard_path.to_string_lossy(),
-                        &system_path.to_string_lossy(),
-                    )
-                    .to_string();
-                Some(Diff::Text(udiff))
-            } else {
-                None
-            }
-        }
-        (left, right) => {
-            let left = left.into_bytes();
-            let right = right.into_bytes();
-
-            left.into_iter()
-                .zip(right)
-                .any(|(l, r)| l != r)
-                .then(|| Diff::Binary)
-        }
-    };
-
-    Ok(diff)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::paths::RelativePath;
-    use std::path::PathBuf;
-
-    #[test]
-    fn test_diff_non_existent_files() {
-        let hoard_path = crate::paths::hoards_dir()
-            .join(&RelativePath::try_from(PathBuf::from("does_not_exist")).unwrap());
-        let system_path = SystemPath::try_from(PathBuf::from("/also/does/not/exist")).unwrap();
-        let diff = diff_files(&hoard_path, &system_path).expect("diff should not fail");
-
-        assert!(diff.is_none());
-    }
 
     mod file_content {
         use super::*;
@@ -129,19 +96,19 @@ mod test {
         fn test_text_into_bytes() {
             let string_content = String::from("text content");
             let s = FileContent::Text(string_content.clone());
-            assert_eq!(s.into_bytes(), Some(string_content.into_bytes()));
+            assert_eq!(s.as_bytes(), Some(string_content.as_bytes()));
         }
 
         #[test]
         fn test_binary_into_bytes() {
             let bytes = vec![23u8, 244u8, 0u8, 12u8, 17u8];
             let b = FileContent::Binary(bytes.clone());
-            assert_eq!(b.into_bytes(), Some(bytes));
+            assert_eq!(b.as_bytes(), Some(bytes.as_slice()));
         }
 
         #[test]
         fn test_missing_into_bytes() {
-            assert_eq!(FileContent::Missing.into_bytes(), None);
+            assert_eq!(FileContent::Missing.as_bytes(), None);
         }
     }
 }

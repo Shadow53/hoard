@@ -77,6 +77,7 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::system_path;
     use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
     use std::fs;
     use std::path::PathBuf;
@@ -135,7 +136,10 @@ mod tests {
 
     #[test]
     fn test_custom_deserialize() {
+        #[cfg(unix)]
         let path_str = "/test/path/example";
+        #[cfg(windows)]
+        let path_str = "C:\\test\\path\\example";
         let path = PathExists(Some(SystemPath::try_from(PathBuf::from(path_str)).unwrap()));
         assert_tokens(&path, &[Token::Some, Token::Str(path_str)]);
 
@@ -147,11 +151,11 @@ mod tests {
     #[test]
     fn test_env_is_expanded_in_path() {
         std::env::set_var("HOARD_TEST_ENV", "hoard-test");
+        #[cfg(unix)]
         let path_with_env = "/test/path/${HOARD_TEST_ENV}/leaf";
-        let path_resolved = "/test/path/hoard-test/leaf";
-        let path = PathExists(Some(
-            SystemPath::try_from(PathBuf::from(path_resolved)).unwrap(),
-        ));
+        #[cfg(windows)]
+        let path_with_env = "C:/test/path/${HOARD_TEST_ENV}/leaf";
+        let path = PathExists(Some(system_path!("/test/path/hoard-test/leaf")));
         assert_de_tokens(&path, &[Token::Str(path_with_env)]);
     }
 }

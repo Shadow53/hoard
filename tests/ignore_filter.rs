@@ -2,8 +2,8 @@ mod common;
 
 use common::base::DefaultConfigTester;
 use hoard::command::Command;
-use std::fs;
 use std::path::PathBuf;
+use tokio::fs;
 
 const GLOBAL_FILE: &str = "global_ignore";
 const HOARD_FILE: &str = "ignore_for_hoard";
@@ -40,22 +40,26 @@ fn all_extra_files(tester: &DefaultConfigTester) -> Vec<PathBuf> {
         .collect()
 }
 
-#[test]
-fn test_ignore_filter() {
-    let mut tester = DefaultConfigTester::new();
-    tester.setup_files();
+#[tokio::test]
+async fn test_ignore_filter() {
+    let mut tester = DefaultConfigTester::new().await;
+    tester.setup_files().await;
     tester.use_first_env();
 
     for home in all_extra_files(&tester) {
-        common::create_file_with_random_data::<2048>(&home);
+        common::create_file_with_random_data::<2048>(&home).await;
     }
 
-    tester.expect_command(Command::Backup { hoards: Vec::new() });
+    tester
+        .expect_command(Command::Backup { hoards: Vec::new() })
+        .await;
 
     // Delete ignored files from home so assertion works
     for home in ignored_files(&tester) {
-        fs::remove_file(&home).expect("failed to remove ignored file");
+        fs::remove_file(&home)
+            .await
+            .expect("failed to remove ignored file");
     }
 
-    tester.assert_first_tree();
+    tester.assert_first_tree().await;
 }

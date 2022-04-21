@@ -1,10 +1,11 @@
 use super::hoard_item::HoardItem;
 use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
-use crate::diff::FileContent;
+use crate::diff::{str_diff, Diff, FileContent};
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 use std::collections::BTreeMap;
-use std::io;
+use tokio::io;
+use tokio::try_join;
 
 /// Wrapper around [`HoardItem`] that accesses the filesystem at creation time and
 /// caches file data.
@@ -18,14 +19,16 @@ use std::io;
 ///
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[allow(clippy::module_name_repetitions)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct CachedHoardItem {
     inner: HoardItem,
-    hoard_content: Option<FileContent>,
-    system_content: Option<FileContent>,
     hoard_checksums: Option<BTreeMap<ChecksumType, Checksum>>,
     system_checksums: Option<BTreeMap<ChecksumType, Checksum>>,
+    diff: Option<Diff>,
     is_file: bool,
     is_dir: bool,
+    is_text: bool,
+    exists: bool,
 }
 
 impl From<CachedHoardItem> for HoardItem {
@@ -34,10 +37,31 @@ impl From<CachedHoardItem> for HoardItem {
     }
 }
 
-impl TryFrom<HoardItem> for CachedHoardItem {
-    type Error = io::Error;
+impl CachedHoardItem {
+    /// Create a new `CachedHoardItem`.
+    ///
+    /// See [`HoardItem::new`] for more about usage.
+    ///
+    /// # Errors
+    ///
+    /// Will return I/O errors if they occur while processing file data, with the exception of
+    /// `NotFound` errors, which are translated into `None` values, as applicable.
+    pub async fn new(
+        pile_name: PileName,
+        hoard_prefix: HoardPath,
+        system_prefix: SystemPath,
+        relative_path: RelativePath,
+    ) -> io::Result<Self> {
+        let inner = HoardItem::new(pile_name, hoard_prefix, system_prefix, relative_path);
+        Self::try_from_hoard_item(inner).await
+    }
 
-    fn try_from(inner: HoardItem) -> Result<Self, Self::Error> {
+    /// Attempt to create a cached version of the given [`HoardItem`]
+    ///
+    /// # Errors
+    ///
+    /// Any I/O errors while reading the associated files, etc.
+    pub async fn try_from_hoard_item(inner: HoardItem) -> io::Result<Self> {
         let (is_file, is_dir) = {
             let system_exists = inner.system_path().exists();
             let hoard_exists = inner.hoard_path().exists();
@@ -54,8 +78,9 @@ impl TryFrom<HoardItem> for CachedHoardItem {
         };
 
         let (system_content, hoard_content) = if is_file {
-            let system_content = inner.system_content()?;
-            let hoard_content = inner.hoard_content()?;
+            let system_content = inner.system_content();
+            let hoard_content = inner.hoard_content();
+            let (system_content, hoard_content) = try_join!(system_content, hoard_content)?;
             (Some(system_content), Some(hoard_content))
         } else {
             (None, None)
@@ -63,37 +88,52 @@ impl TryFrom<HoardItem> for CachedHoardItem {
 
         let system_checksums = system_content.as_ref().and_then(Self::checksums);
         let hoard_checksums = hoard_content.as_ref().and_then(Self::checksums);
+        let diff = if let (Some(system_content), Some(hoard_content)) =
+            (&system_content, &hoard_content)
+        {
+            match (system_content, hoard_content) {
+                (FileContent::Missing, FileContent::Missing) => None,
+                (FileContent::Missing, FileContent::Binary(_) | FileContent::Text(_)) => {
+                    Some(Diff::SystemNotExists)
+                }
+                (FileContent::Binary(_) | FileContent::Text(_), FileContent::Missing) => {
+                    Some(Diff::HoardNotExists)
+                }
+                (FileContent::Binary(_), FileContent::Text(_))
+                | (FileContent::Text(_), FileContent::Binary(_)) => Some(Diff::Binary),
+                (FileContent::Binary(_), FileContent::Binary(_)) => {
+                    (system_checksums != hoard_checksums).then(|| Diff::Binary)
+                }
+                (FileContent::Text(system_text), FileContent::Text(hoard_text)) => str_diff(
+                    (inner.hoard_path(), hoard_text),
+                    (inner.system_path(), system_text),
+                ),
+            }
+        } else {
+            None
+        };
+
+        let is_text = is_file
+            && matches!(
+                (system_content, hoard_content),
+                (
+                    Some(FileContent::Text(_)),
+                    Some(FileContent::Text(_) | FileContent::Missing)
+                ) | (Some(FileContent::Missing), Some(FileContent::Text(_)))
+            );
+
+        let exists = inner.hoard_path().exists() || inner.system_path().exists();
 
         Ok(Self {
             inner,
-            hoard_content,
-            system_content,
             hoard_checksums,
             system_checksums,
+            diff,
             is_file,
             is_dir,
+            is_text,
+            exists,
         })
-    }
-}
-
-impl CachedHoardItem {
-    /// Create a new `CachedHoardItem`.
-    ///
-    /// See [`HoardItem::new`] for more about usage.
-    ///
-    /// # Errors
-    ///
-    /// Will return I/O errors if they occur while processing file data, with the exception of
-    /// `NotFound` errors, which are translated into `None` values, as applicable.
-    pub fn new(
-        pile_name: PileName,
-        hoard_prefix: HoardPath,
-        system_prefix: SystemPath,
-        relative_path: RelativePath,
-    ) -> io::Result<Self> {
-        let inner = HoardItem::new(pile_name, hoard_prefix, system_prefix, relative_path);
-
-        Self::try_from(inner)
     }
 
     /// Returns the name of the pile this item belongs to, if any.
@@ -164,48 +204,21 @@ impl CachedHoardItem {
     /// text.
     #[must_use]
     pub fn is_text(&self) -> bool {
-        self.is_file()
-            && matches!(
-                (self.system_content.as_ref(), self.hoard_content.as_ref()),
-                (
-                    Some(FileContent::Text(_) | FileContent::Missing),
-                    Some(FileContent::Text(_) | FileContent::Missing)
-                )
-            )
+        self.is_text
     }
 
-    /// Returns whether this file contains text.
+    /// Returns whether this file *does not* contains text.
     ///
     /// This is `true` if at least one file (system/hoard) exists and is not text.
     #[must_use]
     pub fn is_binary(&self) -> bool {
-        self.is_file()
-            && matches!(
-                (self.system_content.as_ref(), self.hoard_content.as_ref()),
-                (Some(FileContent::Binary(_)), Some(_)) | (Some(_), Some(FileContent::Binary(_)))
-            )
+        !self.is_text
     }
 
-    /// Returns the content, as bytes, of the system version of the file.
-    ///
-    /// Returns [`Some(FileContent::Missing)`] if [`Self::hoard_path`] is a file and [`Self::system_path`]
-    /// does not exist.
-    ///
-    /// Returns `None` if [`Self::system_path`] is not a file.
+    /// Returns the precomputed diff between the hoard and system files of this [`CachedHoardItem`].
     #[must_use]
-    pub fn system_content(&self) -> Option<&FileContent> {
-        self.system_content.as_ref()
-    }
-
-    /// Returns the content, as bytes, of the Hoard version of the file.
-    ///
-    /// Returns [`Some(FileContent::Missing)`] if [`Self::system_path`] is a file and [`Self::hoard_path`]
-    /// does not exist.
-    ///
-    /// Returns `None` if [`Self::hoard_path`] is not a file.
-    #[must_use]
-    pub fn hoard_content(&self) -> Option<&FileContent> {
-        self.hoard_content.as_ref()
+    pub fn diff(&self) -> Option<&Diff> {
+        self.diff.as_ref()
     }
 
     fn checksums(content: &FileContent) -> Option<BTreeMap<ChecksumType, Checksum>> {

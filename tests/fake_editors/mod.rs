@@ -47,15 +47,15 @@ impl Editor {
         matches!(self, Editor::Error)
     }
 
-    pub fn set_as_default_cli_editor(&self) -> sys::EditorGuard {
-        sys::set_default_cli_editor(*self)
+    pub async fn set_as_default_cli_editor(&self) -> sys::EditorGuard {
+        sys::set_default_cli_editor(*self).await
     }
 
-    pub fn set_as_default_gui_editor(&self) -> sys::EditorGuard {
+    pub async fn set_as_default_gui_editor(&self) -> sys::EditorGuard {
         std::env::remove_var("EDITOR");
         // xdg-open tries to open the file in a browser if the editor command does not
         // return success. This will cause it to short circuit for testing purposes.
         std::env::set_var("BROWSER", ":");
-        sys::set_default_gui_editor(*self)
+        sys::set_default_gui_editor(*self).await
     }
 }

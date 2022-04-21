@@ -1,15 +1,14 @@
+use std::fs::Metadata;
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::{
-    fs::{File, Metadata},
-    io::{Read, Seek, SeekFrom},
-};
+use tokio::fs::File;
 
 use hoard::checksum::Checksum;
 use hoard::hoard_item::HoardItem;
 use tempfile::{NamedTempFile, TempDir};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 
 pub fn get_temp_file() -> NamedTempFile {
     NamedTempFile::new().expect("failed to create temp file")
@@ -19,25 +18,27 @@ pub fn get_temp_dir() -> TempDir {
     TempDir::new().expect("failed to create temp dir")
 }
 
-fn get_metadata(left: &File, right: &File) -> (Metadata, Metadata) {
+async fn get_metadata(left: &File, right: &File) -> (Metadata, Metadata) {
     let left_meta = left
         .metadata()
+        .await
         .expect("failed to get metadata for left file");
     let right_meta = right
         .metadata()
+        .await
         .expect("failed to get metadata for right file");
 
     (left_meta, right_meta)
 }
 
-pub fn assert_eq_files(left: &mut File, right: &mut File) {
-    assert_eq_file_types(left, right);
-    assert_eq_file_permissions(left, right);
-    assert_eq_file_contents(left, right);
+pub async fn assert_eq_files(left: &mut File, right: &mut File) {
+    assert_eq_file_types(left, right).await;
+    assert_eq_file_permissions(left, right).await;
+    assert_eq_file_contents(left, right).await;
 }
 
-pub fn assert_eq_file_types(left: &File, right: &File) {
-    let (left_meta, right_meta) = get_metadata(left, right);
+pub async fn assert_eq_file_types(left: &File, right: &File) {
+    let (left_meta, right_meta) = get_metadata(left, right).await;
     assert_eq!(
         left_meta.file_type(),
         right_meta.file_type(),
@@ -45,8 +46,8 @@ pub fn assert_eq_file_types(left: &File, right: &File) {
     );
 }
 
-pub fn assert_eq_file_contents(left: &mut File, right: &mut File) {
-    let (left_meta, right_meta) = get_metadata(left, right);
+pub async fn assert_eq_file_contents(left: &mut File, right: &mut File) {
+    let (left_meta, right_meta) = get_metadata(left, right).await;
     assert_eq!(
         left_meta.len(),
         right_meta.len(),
@@ -55,30 +56,26 @@ pub fn assert_eq_file_contents(left: &mut File, right: &mut File) {
 
     // Ensure seek to beginning of file
     left.seek(SeekFrom::Start(0))
+        .await
         .expect("failed to seek to beginning of left file (beginning)");
     right
         .seek(SeekFrom::Start(0))
+        .await
         .expect("failed to seek to beginning of right file (beginning)");
 
     // Create iterator over bytes
-    let is_equal = left
-        .bytes()
-        .zip(right.bytes())
-        .map(|(l, r)| {
-            (
-                l.expect("failed to read from left file"),
-                r.expect("failed to read from right file"),
-            )
-        })
-        .all(|(l, r)| l == r);
-
-    assert!(is_equal, "file contents differ");
+    let (mut left_bytes, mut right_bytes) = (Vec::new(), Vec::new());
+    left.read_to_end(&mut left_bytes).await;
+    right.read_to_end(&mut right_bytes).await;
+    assert_eq!(left_bytes, right_bytes, "file contents differ");
 
     // Return to beginning of file before returning
     left.seek(SeekFrom::Start(0))
+        .await
         .expect("failed to seek to beginning of left file (end)");
     right
         .seek(SeekFrom::Start(0))
+        .await
         .expect("failed to seek to beginning of right file (end)");
 }
 
@@ -94,8 +91,8 @@ fn assert_mode(left_perm: &Permissions, right_perm: &Permissions) {
     );
 }
 
-pub fn assert_eq_file_permissions(left: &File, right: &File) {
-    let (left_meta, right_meta) = get_metadata(left, right);
+pub async fn assert_eq_file_permissions(left: &File, right: &File) {
+    let (left_meta, right_meta) = get_metadata(left, right).await;
 
     let left_perm = left_meta.permissions();
     let right_perm = right_meta.permissions();

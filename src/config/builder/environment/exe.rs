@@ -2,10 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
+use std::fmt;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::{fmt, fs};
+use std::{fs, io};
 use thiserror::Error;
 
 #[cfg(unix)]
@@ -119,7 +120,7 @@ pub enum Error {
         path: PathBuf,
         /// The error that occurred.
         #[source]
-        error: std::io::Error,
+        error: io::Error,
     },
 
     /// A file name was provided, but `$PATH` was not set.

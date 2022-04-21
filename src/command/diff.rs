@@ -1,11 +1,12 @@
-use crate::hoard::iter::{HoardDiffIter, HoardFileDiff};
+use crate::hoard::iter::{changed_diff_only_stream, HoardFileDiff};
 use crate::hoard::Hoard;
 use crate::paths::HoardPath;
+use futures::TryStreamExt;
 use std::collections::BTreeSet;
 
 use crate::newtypes::HoardName;
 
-pub(crate) fn run_diff(
+pub(crate) async fn run_diff(
     hoard: &Hoard,
     hoard_name: &HoardName,
     hoards_root: &HoardPath,
@@ -13,14 +14,16 @@ pub(crate) fn run_diff(
 ) -> Result<(), super::Error> {
     let _span = tracing::trace_span!("run_diff").entered();
     tracing::trace!("running the diff command");
-    let diffs: BTreeSet<HoardFileDiff> = HoardDiffIter::new(hoards_root, hoard_name.clone(), hoard)
-        .map_err(|err| {
-            tracing::error!("failed to create diff iterator: {}", err);
-            super::Error::Diff(err)
-        })?
-        .only_changed()
-        .collect::<Result<_, _>>()
-        .map_err(super::Error::Diff)?;
+    let diffs: BTreeSet<HoardFileDiff> =
+        changed_diff_only_stream(hoards_root, hoard_name.clone(), hoard)
+            .await
+            .map_err(|err| {
+                tracing::error!("failed to create diff stream: {}", err);
+                super::Error::Diff(err)
+            })?
+            .try_collect()
+            .await
+            .map_err(super::Error::Diff)?;
     for hoard_diff in diffs {
         tracing::trace!("printing diff: {:?}", hoard_diff);
         match hoard_diff {

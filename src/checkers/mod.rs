@@ -17,7 +17,8 @@ use thiserror::Error;
 ///
 /// A [`Checker`] takes a [`Hoard`] and its name (as [`&str`]) as parameters and uses that
 /// information plus any internal state to validate that it is safe to operate on that [`Hoard`].
-pub trait Checker: Sized {
+#[async_trait::async_trait(?Send)]
+pub trait Checker: Sized + Unpin {
     /// The error type returned from the check.
     type Error: std::error::Error;
     /// Returns a new instance of the implementing Checker type.
@@ -25,7 +26,7 @@ pub trait Checker: Sized {
     /// # Errors
     ///
     /// Any errors that may occur while creating an instance, such as I/O or consistency errors.
-    fn new(
+    async fn new(
         hoard_root: &HoardPath,
         hoard_name: &HoardName,
         hoard: &Hoard,
@@ -37,13 +38,13 @@ pub trait Checker: Sized {
     ///
     /// Any error that prevents operations on the given [`Hoard`], or any errors that
     /// occur while performing the check.
-    fn check(&mut self) -> Result<(), Self::Error>;
+    async fn check(&mut self) -> Result<(), Self::Error>;
     /// Saves any persistent data to disk.
     ///
     /// # Errors
     ///
     /// Generally, any I/O errors that occur while persisting data.
-    fn commit_to_disk(self) -> Result<(), Self::Error>;
+    async fn commit_to_disk(self) -> Result<(), Self::Error>;
 }
 
 /// Errors that may occur while using [`Checkers`].
@@ -66,7 +67,7 @@ pub(crate) struct Checkers {
 
 impl Checkers {
     #[allow(single_use_lifetimes)]
-    pub(crate) fn new<'a>(
+    pub(crate) async fn new<'a>(
         hoards_root: &HoardPath,
         hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)>,
         direction: Direction,
@@ -77,8 +78,8 @@ impl Checkers {
 
         for (name, hoard) in hoards {
             tracing::debug!(%name, ?hoard, "processing hoard");
-            let lp = LastPaths::new(hoards_root, name, hoard, direction)?;
-            let op = Operation::new(hoards_root, name, hoard, direction)?;
+            let lp = LastPaths::new(hoards_root, name, hoard, direction).await?;
+            let op = Operation::new(hoards_root, name, hoard, direction).await?;
             last_paths.insert(name.clone(), lp);
             operations.insert(name.clone(), op);
         }
@@ -89,33 +90,33 @@ impl Checkers {
         })
     }
 
-    pub(crate) fn check(&mut self) -> Result<(), Error> {
+    pub(crate) async fn check(&mut self) -> Result<(), Error> {
         let _span = tracing::debug_span!("running_checks").entered();
         for last_path in &mut self.last_paths.values_mut() {
-            last_path.check()?;
+            last_path.check().await?;
         }
         for operation in self.operations.values_mut() {
-            operation.check()?;
+            operation.check().await?;
         }
         Ok(())
     }
 
-    pub(crate) fn commit_to_disk(self) -> Result<(), Error> {
+    pub(crate) async fn commit_to_disk(self) -> Result<(), Error> {
         let Self {
             last_paths,
             operations,
             ..
         } = self;
         for (_, last_path) in last_paths {
-            last_path.commit_to_disk()?;
+            last_path.commit_to_disk().await?;
         }
         for (_, operation) in operations {
-            operation.commit_to_disk()?;
+            operation.commit_to_disk().await?;
         }
         Ok(())
     }
 
-    pub(crate) fn get_operation_for<'a>(&'a self, hoard_name: &HoardName) -> Option<&'a Operation> {
+    pub(crate) fn get_operation_for(&self, hoard_name: &HoardName) -> Option<&Operation> {
         self.operations.get(hoard_name)
     }
 }

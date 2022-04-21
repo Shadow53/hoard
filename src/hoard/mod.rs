@@ -2,7 +2,7 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
-pub(crate) mod iter;
+pub mod iter;
 pub(crate) mod pile_config;
 
 use crate::filters::Error as FilterError;
@@ -11,9 +11,10 @@ use crate::paths::{HoardPath, RelativePath, SystemPath};
 pub use pile_config::Config as PileConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io;
+use std::fmt;
 use std::path::PathBuf;
 use thiserror::Error;
+use tokio::io;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]
@@ -69,6 +70,15 @@ pub enum Direction {
     Backup,
     /// Restoring from hoards to system.
     Restore,
+}
+
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Backup => write!(f, "backup"),
+            Self::Restore => write!(f, "restore"),
+        }
+    }
 }
 
 /// A single path to hoard, with configuration.
