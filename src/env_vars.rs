@@ -106,7 +106,10 @@ impl fmt::Display for PathWithEnv {
 /// let path = PathWithEnv::from(template)
 ///     .process()
 ///     .expect("failed to expand path");
+/// #[cfg(unix)]
 /// let expected = SystemPath::try_from(PathBuf::from("/some/foobar/path")).unwrap();
+/// #[cfg(windows)]
+/// let expected = SystemPath::try_from(PathBuf::from("C:/some/foobar/path")).unwrap();
 /// assert_eq!(path, expected);
 /// ```
 ///
