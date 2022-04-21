@@ -77,11 +77,11 @@ impl fmt::Display for PathExists {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::system_path;
     use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, NamedTempFile};
-    use crate::test::system_path;
 
     #[test]
     fn test_none_is_false() {

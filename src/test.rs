@@ -12,28 +12,28 @@ use uuid::Uuid;
 
 mod macros {
     macro_rules! path_string {
-        ($path: expr) => {
+        ($path: expr) => {{
+            #[cfg(unix)]
             {
-                #[cfg(unix)]
-                { String::from($path) }
-                #[cfg(windows)]
-                { format!("C:{}", $path) }
+                String::from($path)
             }
-        }
+            #[cfg(windows)]
+            {
+                format!("C:{}", $path)
+            }
+        }};
     }
     macro_rules! system_path {
-        ($path: expr) => {
-            {
-                let path = crate::test::path_string!($path);
-                crate::paths::SystemPath::try_from(PathBuf::from(path)).unwrap()
-            }
-        }
+        ($path: expr) => {{
+            let path = crate::test::path_string!($path);
+            crate::paths::SystemPath::try_from(PathBuf::from(path)).unwrap()
+        }};
     }
-    pub(crate) use system_path;
     pub(crate) use path_string;
+    pub(crate) use system_path;
 }
 
-pub(crate) use macros::{system_path, path_string};
+pub(crate) use macros::{path_string, system_path};
 
 #[derive(Debug, Error)]
 #[allow(variant_size_differences)]

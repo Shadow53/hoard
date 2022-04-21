@@ -365,16 +365,14 @@ impl HoardPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maplit::hashmap;
     use crate::test::system_path;
+    use maplit::hashmap;
 
     const NAMED_PILE_1: &str = "test1";
     const NAMED_PILE_2: &str = "test2";
 
     fn anonymous_hoard_paths() -> HoardPaths {
-        HoardPaths::from(PilePaths::Anonymous(Some(
-            system_path!("/test/path")
-        )))
+        HoardPaths::from(PilePaths::Anonymous(Some(system_path!("/test/path"))))
     }
 
     fn named_hoard_paths() -> HoardPaths {
@@ -477,17 +475,11 @@ mod tests {
     #[test]
     fn test_compare_anonymous_paths() {
         let anon_none = HoardPaths::from(PilePaths::Anonymous(None));
-        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(
-            system_path!("/test/path1"),
-        )));
-        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(
-            system_path!("/test/path2"),
-        )));
+        let anon_1 = HoardPaths::from(PilePaths::Anonymous(Some(system_path!("/test/path1"))));
+        let anon_2 = HoardPaths::from(PilePaths::Anonymous(Some(system_path!("/test/path2"))));
         // Create dupe of 1 to get different timestamp
         std::thread::sleep(std::time::Duration::from_secs(1));
-        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(
-            system_path!("/test/path1"),
-        )));
+        let anon_3 = HoardPaths::from(PilePaths::Anonymous(Some(system_path!("/test/path1"))));
 
         // Test none/none and some/some are the same.
         assert!(
@@ -639,9 +631,7 @@ mod tests {
 
         assert_eq!(
             anon_paths,
-            PilePaths::Anonymous(Some(
-                system_path!("/anon/path")
-            ))
+            PilePaths::Anonymous(Some(system_path!("/anon/path")))
         );
         assert_eq!(
             named_paths,
