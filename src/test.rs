@@ -23,7 +23,7 @@ mod macros {
             }
         }};
     }
-    
+
     macro_rules! system_path {
         ($path: expr) => {{
             let path = crate::test::path_string!($path);
@@ -34,7 +34,7 @@ mod macros {
     macro_rules! relative_path {
         ($path: expr) => {
             crate::paths::RelativePath::try_from(std::path::PathBuf::from($path)).unwrap()
-        }
+        };
     }
 
     pub(crate) use path_string;
