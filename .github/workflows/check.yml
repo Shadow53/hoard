@@ -104,11 +104,25 @@ jobs:
           version: latest
           use-tool-cache: true
 
-      - name: Cargo Test (Grcov)
+      - name: Cargo Test
         uses: actions-rs/cargo@v1
+        if: matrix.os != 'windows-latest'
         with:
           command: test
           args: --all-features --no-fail-fast -- --test-threads=1
+        env:
+          RUST_BACKTRACE: '1'
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Cinstrument-coverage'
+          RUSTDOCFLAGS: '-Cinstrument-coverage'
+          LLVM_PROFILE_FILE: 'profraw/hoard-cargo-tests-%p-%m.profraw'
+
+      - name: Cargo Test
+        uses: actions-rs/cargo@v1
+        if: matrix.os == 'windows-latest'
+        with:
+          command: test
+          args: --all-features --no-fail-fast --release -- --test-threads=1
         env:
           RUST_BACKTRACE: '1'
           CARGO_INCREMENTAL: '0'
@@ -138,6 +152,7 @@ jobs:
 
 
       - name: Upload to codecov.io
+        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
