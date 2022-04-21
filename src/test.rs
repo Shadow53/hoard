@@ -19,7 +19,9 @@ mod macros {
             }
             #[cfg(windows)]
             {
-                format!("C:{}", $path)
+                let mut path = format!("C:{}", $path);
+                path.replace("/", "\\");
+                path
             }
         }};
     }

@@ -14,10 +14,14 @@ use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use thiserror::Error;
 
+fn hoards_root() -> PathBuf {
+    crate::dirs::data_dir().join("hoards")
+}
+
 /// Returns the default root for hoard files.
 #[must_use]
 pub fn hoards_dir() -> HoardPath {
-    HoardPath::try_from(crate::dirs::data_dir().join("hoards"))
+    HoardPath::try_from(hoards_root())
         .expect("HoardPath that is the hoards directory should always be valid")
 }
 
@@ -40,6 +44,8 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     } else {
         PathBuf::new()
     };
+
+    println!("path root: {}", ret.display());
 
     for component in components {
         match component {
@@ -139,8 +145,8 @@ impl TryFrom<PathBuf> for HoardPath {
             return Err(Error::InvalidHoardPath(input));
         }
 
-        let hoard_root = crate::dirs::data_dir();
-        if value.strip_prefix(&hoard_root).is_ok() {
+        let hoard_root = hoards_root();
+        if value == hoard_root || value.strip_prefix(&hoard_root).is_ok() {
             Ok(Self(value))
         } else {
             Err(Error::InvalidHoardPath(value))
@@ -205,10 +211,11 @@ impl TryFrom<PathBuf> for SystemPath {
             return Err(Error::InvalidSystemPath(input));
         }
 
-        let hoard_root = hoards_dir();
-        match value.strip_prefix(hoard_root.as_ref()) {
-            Ok(_) => Err(Error::InvalidSystemPath(value)),
-            Err(_) => Ok(Self(value)),
+        let hoard_root = hoards_root();
+        if value == hoard_root || value.strip_prefix(&hoard_root).is_ok() {
+            Err(Error::InvalidSystemPath(value))
+        } else {
+            Ok(Self(value))
         }
     }
 }

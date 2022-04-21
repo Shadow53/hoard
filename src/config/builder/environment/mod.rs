@@ -186,8 +186,8 @@ mod tests {
 
     mod display {
         use super::*;
-        use crate::paths::SystemPath;
         use std::path::PathBuf;
+        use crate::paths::SystemPath;
 
         #[test]
         fn test_display_with_none() {
@@ -204,6 +204,9 @@ mod tests {
             };
             let exe_exists = ExeExists(PathBuf::from("test").try_into().unwrap());
             let path_exists = PathExists(Some(
+                #[cfg(unix)]
+                SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+                #[cfg(windows)]
                 SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
             ));
 
