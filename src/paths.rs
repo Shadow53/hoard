@@ -41,8 +41,6 @@ pub fn normalize_path(path: &Path) -> PathBuf {
         PathBuf::new()
     };
 
-    println!("path root: {}", ret.display());
-
     for component in components {
         match component {
             Component::Prefix(..) => unreachable!(),
