@@ -23,17 +23,26 @@ mod macros {
             }
         }};
     }
+    
     macro_rules! system_path {
         ($path: expr) => {{
             let path = crate::test::path_string!($path);
-            crate::paths::SystemPath::try_from(PathBuf::from(path)).unwrap()
+            crate::paths::SystemPath::try_from(std::path::PathBuf::from(path)).unwrap()
         }};
     }
+
+    macro_rules! relative_path {
+        ($path: expr) => {
+            crate::paths::RelativePath::try_from(std::path::PathBuf::from($path)).unwrap()
+        }
+    }
+
     pub(crate) use path_string;
+    pub(crate) use relative_path;
     pub(crate) use system_path;
 }
 
-pub(crate) use macros::{path_string, system_path};
+pub(crate) use macros::{path_string, relative_path, system_path};
 
 #[derive(Debug, Error)]
 #[allow(variant_size_differences)]

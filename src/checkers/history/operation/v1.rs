@@ -120,3 +120,189 @@ impl From<HashMap<RelativePath, Checksum>> for Pile {
         Pile(map)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{test::relative_path, checksum::MD5, checkers::history::operation::OperationImpl};
+
+    fn checksum() -> Checksum {
+        Checksum::MD5(MD5::from_data(&[0xFD, 0xFF, 0xFE]))
+    }
+
+    fn anon_op() -> OperationV1 {
+        OperationV1 {
+            timestamp: OffsetDateTime::now_utc(),
+            is_backup: true,
+            hoard_name: "hoard_name".parse().unwrap(),
+            hoard: Hoard::Anonymous(Pile(maplit::hashmap!{
+                relative_path!("test/path") => checksum()
+            })),
+        }
+    }
+
+    fn named_op() -> OperationV1 {
+        OperationV1 {
+            timestamp: OffsetDateTime::now_utc(),
+            is_backup: false,
+            hoard_name: "hoard_name".parse().unwrap(),
+            hoard: Hoard::Named(maplit::hashmap!{
+                "first".parse().unwrap() => Pile(maplit::hashmap! {
+                    relative_path!("test/path") => checksum()
+                }),
+                "second".parse().unwrap() => Pile(maplit::hashmap! {
+                    relative_path!("other/path") => checksum()
+                })
+            }),
+        }
+    }
+
+    #[test]
+    fn test_direction() {
+        let anon_op = anon_op();
+        assert_eq!(anon_op.direction(), Direction::Backup);
+        let named_op = named_op();
+        assert_eq!(named_op.direction(), Direction::Restore);
+    }
+
+    #[test]
+    fn test_contains_file() {
+        let anon_op = anon_op();
+        assert!(anon_op.contains_file(
+            &PileName::anonymous(),
+            &relative_path!("test/path"),
+            false,
+        ));
+        assert!(anon_op.contains_file(
+            &PileName::anonymous(),
+            &relative_path!("test/path"),
+            true,
+        ));
+        assert!(!anon_op.contains_file(
+            &PileName::anonymous(),
+            &relative_path!("test/missing"),
+            false,
+        ));
+        assert!(!anon_op.contains_file(
+            &PileName::anonymous(),
+            &relative_path!("test/missing"),
+            true,
+        ));
+        assert!(!anon_op.contains_file(
+            &"first".parse().unwrap(),
+            &relative_path!("test/path"),
+            false,
+        ));
+        assert!(!anon_op.contains_file(
+            &"first".parse().unwrap(),
+            &relative_path!("test/path"),
+            true,
+        ));
+
+        let named_op = named_op();
+        assert!(named_op.contains_file(
+            &"first".parse().unwrap(),
+            &relative_path!("test/path"),
+            false,
+        ));
+        assert!(named_op.contains_file(
+            &"first".parse().unwrap(),
+            &relative_path!("test/path"),
+            true,
+        ));
+        assert!(!named_op.contains_file(
+            &"first".parse().unwrap(),
+            &relative_path!("other/path"),
+            false,
+        ));
+        assert!(!named_op.contains_file(
+            &"first".parse().unwrap(),
+            &relative_path!("other/path"),
+            true,
+        ));
+        assert!(named_op.contains_file(
+            &"second".parse().unwrap(),
+            &relative_path!("other/path"),
+            false,
+        ));
+        assert!(named_op.contains_file(
+            &"second".parse().unwrap(),
+            &relative_path!("other/path"),
+            true,
+        ));
+        assert!(!named_op.contains_file(
+            &"second".parse().unwrap(),
+            &relative_path!("test/path"),
+            false,
+        ));
+        assert!(!named_op.contains_file(
+            &"second".parse().unwrap(),
+            &relative_path!("test/path"),
+            true,
+        ));
+        assert!(!named_op.contains_file(
+            &PileName::anonymous(),
+            &relative_path!("test/path"),
+            false,
+        ));
+        assert!(!named_op.contains_file(
+            &PileName::anonymous(),
+            &relative_path!("test/path"),
+            true,
+        ));
+    }
+
+    #[test]
+    fn test_hoard_name() {
+        let anon_op = anon_op();
+        let named_op = named_op();
+        assert_eq!(anon_op.hoard_name(), named_op.hoard_name());
+        assert_eq!(anon_op.hoard_name(), &"hoard_name".parse::<HoardName>().unwrap());
+    }
+
+    #[test]
+    fn test_checksum_for() {
+        let anon_op = anon_op();
+        let named_op = named_op();
+
+        assert_eq!(Some(checksum()), anon_op.checksum_for(&PileName::anonymous(), &relative_path!("test/path")));
+        assert_eq!(None, anon_op.checksum_for(&PileName::anonymous(), &relative_path!("other/path")));
+        assert_eq!(None, anon_op.checksum_for(&"first".parse().unwrap(), &relative_path!("test/path")));
+
+        assert_eq!(
+            Some(checksum()),
+            named_op.checksum_for(
+                &"first".parse().unwrap(),
+                &relative_path!("test/path"),
+            )
+        );
+        assert_eq!(
+            Some(checksum()),
+            named_op.checksum_for(
+                &"second".parse().unwrap(),
+                &relative_path!("other/path"),
+            )
+        );
+        assert_eq!(
+            None,
+            named_op.checksum_for(
+                &"first".parse().unwrap(),
+                &relative_path!("other/path"),
+            )
+        );
+        assert_eq!(
+            None,
+            named_op.checksum_for(
+                &"second".parse().unwrap(),
+                &relative_path!("test/path"),
+            )
+        );
+        assert_eq!(
+            None,
+            named_op.checksum_for(
+                &PileName::anonymous(),
+                &relative_path!("test/path"),
+            )
+        );
+    }
+}
