@@ -128,13 +128,14 @@ impl PathWithEnv {
             let var = mat.as_str();
             let var = &var[2..var.len() - 1];
             tracing::trace!(var, "found environment variable {}", var,);
+
             let value = env::var(var).map_err(|error| Error::Env {
                 error,
                 var: var.to_string(),
             })?;
 
             old_start = start;
-            start += value.len();
+            start += mat.start() + value.len();
             if start > (new_path.len() + value.len() - mat.as_str().len()) {
                 start = new_path.len();
             }
@@ -174,7 +175,7 @@ mod tests {
                 let old_val = std::env::var_os($var);
                 std::env::set_var($var, $value);
                 let expected: SystemPath = $expected;
-                let result = PathWithEnv::from($input).process().expect("failed to expand env in path");
+                let result = PathWithEnv::from($input).process().unwrap();
                 assert_eq!(result, expected);
                 if let Some(val) = old_val {
                     std::env::set_var($var, val);
@@ -296,18 +297,18 @@ mod tests {
 
     test_env! {
         name: vars_not_recursively_expanded,
-        input: "${TEST_HOME}",
+        input: "/${TEST_HOME}",
         env: "TEST_HOME",
         value: "${HOME}",
-        expected: SystemPath::try_from(PathBuf::from("${HOME}")).unwrap()
+        expected: SystemPath::try_from(PathBuf::from("/${HOME}")).unwrap()
     }
 
     test_env! {
         name: var_inside_var,
-        input: "${WRAPPING${TEST_VAR}VARIABLE}",
+        input: "/test/${WRAPPING${TEST_VAR}VARIABLE}/test",
         env: "TEST_VAR",
         value: "_",
-        expected: SystemPath::try_from(PathBuf::from("${WRAPPING_VARIABLE}")).unwrap()
+        expected: SystemPath::try_from(PathBuf::from("/test/${WRAPPING_VARIABLE}/test")).unwrap()
     }
 
     #[test]

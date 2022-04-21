@@ -49,10 +49,10 @@ pub fn normalize_path(path: &Path) -> PathBuf {
             }
             Component::CurDir => {}
             Component::ParentDir => {
-                if matches!(ret.components().last(), None | Some(Component::ParentDir)) {
-                    ret.push(Component::ParentDir);
-                } else {
+                if matches!(ret.components().last(), Some(Component::Normal(_))) {
                     ret.pop();
+                } else {
+                    ret.push(Component::ParentDir);
                 }
             }
             Component::Normal(c) => {
@@ -61,6 +61,13 @@ pub fn normalize_path(path: &Path) -> PathBuf {
         }
     }
     ret
+}
+
+fn is_valid_absolute(path: &Path) -> bool {
+    path.is_absolute()
+        && path
+            .components()
+            .all(|comp| !matches!(comp, Component::ParentDir))
 }
 
 /// Errors that may be returned when using [`TryFrom`] on a path wrapper.
@@ -126,7 +133,12 @@ impl Deref for HoardPath {
 impl TryFrom<PathBuf> for HoardPath {
     type Error = Error;
 
-    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+    fn try_from(input: PathBuf) -> Result<Self, Self::Error> {
+        let value = normalize_path(&input);
+        if !is_valid_absolute(&value) {
+            return Err(Error::InvalidHoardPath(input));
+        }
+
         let hoard_root = crate::dirs::data_dir();
         if value.strip_prefix(&hoard_root).is_ok() {
             Ok(Self(value))
@@ -187,7 +199,12 @@ impl Deref for SystemPath {
 impl TryFrom<PathBuf> for SystemPath {
     type Error = Error;
 
-    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+    fn try_from(input: PathBuf) -> Result<Self, Self::Error> {
+        let value = normalize_path(&input);
+        if !is_valid_absolute(&value) {
+            return Err(Error::InvalidSystemPath(input));
+        }
+
         let hoard_root = hoards_dir();
         match value.strip_prefix(hoard_root.as_ref()) {
             Ok(_) => Err(Error::InvalidSystemPath(value)),

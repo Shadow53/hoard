@@ -205,10 +205,7 @@ async fn test_operation_cleanup() {
                 .join("history")
                 .join(system_id)
                 .join(hoard);
-            let files: HashSet<PathBuf> = files_in_dir(&path)
-                .await
-                .into_iter()
-                .collect();
+            let files: HashSet<PathBuf> = files_in_dir(&path).await.into_iter().collect();
             let expected_files = expected
                 .get(location)
                 .expect("location should exist")

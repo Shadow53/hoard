@@ -171,7 +171,9 @@ async fn write_to_files(tester: &Tester, ops: &[OperationV1]) {
         }
 
         let content = serde_json::to_vec(&op).expect("writing a V1 operation file should succeed");
-        fs::write(path, &content).await.expect("writing file content should succeed");
+        fs::write(path, &content)
+            .await
+            .expect("writing file content should succeed");
     }
 }
 
@@ -199,7 +201,9 @@ async fn read_from_files(tester: &Tester, hoard: &str) -> Vec<OperationV2> {
         )
         .try_filter_map(|entry| async move {
             if entry.file_name() != "last_paths.json" {
-                let content = fs::read(entry.path()).await.expect("reading from file should succeed");
+                let content = fs::read(entry.path())
+                    .await
+                    .expect("reading from file should succeed");
                 serde_json::from_slice::<OperationV2>(&content)
                     .map(Some)
                     .map(Ok)

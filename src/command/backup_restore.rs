@@ -6,7 +6,9 @@ use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
+use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
+//use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::fs;
 
@@ -46,34 +48,83 @@ pub(crate) async fn run_restore<'a>(
         .map_err(super::Error::Restore)
 }
 
-async fn looped_set_permissions(root: &Path, mut path: PathBuf, file_perms: Permissions, dir_perms: Permissions) -> Result<(), Error> {
-    while path != root {
-        if path.is_file() {
-            file_perms.set_on_path(&path).await.map_err(Error::IO)?;
-        } else {
-            dir_perms.set_on_path(&path).await.map_err(Error::IO)?;
-        }
+struct ParentIter {
+    root: Option<PathBuf>,
+    segments: Vec<OsString>,
+}
 
-        if let Some(parent) = path.parent() {
-            path = parent.to_path_buf();
+impl Iterator for ParentIter {
+    type Item = PathBuf;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.root.take(), self.segments.pop()) {
+            (None, _) => None,
+            (Some(root), None) => Some(root),
+            (Some(root), Some(seg)) => {
+                let result = root.clone();
+                self.root = Some(root.join(seg));
+                Some(result)
+            }
+        }
+    }
+}
+
+impl ParentIter {
+    fn new(root: PathBuf, start: &Path) -> Self {
+        let segments = if start == root {
+            Vec::new()
         } else {
-            return Ok(());
+            let rel_path = start
+                .strip_prefix(&root)
+                .map(Path::to_path_buf)
+                .expect("start path should always be rooted in root");
+            rel_path
+                .components()
+                .filter_map(|comp| {
+                    if let Component::Normal(seg) = comp {
+                        Some(seg.to_os_string())
+                    } else if let Component::ParentDir = comp {
+                        panic!("Paths with parent directory marker `..` are not supported")
+                    } else {
+                        None
+                    }
+                })
+                .rev()
+                .collect()
+        };
+
+        Self {
+            root: Some(root),
+            segments,
+        }
+    }
+}
+
+async fn looped_set_permissions(
+    root: PathBuf,
+    path: &Path,
+    file_perms: Permissions,
+    dir_perms: Permissions,
+) -> Result<(), Error> {
+    for path in ParentIter::new(root, path) {
+        if path.is_dir() {
+            dir_perms.set_on_path(&path).await?;
+        } else if path.is_file() {
+            file_perms.set_on_path(&path).await?;
         }
     }
 
     Ok(())
 }
 
-async fn looped_set_hoard_permissions(
-    root: &HoardPath,
-    path: &RelativePath,
-) -> Result<(), Error> {
+async fn looped_set_hoard_permissions(root: &HoardPath, path: &RelativePath) -> Result<(), Error> {
     looped_set_permissions(
-        root,
-        root.join(path).to_path_buf(),
+        root.to_path_buf(),
+        root.join(path).to_path_buf().as_path(),
         Permissions::file_default(),
         Permissions::folder_default(),
-    ).await
+    )
+    .await
 }
 
 async fn looped_set_system_permissions(
@@ -83,35 +134,40 @@ async fn looped_set_system_permissions(
     dir_perms: Permissions,
 ) -> Result<(), Error> {
     looped_set_permissions(
-        root,
-        root.join(path).to_path_buf(),
+        root.to_path_buf(),
+        root.join(path).to_path_buf().as_path(),
         file_perms,
         dir_perms,
-    ).await
+    )
+    .await
 }
 
-async fn create_all_with_perms(root: PathBuf, path: &Path, perms: Permissions) -> Result<(), Error> {
-    let rel_path = if path.is_absolute() {
-        path.strip_prefix(&root).expect("root should always be a prefix of path")
+async fn create_all_with_perms(
+    root: PathBuf,
+    path: &Path,
+    perms: Permissions,
+) -> Result<(), Error> {
+    let rel_path = if path == root {
+        PathBuf::new()
     } else {
-        path
+        path.strip_prefix(&root).map_or_else(
+            |_| panic!("{} is not a prefix of {}", root.display(), path.display()),
+            Path::to_path_buf,
+        )
     };
-    let mut full_path = root;
-    for component in rel_path.components() {
-        match component {
-            Component::Prefix(_) | Component::RootDir => unreachable!("relative path should never have absolute prefixes"),
-            Component::CurDir => {},
-            Component::ParentDir => if let Some(parent) = full_path.parent() {
-                full_path = parent.to_path_buf();
-            },
-            Component::Normal(seg) => full_path = full_path.join(seg),
+
+    println!("rel_path: {}", rel_path.display());
+
+    // Create all directories above root with system default permissions
+    fs::create_dir_all(&root).await?;
+
+    for path in ParentIter::new(root, path) {
+        if !path.is_dir() {
+            println!("creating {}", path.display());
+            fs::create_dir(&path).await?;
         }
 
-        if !full_path.exists() {
-            fs::create_dir(&full_path).await?;
-        }
-
-        perms.set_on_path(path).await?;
+        perms.set_on_path(&path).await?;
     }
 
     Ok(())
@@ -119,8 +175,16 @@ async fn create_all_with_perms(root: PathBuf, path: &Path, perms: Permissions) -
 
 async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
     let (src, dest, dest_root) = match direction {
-        Direction::Backup => (file.system_path().as_ref(), file.hoard_path().as_ref(), file.hoard_prefix().as_ref()),
-        Direction::Restore => (file.hoard_path().as_ref(), file.system_path().as_ref(), file.system_prefix().as_ref()),
+        Direction::Backup => (
+            file.system_path().as_ref(),
+            file.hoard_path().as_ref(),
+            file.hoard_prefix().as_ref(),
+        ),
+        Direction::Restore => (
+            file.hoard_path().as_ref(),
+            file.system_path().as_ref(),
+            file.system_prefix().as_ref(),
+        ),
     };
     if let Some(parent) = dest.parent() {
         tracing::trace!(?parent, "ensuring parent dirs");
@@ -131,6 +195,12 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
             dest_root.to_path_buf()
         };
         if let Err(err) = create_all_with_perms(root, parent, Permissions::folder_default()).await {
+            println!(
+                "failed to create {} with {}: {}",
+                parent.display(),
+                "folder_default",
+                err
+            );
             tracing::error!(
                 "failed to create parent directories for {}: {}",
                 dest.display(),
@@ -165,8 +235,7 @@ async fn fix_permissions(
     {
         match direction {
             Direction::Backup => {
-                looped_set_hoard_permissions(file.hoard_prefix(), file.relative_path())
-                    .await?;
+                looped_set_hoard_permissions(file.hoard_prefix(), file.relative_path()).await?;
             }
             Direction::Restore => {
                 let pile = hoard
@@ -259,4 +328,49 @@ async fn backup_or_restore<'a>(
     }
 
     checkers.commit_to_disk().await.map_err(Error::Consistency)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod parent_iter {
+        use super::*;
+
+        #[test]
+        fn test_single_path() {
+            let path = PathBuf::from("/some/test/path");
+            let returned: Vec<PathBuf> = ParentIter::new(path.clone(), &path).collect();
+            assert_eq!(returned, vec![path]);
+        }
+
+        #[test]
+        fn test_with_parent() {
+            let parent = PathBuf::from("/some/parent/path");
+            let path = parent.join("child");
+            let returned: Vec<PathBuf> = ParentIter::new(parent.clone(), &path).collect();
+            assert_eq!(returned, vec![parent, path]);
+        }
+
+        #[test]
+        fn test_with_grandparent() {
+            let grandparent = PathBuf::from("/some/grandparent");
+            let parent = grandparent.join("parent");
+            let child = parent.join("child");
+            let returned: Vec<PathBuf> = ParentIter::new(grandparent.clone(), &child).collect();
+            let expected = vec![grandparent, parent, child];
+            assert_eq!(returned, expected);
+        }
+
+        #[test]
+        fn test_cannot_have_parent_str_in_paths() {
+            // This test serves as a canary for the panic!() inside of ParentIter.
+            SystemPath::try_from(PathBuf::from("/../test"))
+                .expect_err("hoard path should not allow non-canonicalized ..");
+            let valid = SystemPath::try_from(PathBuf::from("/valid/../test"))
+                .expect(".. should get removed");
+            let expected = SystemPath::try_from(PathBuf::from("/test")).unwrap();
+            assert_eq!(valid, expected);
+        }
+    }
 }

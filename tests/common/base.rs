@@ -370,8 +370,8 @@ impl DefaultConfigTester {
                     .to_path_buf();
                 contents_map.insert(key, Self::hash_file(&path).await);
             } else if path.is_dir() {
-                let mut stream = ReadDirStream::new(fs::read_dir(path).await.unwrap());
-                while let Some(entry) = stream.try_next().await.unwrap() {
+                let mut stream = fs::read_dir(path).await.unwrap();
+                while let Some(entry) = stream.next_entry().await.unwrap() {
                     path_stack.push(entry.path());
                 }
             } else if !path.exists() {

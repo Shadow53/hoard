@@ -339,11 +339,10 @@ impl Operation {
 
     async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::trace!(path=%path.display(), "loading operation log from path");
-        let content = fs::read(path).await
-            .map_err(|err| {
-                tracing::error!("failed to open file at {}: {}", path.display(), err);
-                Error::from(err)
-            })?;
+        let content = fs::read(path).await.map_err(|err| {
+            tracing::error!("failed to open file at {}: {}", path.display(), err);
+            Error::from(err)
+        })?;
         serde_json::from_slice(&content).map_err(|err| {
             tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
             Error::from(err)

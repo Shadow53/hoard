@@ -214,7 +214,9 @@ impl Tester {
         let mut output_list = Vec::new();
 
         while let Some((depth, path)) = dir_stack.pop() {
-            if depth > max_depth { continue; }
+            if depth > max_depth {
+                continue;
+            }
 
             output_list.push(format!("|-{}{}", " ".repeat(depth.into()), path.display()));
             if depth < max_depth {
