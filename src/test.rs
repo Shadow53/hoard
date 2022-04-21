@@ -1,3 +1,4 @@
+//! Items to be used only for testing Hoard-related code.
 #![cfg(test)]
 
 use std::{
@@ -8,7 +9,31 @@ use std::{
 use tempfile::TempDir;
 use thiserror::Error;
 use uuid::Uuid;
-/// Items to be used only for testing Hoard-related code.
+
+mod macros {
+    macro_rules! path_string {
+        ($path: expr) => {
+            {
+                #[cfg(unix)]
+                { String::from($path) }
+                #[cfg(windows)]
+                { format!("C:{}", $path) }
+            }
+        }
+    }
+    macro_rules! system_path {
+        ($path: expr) => {
+            {
+                let path = crate::test::path_string!($path);
+                crate::paths::SystemPath::try_from(PathBuf::from(path)).unwrap()
+            }
+        }
+    }
+    pub(crate) use system_path;
+    pub(crate) use path_string;
+}
+
+pub(crate) use macros::{system_path, path_string};
 
 #[derive(Debug, Error)]
 #[allow(variant_size_differences)]

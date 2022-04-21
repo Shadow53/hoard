@@ -173,8 +173,6 @@ async fn test_operation_cleanup() {
                             let mut files = files_in_dir(&path).await;
                             files.sort_unstable();
 
-                            println!("===\nindices: {:?}\nfiles: {:#?}\n===", indices, files);
-
                             let files = files
                                 .into_iter()
                                 .enumerate()
@@ -184,8 +182,6 @@ async fn test_operation_cleanup() {
                         })
                         .collect()
                         .await;
-
-                println!("retained: {:#?}", retained);
 
                 (location, retained)
             })

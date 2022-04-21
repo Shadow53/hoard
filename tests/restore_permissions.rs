@@ -212,7 +212,6 @@ async fn test_anon_dir_configured_perms() {
     fs::remove_file(&file1).await.unwrap();
 
     tester.expect_command(Command::Restore { hoards }).await;
-    println!("{}", tester.output());
 
     assert!(root.exists());
     assert!(file1.exists());

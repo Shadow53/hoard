@@ -173,22 +173,28 @@ mod tests {
     use std::error::Error as _;
 
     macro_rules! test_env {
-        (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr, require_var: $require_var:literal) => {
+        (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:literal, require_var: $require_var:literal) => {
             #[test]
             fn $name() {
                 assert!((!$require_var || ($input).contains(&format!("${{{}}}", $var))), "input string {} doesn't contain variable {}", $input, $var);
 
                 let old_val = std::env::var_os($var);
                 std::env::set_var($var, $value);
-                let expected: SystemPath = $expected;
-                let result = PathWithEnv::from($input).process().unwrap();
+                let (input, expected): (String, SystemPath) = {
+                    #[cfg(windows)]
+                    let (i, e) = (format!("C:{}", $input), format!("C:{}", $expected));
+                    #[cfg(unix)]
+                    let (i, e) = (String::from($input), String::from($expected));
+                    (i, SystemPath::try_from(PathBuf::from(e)).unwrap())
+                };
+                let result = PathWithEnv::from(input).process().unwrap();
                 assert_eq!(result, expected);
                 if let Some(val) = old_val {
                     std::env::set_var($var, val);
                 }
             }
         };
-        (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:expr) => {
+        (name: $name:ident, input: $input:literal, env: $var:literal, value: $value:literal, expected: $expected:literal) => {
             test_env!{ name: $name, input: $input, env: $var, value: $value, expected: $expected, require_var: true }
         };
     }
@@ -198,7 +204,7 @@ mod tests {
         input: "${TEST_HOME}/test/file",
         env: "TEST_HOME",
         value: "/home/testuser",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/file")).unwrap()
+        expected: "/home/testuser/test/file"
     }
 
     test_env! {
@@ -206,7 +212,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}/file",
         env: "TEST_PATH",
         value: "test/subdir/subberdir",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/subdir/subberdir/file")).unwrap()
+        expected: "/home/testuser/test/subdir/subberdir/file"
     }
 
     test_env! {
@@ -214,7 +220,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}",
         env: "TEST_PATH",
         value: "test/subdir/file",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/subdir/file")).unwrap()
+        expected: "/home/testuser/test/subdir/file"
     }
 
     // Same length == var name + ${}
@@ -223,7 +229,7 @@ mod tests {
         input: "${TEST_HOME}/test/file",
         env: "TEST_HOME",
         value: "/home/tester",
-        expected: SystemPath::try_from(PathBuf::from("/home/tester/test/file")).unwrap()
+        expected: "/home/tester/test/file"
     }
 
     test_env! {
@@ -231,7 +237,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}/file",
         env: "TEST_PATH",
         value: "/test/folder",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/folder/file")).unwrap()
+        expected: "/home/testuser/test/folder/file"
     }
 
     test_env! {
@@ -239,7 +245,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}",
         env: "TEST_PATH",
         value: "testing/file",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/testing/file")).unwrap()
+        expected: "/home/testuser/testing/file"
     }
 
     test_env! {
@@ -247,7 +253,7 @@ mod tests {
         input: "${TEST_HOME}/test/file",
         env: "TEST_HOME",
         value: "/home/test",
-        expected: SystemPath::try_from(PathBuf::from("/home/test/test/file")).unwrap()
+        expected: "/home/test/test/file"
     }
 
     test_env! {
@@ -255,7 +261,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}/file",
         env: "TEST_PATH",
         value: "test/dir",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/test/dir/file")).unwrap()
+        expected: "/home/testuser/test/dir/file"
     }
 
     test_env! {
@@ -263,7 +269,7 @@ mod tests {
         input: "/home/testuser/${TEST_PATH}",
         env: "TEST_PATH",
         value: "a/file",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/a/file")).unwrap()
+        expected: "/home/testuser/a/file"
     }
 
     test_env! {
@@ -271,7 +277,7 @@ mod tests {
         input: "/path/without/variables",
         env: "UNUSED",
         value: "NOTHING",
-        expected: SystemPath::try_from(PathBuf::from("/path/without/variables")).unwrap(),
+        expected: "/path/without/variables",
         require_var: false
     }
 
@@ -280,7 +286,7 @@ mod tests {
         input: "/home/${TEST_USER}/somedir/${TEST_USER}/file",
         env: "TEST_USER",
         value: "testuser",
-        expected: SystemPath::try_from(PathBuf::from("/home/testuser/somedir/testuser/file")).unwrap()
+        expected: "/home/testuser/somedir/testuser/file"
     }
 
     test_env! {
@@ -288,7 +294,7 @@ mod tests {
         input: "/path/with/$INVALID/variable",
         env: "INVALID",
         value: "broken",
-        expected: SystemPath::try_from(PathBuf::from("/path/with/$INVALID/variable")).unwrap(),
+        expected: "/path/with/$INVALID/variable",
         require_var: false
     }
 
@@ -297,7 +303,7 @@ mod tests {
         input: "/path/with/%INVALID%/variable",
         env: "INVALID",
         value: "broken",
-        expected: SystemPath::try_from(PathBuf::from("/path/with/%INVALID%/variable")).unwrap(),
+        expected: "/path/with/%INVALID%/variable",
         require_var: false
     }
 
@@ -306,7 +312,7 @@ mod tests {
         input: "/${TEST_HOME}",
         env: "TEST_HOME",
         value: "${HOME}",
-        expected: SystemPath::try_from(PathBuf::from("/${HOME}")).unwrap()
+        expected: "/${HOME}"
     }
 
     test_env! {
@@ -314,7 +320,7 @@ mod tests {
         input: "/test/${WRAPPING${TEST_VAR}VARIABLE}/test",
         env: "TEST_VAR",
         value: "_",
-        expected: SystemPath::try_from(PathBuf::from("/test/${WRAPPING_VARIABLE}/test")).unwrap()
+        expected: "/test/${WRAPPING_VARIABLE}/test"
     }
 
     #[test]

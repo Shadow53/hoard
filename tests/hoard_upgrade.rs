@@ -237,13 +237,10 @@ async fn test_hoard_upgrade() {
     write_to_files(&tester, &v1_named).await;
 
     tester.expect_command(Command::Upgrade).await;
-    println!("{}", tester.extra_logging_output().await);
 
     let converted_anon_file = read_from_files(&tester, "anon_file").await;
     let converted_anon_dir = read_from_files(&tester, "anon_dir").await;
     let converted_named = read_from_files(&tester, "named").await;
-
-    println!("{:#?}\n{:#?}", v2_anon_file, converted_anon_file);
 
     assert_eq!(v2_anon_file, converted_anon_file);
     assert_eq!(v2_anon_dir, converted_anon_dir);

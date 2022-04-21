@@ -147,23 +147,11 @@ async fn create_all_with_perms(
     path: &Path,
     perms: Permissions,
 ) -> Result<(), Error> {
-    let rel_path = if path == root {
-        PathBuf::new()
-    } else {
-        path.strip_prefix(&root).map_or_else(
-            |_| panic!("{} is not a prefix of {}", root.display(), path.display()),
-            Path::to_path_buf,
-        )
-    };
-
-    println!("rel_path: {}", rel_path.display());
-
     // Create all directories above root with system default permissions
     fs::create_dir_all(&root).await?;
 
     for path in ParentIter::new(root, path) {
         if !path.is_dir() {
-            println!("creating {}", path.display());
             fs::create_dir(&path).await?;
         }
 
@@ -195,12 +183,6 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
             dest_root.to_path_buf()
         };
         if let Err(err) = create_all_with_perms(root, parent, Permissions::folder_default()).await {
-            println!(
-                "failed to create {} with {}: {}",
-                parent.display(),
-                "folder_default",
-                err
-            );
             tracing::error!(
                 "failed to create parent directories for {}: {}",
                 dest.display(),
@@ -336,6 +318,7 @@ mod tests {
 
     mod parent_iter {
         use super::*;
+        use crate::test::path_string;
 
         #[test]
         fn test_single_path() {
@@ -365,11 +348,11 @@ mod tests {
         #[test]
         fn test_cannot_have_parent_str_in_paths() {
             // This test serves as a canary for the panic!() inside of ParentIter.
-            SystemPath::try_from(PathBuf::from("/../test"))
+            SystemPath::try_from(PathBuf::from(path_string!("/../test")))
                 .expect_err("hoard path should not allow non-canonicalized ..");
-            let valid = SystemPath::try_from(PathBuf::from("/valid/../test"))
+            let valid = SystemPath::try_from(PathBuf::from(path_string!("/valid/../test")))
                 .expect(".. should get removed");
-            let expected = SystemPath::try_from(PathBuf::from("/test")).unwrap();
+            let expected = SystemPath::try_from(PathBuf::from(path_string!("/test"))).unwrap();
             assert_eq!(valid, expected);
         }
     }
