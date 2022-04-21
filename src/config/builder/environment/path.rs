@@ -139,7 +139,7 @@ mod tests {
         #[cfg(unix)]
         let path_str = "/test/path/example";
         #[cfg(windows)]
-        let path_str = "C:/test/path/example";
+        let path_str = "C:\\test\\path\\example";
         let path = PathExists(Some(SystemPath::try_from(PathBuf::from(path_str)).unwrap()));
         assert_tokens(&path, &[Token::Some, Token::Str(path_str)]);
 

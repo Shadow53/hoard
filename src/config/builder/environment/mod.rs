@@ -207,7 +207,7 @@ mod tests {
                 #[cfg(unix)]
                 SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
                 #[cfg(windows)]
-                SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+                SystemPath::try_from(PathBuf::from("C:\\test\\path")).unwrap(),
             ));
 
             let env = Environment {
