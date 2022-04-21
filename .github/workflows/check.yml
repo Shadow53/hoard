@@ -110,7 +110,7 @@ jobs:
           command: test
           args: --all-features --no-fail-fast -- --test-threads=1
         env:
-          RUSTC_BOOTSTRAP: '1'
+          RUST_BACKTRACE: '1'
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Cinstrument-coverage'
           RUSTDOCFLAGS: '-Cinstrument-coverage'
@@ -127,7 +127,6 @@ jobs:
           --excl-br-stop "grcov: ignore-end" --excl-stop "grcov: ignore-end"
         env:
           RUSTFLAGS: "-Cinstrument-coverage"
-          RUSTC_BOOTSTRAP: "1"
           RUSTUP_TOOLCHAIN: "stable"
           HOARD_LOG: "trace"
           EXCLUDE_DERIVE: "#\\[derive\\("
