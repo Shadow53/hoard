@@ -132,13 +132,13 @@ impl Tester {
     }
 
     pub async fn use_local_uuid(&self) {
-        fs::write(self.uuid_path(), self.local_uuid.to_string())
+        fs::write(self.uuid_path(), self.local_uuid.as_hyphenated().to_string())
             .await
             .expect("failed to write to uuid file");
     }
 
     pub async fn use_remote_uuid(&self) {
-        fs::write(self.uuid_path(), self.remote_uuid.to_string())
+        fs::write(self.uuid_path(), self.remote_uuid.as_hyphenated().to_string())
             .await
             .expect("failed to write to uuid file");
     }
