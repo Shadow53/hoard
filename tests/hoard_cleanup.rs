@@ -153,8 +153,8 @@ async fn test_operation_cleanup() {
     }
 
     let data_dir = tester.data_dir();
-    let local_uuid = tester.local_uuid().to_hyphenated().to_string();
-    let remote_uuid = tester.remote_uuid().to_hyphenated().to_string();
+    let local_uuid = tester.local_uuid().as_hyphenated().to_string();
+    let remote_uuid = tester.remote_uuid().as_hyphenated().to_string();
     let expected: HashMap<UuidLocation, HashMap<&'static str, HashSet<PathBuf>>> =
         tokio_stream::iter(RETAINED.iter())
             .map(|(location, retained)| {
@@ -193,8 +193,8 @@ async fn test_operation_cleanup() {
     for (location, retained) in RETAINED.iter() {
         for hoard in retained.keys() {
             let system_id = match location {
-                UuidLocation::Local => tester.local_uuid().to_hyphenated().to_string(),
-                UuidLocation::Remote => tester.remote_uuid().to_hyphenated().to_string(),
+                UuidLocation::Local => tester.local_uuid().as_hyphenated().to_string(),
+                UuidLocation::Remote => tester.remote_uuid().as_hyphenated().to_string(),
             };
             let path = tester
                 .data_dir()

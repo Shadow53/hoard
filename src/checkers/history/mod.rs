@@ -113,7 +113,7 @@ pub async fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
                 tracing::error!(error = %err, "error while create parent dir");
                 return Err(err);
             }
-            if let Err(err) = fs::write(&uuid_file, new_id.to_string()).await {
+            if let Err(err) = fs::write(&uuid_file, new_id.as_hyphenated().to_string()).await {
                 tracing::error!(error = %err, "error while saving uuid to file");
                 return Err(err);
             }

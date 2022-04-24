@@ -37,12 +37,12 @@ similar = { version = "2.1", default-features = false, features = ["text"] }
 tempfile = "3.3"
 thiserror = "1.0.30"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
-tokio = { version = "1.17", default-features = false, features = ["rt-multi-thread", "fs", "io-std", "io-util", "macros"] }
-tokio-stream = { version = "0.1", default-features = false, features = ["time", "sync", "io-util", "fs"]}
+tokio = { version = "1.17", default-features = false, features = ["rt-multi-thread", "fs", "io-util", "macros"] }
+tokio-stream = { version = "0.1", default-features = false, features = ["fs"]}
 toml = "0.5.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "1.0", features = ["serde", "v4"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.35", features = ["Storage", "Win32_UI_Shell", "Win32_Foundation", "Win32_Globalization"] }

@@ -118,6 +118,6 @@ impl Tester {
     ///
     /// Any I/O errors that may occur while writing.
     pub fn set_uuid(&self, id: &Uuid) -> io::Result<()> {
-        fs::write(self.uuid_path(), id.to_string())
+        fs::write(self.uuid_path(), id.as_hyphenated().to_string())
     }
 }
