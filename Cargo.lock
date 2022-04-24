@@ -340,7 +340,7 @@ dependencies = [
  "itertools",
  "maplit",
  "md-5",
- "nix",
+ "nix 0.24.1",
  "once_cell",
  "open_cmd",
  "petgraph",
@@ -537,6 +537,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "ntapi"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -671,7 +683,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ffe53b24cc2c2e98304791e41ecd9fc7601cc84d92d04e7de9e5047c2c6f6d1"
 dependencies = [
- "nix",
+ "nix 0.23.1",
  "thiserror",
 ]
 
