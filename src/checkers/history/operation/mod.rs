@@ -7,6 +7,7 @@ use futures::stream::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use serde::de::Error as _;
 use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::{fs, io};
@@ -107,12 +108,59 @@ pub struct OperationFileInfo {
     checksum: Option<Checksum>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(untagged)]
 #[allow(clippy::module_name_repetitions)]
 enum OperationVersion {
     V1(OperationV1),
     V2(OperationV2),
+}
+
+impl<'de> Deserialize<'de> for OperationVersion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let content =
+            match <serde::__private::de::Content as Deserialize>::deserialize(
+                deserializer,
+            ) {
+                Ok(val) => val,
+                Err(err) => {
+                    return Err(err);
+                }
+            };
+
+        match Result::map(
+            <OperationV2 as serde::Deserialize>::deserialize(
+                serde::__private::de::ContentRefDeserializer::<D::Error>::new(
+                    &content,
+                ),
+            ),
+            OperationVersion::V2,
+        ) {
+            Ok(ok) => return Ok(ok),
+            Err(err) => {
+                tracing::warn!("operation does not match V2: {}", err);
+            }
+        }
+
+        match Result::map(
+            <OperationV1 as serde::Deserialize>::deserialize(
+                serde::__private::de::ContentRefDeserializer::<D::Error>::new(
+                    &content,
+                ),
+            ),
+            OperationVersion::V1,
+        ) {
+            Ok(ok) => return Ok(ok),
+            Err(err) => {
+                tracing::warn!("operation does not match V1: {}", err);
+            }
+        }
+
+        Err(D::Error::custom("data did not match any operation log version"))
+    }
 }
 
 /// Functions that must be implemented by all operation log versions.
