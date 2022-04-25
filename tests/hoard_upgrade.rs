@@ -12,7 +12,6 @@ use hoard::checkers::history::operation::util::TIME_FORMAT;
 use hoard::checkers::history::operation::v1::{Hoard as HoardV1, OperationV1, Pile as PileV1};
 use hoard::checkers::history::operation::v2::OperationV2;
 use hoard::checkers::history::operation::OperationImpl;
-use hoard::checksum::Checksum;
 use hoard::command::Command;
 use hoard::newtypes::HoardName;
 use hoard::paths::RelativePath;
@@ -28,7 +27,7 @@ fn anon_file_operations() -> Vec<OperationV1> {
             is_backup: true,
             hoard_name: hoard_name.clone(),
             hoard: HoardV1::Anonymous(PileV1::from(
-                maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) },
+                maplit::hashmap! { RelativePath::none() => "d3369a026ace494f56ead54d502a00dd".parse().unwrap() },
             )),
         },
         OperationV1 {
@@ -36,7 +35,7 @@ fn anon_file_operations() -> Vec<OperationV1> {
             is_backup: false,
             hoard_name: hoard_name.clone(),
             hoard: HoardV1::Anonymous(PileV1::from(
-                maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) },
+                maplit::hashmap! { RelativePath::none() => "d3369a026ace494f56ead54d502a00dd".parse().unwrap() },
             )),
         },
         OperationV1 {
@@ -59,8 +58,8 @@ fn anon_dir_operations() -> Vec<OperationV1> {
             is_backup: true,
             hoard_name: hoard_name.clone(),
             hoard: HoardV1::Anonymous(PileV1::from(maplit::hashmap! {
-                RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("ba9d332813a722b273a95fa13dd88d94".parse().unwrap()),
-                RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
+                RelativePath::try_from(PathBuf::from("file_1")).unwrap() => "ba9d332813a722b273a95fa13dd88d94".parse().unwrap(),
+                RelativePath::try_from(PathBuf::from("file_2")).unwrap() => "92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap(),
             })),
         },
         OperationV1 {
@@ -68,9 +67,9 @@ fn anon_dir_operations() -> Vec<OperationV1> {
             is_backup: true,
             hoard_name: hoard_name.clone(),
             hoard: HoardV1::Anonymous(PileV1::from(maplit::hashmap! {
-                RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
-                RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
-                RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap()),
+                RelativePath::try_from(PathBuf::from("file_1")).unwrap() => "1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap(),
+                RelativePath::try_from(PathBuf::from("file_2")).unwrap() => "92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap(),
+                RelativePath::try_from(PathBuf::from("file_3")).unwrap() => "797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap(),
             })),
         },
         OperationV1 {
@@ -78,8 +77,8 @@ fn anon_dir_operations() -> Vec<OperationV1> {
             is_backup: true,
             hoard_name,
             hoard: HoardV1::Anonymous(PileV1::from(maplit::hashmap! {
-                RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
-                RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap()),
+                RelativePath::try_from(PathBuf::from("file_1")).unwrap() => "1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap(),
+                RelativePath::try_from(PathBuf::from("file_3")).unwrap() => "1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap(),
             })),
         },
     ]
@@ -96,10 +95,10 @@ fn named_operations() -> Vec<OperationV1> {
             is_backup: true,
             hoard_name: hoard_name.clone(),
             hoard: HoardV1::Named(maplit::hashmap! {
-                "single_file".parse().unwrap() => PileV1::from(maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) }),
+                "single_file".parse().unwrap() => PileV1::from(maplit::hashmap! { RelativePath::none() => "d3369a026ace494f56ead54d502a00dd".parse().unwrap() }),
                 "dir".parse().unwrap() => PileV1::from(maplit::hashmap! {
-                    RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("ba9d332813a722b273a95fa13dd88d94".parse().unwrap()),
-                    RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
+                    RelativePath::try_from(PathBuf::from("file_1")).unwrap() => "ba9d332813a722b273a95fa13dd88d94".parse().unwrap(),
+                    RelativePath::try_from(PathBuf::from("file_2")).unwrap() => "92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap(),
                 })
             }),
         },
@@ -108,11 +107,11 @@ fn named_operations() -> Vec<OperationV1> {
             is_backup: true,
             hoard_name: hoard_name.clone(),
             hoard: HoardV1::Named(maplit::hashmap! {
-                "single_file".parse().unwrap() => PileV1::from(maplit::hashmap! { RelativePath::none() => Checksum::MD5("d3369a026ace494f56ead54d502a00dd".parse().unwrap()) }),
+                "single_file".parse().unwrap() => PileV1::from(maplit::hashmap! { RelativePath::none() => "d3369a026ace494f56ead54d502a00dd".parse().unwrap() }),
                 "dir".parse().unwrap() => PileV1::from(maplit::hashmap! {
-                    RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
-                    RelativePath::try_from(PathBuf::from("file_2")).unwrap() => Checksum::MD5("92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap()),
-                    RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap()),
+                    RelativePath::try_from(PathBuf::from("file_1")).unwrap() => "1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap(),
+                    RelativePath::try_from(PathBuf::from("file_2")).unwrap() => "92ed3b5f07b44bc4f70d0b24d5e1867c".parse().unwrap(),
+                    RelativePath::try_from(PathBuf::from("file_3")).unwrap() => "797b373a9c4ec0d6de0a31a90b5bee8e".parse().unwrap(),
                 })
             }),
         },
@@ -123,8 +122,8 @@ fn named_operations() -> Vec<OperationV1> {
             hoard: HoardV1::Named(maplit::hashmap! {
                 "single_file".parse().unwrap() => PileV1::from(HashMap::new()),
                 "dir".parse().unwrap() => PileV1::from(maplit::hashmap! {
-                    RelativePath::try_from(PathBuf::from("file_1")).unwrap() => Checksum::MD5("1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap()),
-                    RelativePath::try_from(PathBuf::from("file_3")).unwrap() => Checksum::MD5("1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap()),
+                    RelativePath::try_from(PathBuf::from("file_1")).unwrap() => "1cfab2a192005a9a8bdc69106b4627e2".parse().unwrap(),
+                    RelativePath::try_from(PathBuf::from("file_3")).unwrap() => "1deb21ef3bb87be4ad71d73fff6bb8ec".parse().unwrap(),
                 })
             }),
         },

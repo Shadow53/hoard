@@ -4,10 +4,10 @@ use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::Checker;
 use crate::hoard::{Direction, Hoard};
 use futures::stream::TryStreamExt;
+use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use serde::de::Error as _;
 use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::{fs, io};
@@ -122,9 +122,7 @@ impl<'de> Deserialize<'de> for OperationVersion {
         D: serde::Deserializer<'de>,
     {
         let content =
-            match <serde::__private::de::Content as Deserialize>::deserialize(
-                deserializer,
-            ) {
+            match <serde::__private::de::Content as Deserialize>::deserialize(deserializer) {
                 Ok(val) => val,
                 Err(err) => {
                     return Err(err);
@@ -133,9 +131,7 @@ impl<'de> Deserialize<'de> for OperationVersion {
 
         match Result::map(
             <OperationV2 as serde::Deserialize>::deserialize(
-                serde::__private::de::ContentRefDeserializer::<D::Error>::new(
-                    &content,
-                ),
+                serde::__private::de::ContentRefDeserializer::<D::Error>::new(&content),
             ),
             OperationVersion::V2,
         ) {
@@ -147,9 +143,7 @@ impl<'de> Deserialize<'de> for OperationVersion {
 
         match Result::map(
             <OperationV1 as serde::Deserialize>::deserialize(
-                serde::__private::de::ContentRefDeserializer::<D::Error>::new(
-                    &content,
-                ),
+                serde::__private::de::ContentRefDeserializer::<D::Error>::new(&content),
             ),
             OperationVersion::V1,
         ) {
@@ -159,7 +153,9 @@ impl<'de> Deserialize<'de> for OperationVersion {
             }
         }
 
-        Err(D::Error::custom("data did not match any operation log version"))
+        Err(D::Error::custom(
+            "data did not match any operation log version",
+        ))
     }
 }
 
