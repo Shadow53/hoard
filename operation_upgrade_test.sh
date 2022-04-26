@@ -64,7 +64,12 @@ run_hoard_version() {
 
     if [ "${version}" != "v0.4.0" ]; then
         if ! call_hoard "${version}" upgrade; then
-            die "upgrade command failed"
+            die "first upgrade command failed"
+        fi
+
+        # Run again to make sure upgrading from the newest version also works
+        if ! call_hoard "${version}" upgrade; then
+            die "second upgrade command failed"
         fi
     fi
 
