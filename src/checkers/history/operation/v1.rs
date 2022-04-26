@@ -8,7 +8,7 @@
 //! was the last one to touch a file.
 
 use crate::checkers::history::operation::OperationFileInfo;
-use crate::checksum::Checksum;
+use crate::checksum::{Checksum, MD5};
 use crate::hoard::Direction;
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use crate::paths::RelativePath;
@@ -69,10 +69,10 @@ impl super::OperationImpl for OperationV1 {
 
     fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum> {
         match (pile_name.as_ref(), &self.hoard) {
-            (None, Hoard::Anonymous(pile)) => pile.0.get(rel_path).cloned(),
+            (None, Hoard::Anonymous(pile)) => pile.0.get(rel_path).cloned().map(Checksum::MD5),
             (Some(pile_name), Hoard::Named(piles)) => piles
                 .get(pile_name)
-                .and_then(|pile| pile.0.get(rel_path).cloned()),
+                .and_then(|pile| pile.0.get(rel_path).cloned().map(Checksum::MD5)),
             _ => None,
         }
     }
@@ -84,7 +84,7 @@ impl super::OperationImpl for OperationV1 {
                 Box::new(pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
                     pile_name: PileName::anonymous(),
                     relative_path: rel_path.clone(),
-                    checksum: Some(md5.clone()),
+                    checksum: Some(Checksum::MD5((*md5).clone())),
                 }))
             }
             Hoard::Named(piles) => Box::new({
@@ -92,7 +92,7 @@ impl super::OperationImpl for OperationV1 {
                     pile.0.iter().map(move |(rel_path, md5)| OperationFileInfo {
                         pile_name: pile_name.clone().into(),
                         relative_path: rel_path.clone(),
-                        checksum: Some(md5.clone()),
+                        checksum: Some(Checksum::MD5((*md5).clone())),
                     })
                 })
             }),
@@ -113,10 +113,10 @@ pub enum Hoard {
 
 /// A mapping of file path (relative to pile) to file checksum.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Pile(pub(super) HashMap<RelativePath, Checksum>);
+pub struct Pile(pub(super) HashMap<RelativePath, MD5>);
 
-impl From<HashMap<RelativePath, Checksum>> for Pile {
-    fn from(map: HashMap<RelativePath, Checksum>) -> Self {
+impl From<HashMap<RelativePath, MD5>> for Pile {
+    fn from(map: HashMap<RelativePath, MD5>) -> Self {
         Pile(map)
     }
 }
@@ -126,8 +126,8 @@ mod tests {
     use super::*;
     use crate::{checkers::history::operation::OperationImpl, checksum::MD5, test::relative_path};
 
-    fn checksum() -> Checksum {
-        Checksum::MD5(MD5::from_data(&[0xFD, 0xFF, 0xFE]))
+    fn checksum() -> MD5 {
+        MD5::from_data(&[0xFD, 0xFF, 0xFE])
     }
 
     fn anon_op() -> OperationV1 {
@@ -261,7 +261,7 @@ mod tests {
         let named_op = named_op();
 
         assert_eq!(
-            Some(checksum()),
+            Some(Checksum::MD5(checksum())),
             anon_op.checksum_for(&PileName::anonymous(), &relative_path!("test/path"))
         );
         assert_eq!(
@@ -274,11 +274,11 @@ mod tests {
         );
 
         assert_eq!(
-            Some(checksum()),
+            Some(Checksum::MD5(checksum())),
             named_op.checksum_for(&"first".parse().unwrap(), &relative_path!("test/path"),)
         );
         assert_eq!(
-            Some(checksum()),
+            Some(Checksum::MD5(checksum())),
             named_op.checksum_for(&"second".parse().unwrap(), &relative_path!("other/path"),)
         );
         assert_eq!(

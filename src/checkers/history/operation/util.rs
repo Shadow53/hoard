@@ -180,6 +180,7 @@ pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
 
 async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error>, Error> {
     let history_dir = get_history_root_dir();
+    tracing::trace!(?history_dir);
     let iter = fs::read_dir(history_dir)
         .await
         .map(ReadDirStream::new)?
@@ -200,7 +201,14 @@ async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error
         })
         .and_then(|entry| async move { fs::read_dir(entry).await.map(ReadDirStream::new) })
         .try_flatten()
-        .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
+        .try_filter_map(|hoard_entry| async move {
+            hoard_entry
+                .path()
+                .is_dir()
+                .then(|| hoard_entry.path())
+                .map(Ok)
+                .transpose()
+        }) // Iterator of PathBuf
         .and_then(|entry| async move { fs::read_dir(entry).await.map(ReadDirStream::new) })
         .try_flatten() // Iterator of DirEntry (log files)
         .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf

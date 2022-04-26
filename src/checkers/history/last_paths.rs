@@ -163,6 +163,7 @@ pub struct HoardPaths {
 
 /// Internal type for [`HoardPaths`] mapping to anonymous or named piles.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum PilePaths {
     /// A single, anonymous pile's path.
     Anonymous(Option<SystemPath>),

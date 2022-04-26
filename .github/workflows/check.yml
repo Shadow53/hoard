@@ -65,6 +65,26 @@ jobs:
           command: fmt
           args: -- --check
 
+  operation_upgrade:
+    name: Operation Version Upgrade
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v1
+        with:
+          cache-on-failure: true
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Run test script
+        run: bash ./operation_upgrade_test.sh
+
   check-stable:
     name: Check Commit
     runs-on: ${{ matrix.os }}
