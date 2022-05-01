@@ -4,16 +4,19 @@
 //! See the documentation for [`HoardPaths::enforce_old_and_new_piles_are_same`] for an
 //! explanation of why this is useful.
 
-use super::super::Checker;
-use crate::hoard::{Direction, Hoard};
-use crate::newtypes::{HoardName, NonEmptyPileName};
-use crate::paths::{HoardPath, RelativePath, SystemPath};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::{fs, io};
+
+use crate::hoard::{Direction, Hoard};
+use crate::newtypes::{HoardName, NonEmptyPileName};
+use crate::paths::{HoardPath, RelativePath, SystemPath};
+
+use super::super::Checker;
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -47,8 +50,8 @@ where
     }
 }
 
+#[tracing::instrument(level = "debug")]
 async fn get_last_paths_file_path() -> Result<HoardPath, io::Error> {
-    tracing::debug!("getting lastpaths file path");
     let id = super::get_or_generate_uuid().await?;
     Ok(super::get_history_dir_for_id(id).join(
         &RelativePath::try_from(PathBuf::from(FILE_NAME))
@@ -56,13 +59,14 @@ async fn get_last_paths_file_path() -> Result<HoardPath, io::Error> {
     ))
 }
 
+#[tracing::instrument(level = "debug")]
 async fn read_last_paths_file() -> io::Result<Vec<u8>> {
     let path = get_last_paths_file_path().await?;
     tracing::debug!(?path, "opening lastpaths file at path");
     fs::read(path).await
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait(? Send)]
 impl Checker for LastPaths {
     type Error = Error;
     async fn new(
@@ -78,6 +82,7 @@ impl Checker for LastPaths {
         }))
     }
 
+    #[tracing::instrument]
     async fn check(&mut self) -> Result<(), Self::Error> {
         let _span = tracing::debug_span!("last_paths_check", current=?self).entered();
         let (name, new_hoard) = self.0.iter().next().ok_or(Error::NoEntries)?;
@@ -91,6 +96,7 @@ impl Checker for LastPaths {
         Ok(())
     }
 
+    #[tracing::instrument]
     async fn commit_to_disk(self) -> Result<(), Self::Error> {
         let mut last_paths = LastPaths::from_default_file().await?;
         for (name, hoard) in self.0 {
@@ -130,6 +136,7 @@ impl LastPaths {
     /// Any I/O or `serde` error that occurs while reading and parsing the file.
     /// The exception is an I/O error with kind `NotFound`, which returns an empty
     /// `LastPaths`.
+    #[tracing::instrument(level = "debug")]
     pub async fn from_default_file() -> Result<Self, Error> {
         tracing::debug!("reading lastpaths from file");
         let content = match read_last_paths_file().await {
@@ -284,6 +291,7 @@ impl HoardPaths {
     /// # Errors
     ///
     /// [`Error::HoardPathsMismatch`] if there is a difference between `old` and `new`.
+    #[tracing::instrument(level = "trace")]
     pub fn enforce_old_and_new_piles_are_same(old: &Self, new: &Self) -> Result<(), Error> {
         tracing::debug!("comparing old and new piles' paths");
         tracing::trace!(?old, ?new);
@@ -365,9 +373,11 @@ impl HoardPaths {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test::system_path;
     use maplit::hashmap;
+
+    use crate::test::system_path;
+
+    use super::*;
 
     const NAMED_PILE_1: &str = "test1";
     const NAMED_PILE_2: &str = "test2";

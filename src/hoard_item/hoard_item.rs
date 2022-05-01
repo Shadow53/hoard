@@ -1,9 +1,11 @@
+use std::path::Path;
+
+use tokio::io;
+
 use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
 use crate::diff::FileContent;
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::path::Path;
-use tokio::io;
 
 /// A Hoard-managed path with associated methods.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,6 +29,7 @@ impl HoardItem {
     ///   can be found at. For example, if `a_pile` is a directory with file `dir/some_file`,
     ///   `relative_path` is `Some(dir/some_file)`. If `a_pile` is a file, `relative_path == None`.
     #[must_use]
+    #[tracing::instrument(name = "new_hoard_item")]
     pub fn new(
         pile_name: PileName,
         hoard_prefix: HoardPath,
@@ -141,6 +144,7 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
+    #[tracing::instrument(name = "hoard_item_system_content")]
     pub async fn system_content(&self) -> io::Result<FileContent> {
         Self::content(self.system_path()).await
     }
@@ -151,6 +155,7 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
+    #[tracing::instrument(name = "hoard_item_hoard_content")]
     pub async fn hoard_content(&self) -> io::Result<FileContent> {
         Self::content(self.hoard_path()).await
     }
@@ -164,6 +169,7 @@ impl HoardItem {
     ///
     /// If always calling this function with a constant or programmer-determined value,
     /// consider using [`hoard_md5`] or [`hoard_sha256`] instead.
+    #[tracing::instrument(name = "hoard_item_hoard_checksum")]
     pub async fn hoard_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
         match typ {
             ChecksumType::MD5 => self.hoard_md5().await,
@@ -177,6 +183,7 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
+    #[tracing::instrument(name = "hoard_item_hoard_md5")]
     pub async fn hoard_md5(&self) -> io::Result<Option<Checksum>> {
         Self::raw_content(self.hoard_path())
             .await
@@ -189,6 +196,7 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
+    #[tracing::instrument(name = "hoard_item_hoard_sha256")]
     pub async fn hoard_sha256(&self) -> io::Result<Option<Checksum>> {
         Self::raw_content(self.hoard_path())
             .await
@@ -204,6 +212,7 @@ impl HoardItem {
     ///
     /// If always calling this function with a constant or programmer-determined value,
     /// consider using [`system_md5`] or [`system_sha256`] instead.
+    #[tracing::instrument(name = "hoard_item_system_checksum")]
     pub async fn system_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
         match typ {
             ChecksumType::MD5 => self.system_md5().await,
@@ -217,6 +226,7 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
+    #[tracing::instrument(name = "hoard_item_system_md5")]
     pub async fn system_md5(&self) -> io::Result<Option<Checksum>> {
         Self::raw_content(self.system_path())
             .await
@@ -229,6 +239,7 @@ impl HoardItem {
     ///
     /// Returns `Ok(None)` if the file does not exist, and errors for all other
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
+    #[tracing::instrument(name = "hoard_item_system_sha256")]
     pub async fn system_sha256(&self) -> io::Result<Option<Checksum>> {
         Self::raw_content(self.system_path())
             .await
@@ -249,8 +260,9 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::*;
     use crate::test::Tester;
+
+    use super::*;
 
     const CONTENT_A: &str = "content A";
     const MD5_CONTENT_A: &str = "4f4e99c2da696a47de3b455758bff316";

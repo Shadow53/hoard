@@ -8,13 +8,15 @@
 //! All environments in the condition must match the current system for its matching path to be
 //! used.
 
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
 use crate::config::builder::envtrie::{EnvTrie, Error as TrieError};
 use crate::env_vars::{Error as EnvError, PathWithEnv};
 use crate::hoard::PileConfig;
 use crate::newtypes::{EnvironmentName, EnvironmentString, NonEmptyPileName};
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use thiserror::Error;
 
 type ConfigMultiple = crate::config::hoard::MultipleEntries;
 type ConfigSingle = crate::config::hoard::Pile;
@@ -48,17 +50,12 @@ pub struct Pile {
 }
 
 impl Pile {
+    #[tracing::instrument(level = "debug", name = "process_pile")]
     fn process_with(
         self,
         envs: &BTreeMap<EnvironmentName, bool>,
         exclusivity: &[Vec<EnvironmentName>],
     ) -> Result<ConfigSingle, Error> {
-        let _span = tracing::debug_span!(
-            "process_pile",
-            pile = ?self
-        )
-        .entered();
-
         let Pile { config, items } = self;
         let trie = EnvTrie::new(&items, exclusivity)?;
         let path = trie
@@ -91,6 +88,7 @@ pub struct MultipleEntries {
 }
 
 impl MultipleEntries {
+    #[tracing::instrument(level = "debug", name = "process_multiple_entries")]
     fn process_with(
         self,
         envs: &BTreeMap<EnvironmentName, bool>,
@@ -102,10 +100,7 @@ impl MultipleEntries {
             .map(|(pile, mut entry)| {
                 tracing::debug!(%pile, "processing pile");
                 entry.layer_config(config.as_ref());
-                let _span = tracing::debug_span!("processing_span_outer", name=%pile).entered();
-                let entry = entry
-                    .process_with(envs, exclusivity)
-                    .map_err(super::Error::from)?;
+                let entry = entry.process_with(envs, exclusivity).map_err(Error::from)?;
                 Ok((pile, entry))
             })
             .collect::<Result<_, super::Error>>()?;
@@ -137,6 +132,7 @@ impl Hoard {
     /// # Errors
     ///
     /// Any [`enum@Error`] that occurs while evaluating the `Hoard`.
+    #[tracing::instrument(level = "debug", name = "process_hoard")]
     pub fn process_with(
         self,
         envs: &BTreeMap<EnvironmentName, bool>,
@@ -170,17 +166,21 @@ impl Hoard {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::hoard::pile_config::{
         AsymmetricEncryption, Config as PileConfig, Encryption, SymmetricEncryption,
     };
 
+    use super::*;
+
     mod process {
-        use super::*;
+        use std::path::PathBuf;
+
+        use maplit::btreemap;
+
         use crate::hoard::Pile as RealPile;
         use crate::paths::SystemPath;
-        use maplit::btreemap;
-        use std::path::PathBuf;
+
+        use super::*;
 
         #[test]
         fn env_vars_are_expanded() {
@@ -217,9 +217,10 @@ mod tests {
     }
 
     mod serde {
-        use super::*;
         use maplit::btreemap;
         use serde_test::{assert_de_tokens_error, assert_tokens, Token};
+
+        use super::*;
 
         #[test]
         fn single_entry_no_config() {

@@ -3,22 +3,23 @@
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
-use tokio::{fs, io};
 
 use clap::Parser;
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::{fs, io};
 
-use self::hoard::Hoard;
 use environment::Environment;
 
 use crate::command::Command;
+use crate::hoard::PileConfig;
+use crate::newtypes::{EnvironmentName, HoardName};
 use crate::CONFIG_FILE_STEM;
 
 use super::Config;
-use crate::hoard::PileConfig;
-use crate::newtypes::{EnvironmentName, HoardName};
-use futures::TryStreamExt;
+
+use self::hoard::Hoard;
 
 pub mod environment;
 pub mod envtrie;
@@ -92,6 +93,7 @@ impl Default for Builder {
 
 impl Builder {
     /// Returns the default path for the configuration file.
+    #[tracing::instrument]
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
         crate::dirs::config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
@@ -122,8 +124,8 @@ impl Builder {
     /// # Errors
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
+    #[tracing::instrument(level = "debug", name = "config_builder_from_file")]
     pub async fn from_file(path: &Path) -> Result<Self, Error> {
-        let _span = tracing::debug_span!("config_from_file", ?path).entered();
         tracing::debug!("reading configuration");
         let s = fs::read_to_string(path).await.map_err(Error::ReadConfig)?;
         // Necessary because Deserialize on enums erases any errors returned by each variant.
@@ -153,6 +155,7 @@ impl Builder {
     ///
     /// - Any errors from attempting to parse the file.
     /// - A custom not found error if no default file is found.
+    #[tracing::instrument(level = "debug", name = "config_builder_from_default_file")]
     pub async fn from_default_file() -> Result<Self, Error> {
         let error_closure = || {
             let path = Self::default_config_file();
@@ -211,6 +214,7 @@ impl Builder {
     /// # Errors
     ///
     /// See [`Builder::from_file`]
+    #[tracing::instrument(level = "debug", name = "config_builder_from_args_then_file")]
     pub async fn from_args_then_file() -> Result<Self, Error> {
         tracing::debug!("loading configuration from cli arguments");
         let from_args = Self::parse();
@@ -235,14 +239,8 @@ impl Builder {
 
     /// Applies all configured values in `other` over those in *this* `ConfigBuilder`.
     #[must_use]
+    #[tracing::instrument(level = "trace")]
     pub fn layer(mut self, other: Self) -> Self {
-        let _span = tracing::trace_span!(
-            "layering_config_builders",
-            top_layer = ?other,
-            bottom_layer = ?self
-        )
-        .entered();
-
         if let Some(path) = other.config_dir {
             self = self.set_config_dir(path);
         }
@@ -341,8 +339,8 @@ impl Builder {
     /// # Errors
     ///
     /// Any error that occurs while evaluating the environments.
+    #[tracing::instrument(level = "trace")]
     fn evaluated_environments(&self) -> Result<BTreeMap<EnvironmentName, bool>, Error> {
-        let _span = tracing::trace_span!("eval_env").entered();
         if let Some(envs) = &self.environments {
             for (key, env) in envs {
                 tracing::trace!(%key, %env);
@@ -367,6 +365,7 @@ impl Builder {
     /// # Errors
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
+    #[tracing::instrument(name = "build_config")]
     pub fn build(mut self) -> Result<Config, Error> {
         tracing::debug!("building configuration from builder");
         let environments = self.evaluated_environments()?;

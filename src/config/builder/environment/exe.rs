@@ -1,16 +1,16 @@
 //! See [`ExeExists`].
 
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Debug;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
-use std::{fs, io};
-use thiserror::Error;
-
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::{fs, io};
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// The contained path was not a valid [`Executable`].
 ///
@@ -70,6 +70,7 @@ impl From<Executable> for PathBuf {
 impl TryFrom<PathBuf> for Executable {
     type Error = InvalidPathError;
 
+    #[tracing::instrument(name = "new_executable")]
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let is_lone_file_name = value.parent().map_or(false, |s| s.as_os_str().is_empty());
         if value.is_absolute() || is_lone_file_name {

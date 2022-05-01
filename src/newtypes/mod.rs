@@ -5,17 +5,17 @@
 
 use thiserror::Error;
 
-mod environment_name;
-mod environment_string;
-mod hoard_name;
-mod non_empty_pile_name;
-mod pile_name;
-
 pub use environment_name::EnvironmentName;
 pub use environment_string::EnvironmentString;
 pub use hoard_name::HoardName;
 pub use non_empty_pile_name::NonEmptyPileName;
 pub use pile_name::PileName;
+
+mod environment_name;
+mod environment_string;
+mod hoard_name;
+mod non_empty_pile_name;
+mod pile_name;
 
 /// Errors that may occur while creating an instance of one of this newtypes.
 #[derive(Debug, Error, PartialEq)]
@@ -30,6 +30,7 @@ pub enum Error {
 
 const DISALLOWED_NAMES: [&str; 2] = ["", "config"];
 
+#[tracing::instrument(level = "trace")]
 fn validate_name(name: String) -> Result<String, Error> {
     if name
         .chars()

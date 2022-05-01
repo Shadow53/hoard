@@ -14,6 +14,7 @@ pub struct EnvironmentName(String);
 
 impl FromStr for EnvironmentName {
     type Err = Error;
+    #[tracing::instrument(level = "trace", name = "parse_environment_name")]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         validate_name(s.to_string()).map(Self)
     }
@@ -45,8 +46,9 @@ impl<'de> Deserialize<'de> for EnvironmentName {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_test::{assert_tokens, Token};
+
+    use super::*;
 
     #[test]
     fn test_from_str() {

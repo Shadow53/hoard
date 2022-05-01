@@ -1,8 +1,9 @@
 //! Provides filters for determining whether a path should be backed up or not.
 
+use thiserror::Error;
+
 use crate::hoard::PileConfig;
 use crate::paths::{RelativePath, SystemPath};
-use thiserror::Error;
 
 pub(crate) mod ignore;
 
@@ -37,13 +38,14 @@ pub struct Filters {
 impl Filter for Filters {
     type Error = Error;
 
+    #[tracing::instrument]
     fn new(pile_config: &PileConfig) -> Result<Self, Self::Error> {
         let ignore = ignore::IgnoreFilter::new(pile_config)?;
         Ok(Self { ignore })
     }
 
+    #[tracing::instrument(name = "run_filters")]
     fn keep(&self, prefix: &SystemPath, path: &RelativePath) -> bool {
-        let _span = tracing::trace_span!("run_filters", ?prefix, ?path).entered();
         self.ignore.keep(prefix, path)
     }
 }

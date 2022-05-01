@@ -1,29 +1,31 @@
 //! Types for recording metadata about a single backup or restore [`Operation`].
 
-use crate::checkers::history::operation::util::TIME_FORMAT;
-use crate::checkers::Checker;
-use crate::hoard::{Direction, Hoard};
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+
 use futures::stream::TryStreamExt;
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
 use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
-pub mod util;
-pub mod v1;
-pub mod v2;
+pub(crate) use util::cleanup_operations;
 
+use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
+use crate::checkers::Checker;
 use crate::checksum::Checksum;
+use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
-pub(crate) use util::cleanup_operations;
+
+pub mod util;
+pub mod v1;
+pub mod v2;
 
 /// Errors that may occur while working with an [`Operation`].
 #[derive(Debug, Error)]
@@ -117,6 +119,7 @@ enum OperationVersion {
 }
 
 impl<'de> Deserialize<'de> for OperationVersion {
+    #[tracing::instrument(skip_all, name = "deserialize_operation")]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -344,7 +347,7 @@ impl Operation {
         hoard: &Hoard,
         direction: Direction,
     ) -> Result<Self, Error> {
-        v2::OperationV2::new(hoards_root, name, hoard, direction)
+        OperationV2::new(hoards_root, name, hoard, direction)
             .await
             .map(OperationVersion::V2)
             .map(Self)
@@ -359,6 +362,7 @@ impl Operation {
         if let Self(OperationVersion::V2(_)) = self {
             Ok(())
         } else {
+            tracing::error!("{}", Error::UpgradeRequired);
             Err(Error::UpgradeRequired)
         }
     }
@@ -381,6 +385,7 @@ impl Operation {
         self.require_latest_version().map(|_| self)
     }
 
+    #[tracing::instrument(name = "operation_from_file")]
     async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::trace!(path=%path.display(), "loading operation log from path");
         let content = fs::read(path).await.map_err(|err| {
@@ -420,6 +425,7 @@ impl Operation {
     ///   should be `None` rather than deleting the file from the map.
     /// - `file_set`: A set of files that exist in the hoard prior to this operation. If a file was
     ///   deleted at some point, it should be removed from this set.
+    #[tracing::instrument(level = "trace")]
     pub(crate) fn convert_to_latest_version(
         self,
         file_checksums: &mut HashMap<(PileName, RelativePath), Option<Checksum>>,
@@ -450,6 +456,7 @@ impl Operation {
     }
 
     /// Returns the latest operation for the given hoard from a system history root directory.
+    #[tracing::instrument(level = "trace")]
     async fn latest_hoard_operation_from_local_dir(
         dir: &HoardPath,
         hoard: &HoardName,
@@ -457,7 +464,6 @@ impl Operation {
         backups_only: bool,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
-        let _span = tracing::trace_span!("get_latest_hoard_operation", ?dir, %hoard).entered();
         tracing::trace!("getting latest operation log for hoard in dir");
         let root = dir.join(&RelativePath::from(hoard));
         if !root.exists() {
@@ -499,6 +505,7 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
+    #[tracing::instrument(level = "trace")]
     pub async fn latest_local(
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
@@ -518,6 +525,7 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
+    #[tracing::instrument(level = "trace")]
     pub(crate) async fn latest_remote_backup(
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
@@ -538,6 +546,7 @@ impl Operation {
             .transpose()
     }
 
+    #[tracing::instrument(level = "trace")]
     pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
         let self_files: HashSet<OperationFileInfo> = self
             .as_latest_version()?
@@ -558,7 +567,7 @@ impl Operation {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait(? Send)]
 impl Checker for Operation {
     type Error = Error;
 
@@ -571,6 +580,7 @@ impl Checker for Operation {
         Self::new(hoards_root, name, hoard, direction).await
     }
 
+    #[tracing::instrument]
     async fn check(&mut self) -> Result<(), Error> {
         let last_local = Self::latest_local(self.hoard_name(), None).await?;
         let last_remote = Self::latest_remote_backup(self.hoard_name(), None, false).await?;
@@ -593,6 +603,7 @@ impl Checker for Operation {
         }
     }
 
+    #[tracing::instrument]
     async fn commit_to_disk(self) -> Result<(), Error> {
         let _span =
             tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name()).entered();

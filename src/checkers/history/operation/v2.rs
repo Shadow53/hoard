@@ -7,7 +7,13 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
-use super::{Error, ItemOperation};
+use std::collections::{HashMap, HashSet};
+
+use futures::TryStreamExt;
+use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
+use tokio::io;
+
 use crate::checkers::history::operation::{OperationFileInfo, OperationImpl, OperationType};
 use crate::checksum::{Checksum, ChecksumType};
 use crate::hoard::iter::operation_stream;
@@ -15,11 +21,8 @@ use crate::hoard::{Direction, Hoard as ConfigHoard};
 use crate::hoard_item::{CachedHoardItem, HoardItem};
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath};
-use futures::TryStreamExt;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use time::OffsetDateTime;
-use tokio::io;
+
+use super::{Error, ItemOperation};
 
 /// Errors that may occur while working with operation logs.
 
@@ -42,6 +45,7 @@ pub struct OperationV2 {
 }
 
 impl OperationV2 {
+    #[tracing::instrument(level = "trace", name = "new_operation_v2")]
     pub(super) async fn new(
         hoards_root: &HoardPath,
         name: &HoardName,
@@ -66,6 +70,7 @@ impl OperationV2 {
     /// - `files`: contains all paths whose checksums are `None` in `file_checksums`. This is used
     ///   as an optimization technique while determining which files were created or deleted.
     #[allow(clippy::needless_pass_by_value)]
+    #[tracing::instrument(level = "trace", name = "operation_v2_from_v1")]
     pub fn from_v1(
         file_checksums: &mut HashMap<(PileName, RelativePath), Option<Checksum>>,
         file_set: &mut HashSet<(PileName, RelativePath)>,
@@ -177,6 +182,7 @@ impl OperationImpl for OperationV2 {
             .and_then(|pile| pile.checksum_for(rel_path))
     }
 
+    #[tracing::instrument(level = "trace", name = "v2_all_files_with_checksums")]
     fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         match &self.files {
             Hoard::Anonymous(pile) => Box::new(pile.all_files_with_checksums().map(
@@ -197,6 +203,7 @@ impl OperationImpl for OperationV2 {
         }
     }
 
+    #[tracing::instrument(level = "trace", name = "v2_hoard_operations_iter")]
     fn hoard_operations_iter<'a>(
         &'a self,
         hoard_root: &HoardPath,
@@ -259,6 +266,7 @@ impl OperationImpl for OperationV2 {
         Ok(Box::new(iter))
     }
 
+    #[tracing::instrument(level = "trace", name = "v2_file_operation")]
     fn file_operation(
         &self,
         pile_name: &PileName,
@@ -323,6 +331,7 @@ impl Hoard {
         .unwrap_or_default()
     }
 
+    #[tracing::instrument(name = "v2_new_hoard")]
     async fn new(
         hoards_root: &HoardPath,
         hoard_name: &HoardName,
@@ -485,10 +494,13 @@ impl Pile {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::checksum::MD5;
-    use serde_test::{assert_tokens, Token};
     use std::path::PathBuf;
+
+    use serde_test::{assert_tokens, Token};
+
+    use crate::checksum::MD5;
+
+    use super::*;
 
     #[test]
     fn test_checksum_derives() {
@@ -506,10 +518,11 @@ mod tests {
     }
 
     mod v2_from_v1 {
-        use super::super::super::v1;
-        use super::*;
         use maplit;
         use time::Duration;
+
+        use super::super::super::v1;
+        use super::*;
 
         fn assert_conversion(ops_v1: Vec<v1::OperationV1>, ops_v2: Vec<OperationV2>) {
             let mut mapping = HashMap::new();
@@ -523,7 +536,7 @@ mod tests {
 
         #[test]
         fn test_from_anonymous_file() {
-            let first_timestamp = time::OffsetDateTime::now_utc();
+            let first_timestamp = OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
             let hoard_name: HoardName = "anon_file".parse().unwrap();
@@ -595,7 +608,7 @@ mod tests {
 
         #[test]
         fn test_from_anonymous_dir() {
-            let first_timestamp = time::OffsetDateTime::now_utc();
+            let first_timestamp = OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
             let hoard_name: HoardName = "anon_dir".parse().unwrap();
@@ -694,7 +707,7 @@ mod tests {
         #[test]
         #[allow(clippy::too_many_lines)]
         fn test_from_named() {
-            let first_timestamp = time::OffsetDateTime::now_utc();
+            let first_timestamp = OffsetDateTime::now_utc();
             let second_timestamp = first_timestamp - Duration::hours(2);
             let third_timestamp = second_timestamp - Duration::hours(2);
             let hoard_name: HoardName = "named".parse().unwrap();

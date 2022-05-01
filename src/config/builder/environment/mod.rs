@@ -1,22 +1,24 @@
 //! Environment definitions. For more, see [`Environment`].
 
-pub mod envvar;
-pub mod exe;
-pub mod hostname;
-pub mod os;
-pub mod path;
+use std::convert::{Infallible, TryInto};
+use std::fmt;
 
-use crate::combinator::Combinator;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::combinator::Combinator;
 
 pub use self::envvar::EnvVariable;
 pub use self::exe::ExeExists;
 pub use self::hostname::Hostname;
 pub use self::os::OperatingSystem;
 pub use self::path::PathExists;
-use std::convert::{Infallible, TryInto};
-use std::fmt;
+
+pub mod envvar;
+pub mod exe;
+pub mod hostname;
+pub mod os;
+pub mod path;
 
 /// Errors that may occur while evaluating an [`Environment`].
 #[derive(Debug, Error)]
@@ -123,6 +125,7 @@ impl fmt::Display for Environment {
         Ok(())
     }
 }
+
 // Note to self: this is a good candidate for a derive macro
 // if Combinator is put into its own library
 impl TryInto<bool> for Environment {
@@ -153,6 +156,7 @@ impl Environment {
     /// # Errors
     ///
     /// [`Error::InvalidCondition`]
+    #[tracing::instrument(name = "validate_environment")]
     pub fn validate(&self) -> Result<(), Error> {
         let Environment { hostname, os, .. } = self;
         if let Some(comb) = hostname {
@@ -181,13 +185,16 @@ impl Environment {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::combinator::Inner;
 
+    use super::*;
+
     mod display {
-        use super::*;
-        use crate::paths::SystemPath;
         use std::path::PathBuf;
+
+        use crate::paths::SystemPath;
+
+        use super::*;
 
         #[test]
         fn test_display_with_none() {

@@ -2,19 +2,22 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
-pub mod iter;
-pub(crate) mod pile_config;
+use std::collections::HashMap;
+use std::fmt;
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tokio::io;
+
+pub use pile_config::Config as PileConfig;
 
 use crate::filters::Error as FilterError;
 use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-pub use pile_config::Config as PileConfig;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt;
-use std::path::PathBuf;
-use thiserror::Error;
-use tokio::io;
+
+pub mod iter;
+pub(crate) mod pile_config;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]
@@ -115,6 +118,7 @@ impl Hoard {
     ///
     /// The [`HoardPath`] and [`SystemPath`] represent the relevant prefix/root path for the given pile.
     #[must_use]
+    #[tracing::instrument(name = "get_hoard_paths")]
     pub fn get_paths(
         &self,
         hoards_root: HoardPath,

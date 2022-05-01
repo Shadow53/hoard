@@ -1,6 +1,7 @@
+use thiserror::Error;
+
 use crate::checkers::history::operation::util::upgrade_operations;
 use crate::checkers::history::operation::Error as OperationError;
-use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -8,8 +9,8 @@ pub enum Error {
     Operations(OperationError),
 }
 
+#[tracing::instrument]
 pub(crate) async fn run_upgrade() -> Result<(), super::Error> {
-    let _span = tracing::trace_span!("run_upgrade").entered();
     tracing::info!("Upgrading operation logs to the latest format...");
     match upgrade_operations().await {
         Ok(_) => {

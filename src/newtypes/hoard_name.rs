@@ -14,6 +14,7 @@ pub struct HoardName(String);
 
 impl FromStr for HoardName {
     type Err = Error;
+    #[tracing::instrument(level = "trace", name = "parse_hoard_name")]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         validate_name(s.to_string()).map(Self)
     }

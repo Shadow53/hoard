@@ -14,6 +14,7 @@ pub struct EnvironmentString(BTreeSet<EnvironmentName>);
 impl FromStr for EnvironmentString {
     type Err = Error;
 
+    #[tracing::instrument(level = "trace", name = "parse_environment_string")]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.split('|')
             .map(EnvironmentName::from_str)

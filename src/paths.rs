@@ -4,18 +4,21 @@
 //! - [`SystemPath`]
 //! - [`RelativePath`]
 
-use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::fmt::Formatter;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
+
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
+
+use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
 
 /// Returns the default root for hoard files.
 #[must_use]
+#[tracing::instrument(level = "trace")]
 pub fn hoards_dir() -> HoardPath {
     HoardPath::try_from(crate::dirs::data_dir().join("hoards"))
         .expect("HoardPath that is the hoards directory should always be valid")
@@ -133,6 +136,7 @@ impl Deref for HoardPath {
 impl TryFrom<PathBuf> for HoardPath {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "hoard_path_try_from_path")]
     fn try_from(input: PathBuf) -> Result<Self, Self::Error> {
         let value = normalize_path(&input);
         if !is_valid_absolute(&value) {
@@ -199,6 +203,7 @@ impl Deref for SystemPath {
 impl TryFrom<PathBuf> for SystemPath {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "system_path_try_from_path")]
     fn try_from(input: PathBuf) -> Result<Self, Self::Error> {
         let value = normalize_path(&input);
         if !is_valid_absolute(&value) {
@@ -270,6 +275,7 @@ impl<'de> Deserialize<'de> for RelativePath {
 impl TryFrom<PathBuf> for RelativePath {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "relative_path_try_from_path")]
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let normalized = normalize_path(&value);
 
@@ -288,6 +294,7 @@ impl TryFrom<PathBuf> for RelativePath {
 impl TryFrom<Option<PathBuf>> for RelativePath {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "relative_path_try_from_path_option")]
     fn try_from(value: Option<PathBuf>) -> Result<Self, Self::Error> {
         match value {
             None => Ok(Self(None)),

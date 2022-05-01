@@ -1,12 +1,14 @@
 //! Keep records of previous operations (including on other system) to prevent inconsistencies
 //! and accidental overwrites or deletions.
 
-use crate::paths::{HoardPath, RelativePath};
-use futures::TryStreamExt;
 use std::path::PathBuf;
+
+use futures::TryStreamExt;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 use uuid::Uuid;
+
+use crate::paths::{HoardPath, RelativePath};
 
 pub mod last_paths;
 pub mod operation;
@@ -14,27 +16,27 @@ pub mod operation;
 const UUID_FILE_NAME: &str = "uuid";
 const HISTORY_DIR_NAME: &str = "history";
 
+#[tracing::instrument(level = "debug")]
 fn get_uuid_file() -> PathBuf {
-    let _span = tracing::debug_span!("get_uuid_file").entered();
     crate::dirs::config_dir().join(UUID_FILE_NAME)
 }
 
+#[tracing::instrument(level = "debug")]
 fn get_history_root_dir() -> HoardPath {
-    let _span = tracing::debug_span!("get_history_root_dir").entered();
     HoardPath::try_from(crate::dirs::data_dir().join(HISTORY_DIR_NAME))
         .expect("directory rooted in the data dir is always a valid hoard path")
 }
 
+#[tracing::instrument(level = "debug")]
 fn get_history_dir_for_id(id: Uuid) -> HoardPath {
-    let _span = tracing::debug_span!("get_history_dir_for_id", %id).entered();
     get_history_root_dir().join(
         &RelativePath::try_from(PathBuf::from(id.to_string()))
             .expect("uuid is always a valid relative path"),
     )
 }
 
+#[tracing::instrument(level = "debug")]
 async fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Error> {
-    let _span = tracing::debug_span!("get_history_dir_not_for_id", %id).entered();
     let root = get_history_root_dir();
     if !root.exists() {
         tracing::trace!("history root dir does not exist");

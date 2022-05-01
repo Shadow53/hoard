@@ -1,8 +1,9 @@
-use atty::Stream;
 use std::{
     path::{Path, PathBuf},
     process::ExitStatus,
 };
+
+use atty::Stream;
 use thiserror::Error;
 use tokio::{fs, io};
 
@@ -42,9 +43,8 @@ const DEFAULT_CONFIG: &str = include_str!("../../config.toml.sample");
 /// # Errors
 ///
 /// See [`Error`].
+#[tracing::instrument]
 pub(crate) async fn run_edit(path: &Path) -> Result<(), super::Error> {
-    let _span = tracing::trace_span!("edit", ?path).entered();
-
     let tmp_dir = tempfile::tempdir().map_err(Error::IO)?;
     let tmp_file = tmp_dir.path().join(
         path.file_name()

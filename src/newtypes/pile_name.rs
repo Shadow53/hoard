@@ -1,7 +1,9 @@
-use super::{Error, NonEmptyPileName};
-use serde::{de, Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
 use std::{fmt, ops::Deref};
+
+use serde::{de, Deserialize, Deserializer, Serialize};
+
+use super::{Error, NonEmptyPileName};
 
 /// Newtype wrapper for `Option<String>` representing a pile name.
 ///
@@ -17,6 +19,7 @@ pub struct PileName(Option<NonEmptyPileName>);
 impl FromStr for PileName {
     type Err = Error;
 
+    #[tracing::instrument(level = "trace", name = "parse_pile_name")]
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         NonEmptyPileName::from_str(value).map(Some).map(Self)
     }
@@ -68,6 +71,7 @@ where
 {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "pile_name_try_from_option_str", skip_all)]
     fn try_from(value: Option<T>) -> Result<Self, Self::Error> {
         match value {
             None => Ok(Self(None)),
@@ -85,6 +89,7 @@ impl From<NonEmptyPileName> for PileName {
 impl TryFrom<PileName> for NonEmptyPileName {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "non_empty_pile_name_try_from_pile_name")]
     fn try_from(value: PileName) -> Result<Self, Self::Error> {
         Option::<Self>::from(value).ok_or(Error::EmptyName)
     }
@@ -141,8 +146,9 @@ impl PileName {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_test::{assert_de_tokens, assert_tokens, Token};
+
+    use super::*;
 
     #[test]
     fn test_from_str() {

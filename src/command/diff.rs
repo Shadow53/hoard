@@ -1,11 +1,13 @@
-use crate::hoard::iter::{changed_diff_only_stream, HoardFileDiff};
-use crate::hoard::Hoard;
-use crate::paths::HoardPath;
-use futures::TryStreamExt;
 use std::collections::BTreeSet;
 
-use crate::newtypes::HoardName;
+use futures::TryStreamExt;
 
+use crate::hoard::iter::{changed_diff_only_stream, HoardFileDiff};
+use crate::hoard::Hoard;
+use crate::newtypes::HoardName;
+use crate::paths::HoardPath;
+
+#[tracing::instrument]
 pub(crate) async fn run_diff(
     hoard: &Hoard,
     hoard_name: &HoardName,

@@ -123,12 +123,11 @@ impl PathWithEnv {
     /// # Errors
     ///
     /// See [`Error`]
+    #[tracing::instrument(level = "debug", name = "process_path_with_env")]
     pub fn process(self) -> Result<SystemPath, Error> {
         let mut new_path = self.0;
         let mut start: usize = 0;
         let mut old_start: usize;
-
-        let _span = tracing::debug_span!("expand_env_in_path", path=%new_path).entered();
 
         while let Some(mat) = ENV_REGEX.find(&new_path[start..]) {
             let var = mat.as_str();

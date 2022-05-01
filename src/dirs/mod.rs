@@ -1,13 +1,6 @@
 //! Functions to determine special folders for Hoard to work with on different platforms.
 use std::path::{Path, PathBuf};
 
-#[cfg(unix)]
-mod unix;
-#[cfg(windows)]
-mod win;
-
-#[cfg(windows)]
-pub use win::{get_known_folder, set_known_folder};
 #[cfg(windows)]
 pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 
@@ -15,6 +8,13 @@ pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 use unix as sys;
 #[cfg(windows)]
 use win as sys;
+#[cfg(windows)]
+pub use win::{get_known_folder, set_known_folder};
+
+#[cfg(unix)]
+mod unix;
+#[cfg(windows)]
+mod win;
 
 /// The TLD portion of the application identifier.
 pub const TLD: &str = "com";
@@ -28,8 +28,18 @@ pub const DATA_DIR_ENV: &str = "HOARD_DATA_DIR";
 pub const CONFIG_DIR_ENV: &str = "HOARD_CONFIG_DIR";
 
 #[inline]
+#[tracing::instrument(level = "trace")]
 fn path_from_env(var: &str) -> Option<PathBuf> {
-    std::env::var_os(var).map(PathBuf::from)
+    match std::env::var_os(var).map(PathBuf::from) {
+        None => {
+            tracing::trace!("could not find path in env var {}", var);
+            None
+        }
+        Some(path) => {
+            tracing::trace!("found {} = {}", var, path.display());
+            Some(path)
+        }
+    }
 }
 
 /// Returns the current user's home directory.
@@ -38,6 +48,7 @@ fn path_from_env(var: &str) -> Option<PathBuf> {
 /// - macOS/Linux/BSD: The value of `$HOME`.
 #[must_use]
 #[inline]
+#[tracing::instrument(level = "trace")]
 pub fn home_dir() -> PathBuf {
     sys::home_dir()
 }
@@ -53,6 +64,7 @@ pub fn home_dir() -> PathBuf {
 /// - Linux/BSD: `${XFG_CONFIG_HOME}/hoard`, if `XDG_CONFIG_HOME` is set, otherwise `$HOME/.config/hoard`.
 #[must_use]
 #[inline]
+#[tracing::instrument(level = "trace")]
 pub fn config_dir() -> PathBuf {
     path_from_env(CONFIG_DIR_ENV).unwrap_or_else(sys::config_dir)
 }
@@ -66,6 +78,7 @@ pub fn config_dir() -> PathBuf {
 /// - Linux/BSD: `${XFG_DATA_HOME}/hoard`, if `XDG_DATA_HOME` is set, otherwise `$HOME/.local/share/hoard`.
 #[must_use]
 #[inline]
+#[tracing::instrument(level = "trace")]
 pub fn data_dir() -> PathBuf {
     path_from_env(DATA_DIR_ENV).unwrap_or_else(sys::data_dir)
 }
@@ -73,6 +86,7 @@ pub fn data_dir() -> PathBuf {
 /// Set the environment variable that overrides Hoard's config directory.
 ///
 /// See [`CONFIG_DIR_ENV`].
+#[tracing::instrument(level = "trace")]
 pub fn set_config_dir(path: &Path) {
     std::env::set_var(CONFIG_DIR_ENV, path);
 }
@@ -80,14 +94,16 @@ pub fn set_config_dir(path: &Path) {
 /// Set the environment variable that overrides Hoard's data directory.
 ///
 /// See [`DATA_DIR_ENV`].
+#[tracing::instrument(level = "trace")]
 pub fn set_data_dir(path: &Path) {
     std::env::set_var(DATA_DIR_ENV, path);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
+
+    use super::*;
 
     #[test]
     fn test_env_config_dir() {

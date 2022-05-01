@@ -1,3 +1,10 @@
+use std::ffi::OsString;
+use std::path::{Component, Path, PathBuf};
+
+//use std::path::{Path, PathBuf};
+use thiserror::Error;
+use tokio::fs;
+
 use crate::checkers::history::operation::ItemOperation;
 use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
 use crate::hoard::iter::Error as IterError;
@@ -6,11 +13,6 @@ use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::ffi::OsString;
-use std::path::{Component, Path, PathBuf};
-//use std::path::{Path, PathBuf};
-use thiserror::Error;
-use tokio::fs;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -27,6 +29,7 @@ pub enum Error {
 }
 
 #[allow(single_use_lifetimes)]
+#[tracing::instrument(skip(hoards))]
 pub(crate) async fn run_backup<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
@@ -38,6 +41,7 @@ pub(crate) async fn run_backup<'a>(
 }
 
 #[allow(single_use_lifetimes)]
+#[tracing::instrument(skip(hoards))]
 pub(crate) async fn run_restore<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
@@ -161,6 +165,7 @@ async fn create_all_with_perms(
     Ok(())
 }
 
+#[tracing::instrument]
 async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
     let (src, dest, dest_root) = match direction {
         Direction::Backup => (
@@ -205,6 +210,7 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
     Ok(())
 }
 
+#[tracing::instrument]
 async fn fix_permissions(
     hoard: &Hoard,
     operation: &ItemOperation<HoardItem>,
@@ -317,8 +323,9 @@ mod tests {
     use super::*;
 
     mod parent_iter {
-        use super::*;
         use crate::test::path_string;
+
+        use super::*;
 
         #[test]
         fn test_single_path() {

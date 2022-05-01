@@ -34,6 +34,7 @@ impl fmt::Display for NonEmptyPileName {
 impl FromStr for NonEmptyPileName {
     type Err = Error;
 
+    #[tracing::instrument(level = "trace", name = "parse_non_empty_pile_name")]
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         validate_name(value.to_string()).map(Self)
     }
@@ -42,6 +43,7 @@ impl FromStr for NonEmptyPileName {
 impl TryFrom<String> for NonEmptyPileName {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "non_empty_pile_name_try_from_string")]
     fn try_from(value: String) -> Result<Self, Self::Error> {
         validate_name(value).map(Self)
     }

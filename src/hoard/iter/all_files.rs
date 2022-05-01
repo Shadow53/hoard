@@ -1,16 +1,18 @@
+use std::collections::BTreeSet;
+use std::path::PathBuf;
+use std::pin::Pin;
+
+use futures::stream::Peekable;
+use futures::{StreamExt, TryStream};
+use tokio::{fs, io};
+use tokio_stream::wrappers::ReadDirStream;
+
 use crate::checkers::history::operation::{ItemOperation, Operation, OperationImpl};
 use crate::filters::{Filter, Filters};
 use crate::hoard::Hoard;
 use crate::hoard_item::HoardItem;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use futures::stream::Peekable;
-use futures::{StreamExt, TryStream};
-use std::collections::BTreeSet;
-use std::path::PathBuf;
-use std::pin::Pin;
-use tokio::{fs, io};
-use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct RootPathItem {
@@ -40,6 +42,7 @@ impl RootPathItem {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct AllFilesIter {
     seen_paths: BTreeSet<SystemPath>,
     root_paths: Vec<RootPathItem>,
@@ -108,7 +111,6 @@ impl AllFilesIter {
     ) -> Result<Vec<RootPathItem>, super::Error> {
         // This is used to detect files deleted locally and remotely
         let from_logs: Vec<ItemOperation<HoardItem>> = {
-            let _span = tracing::trace_span!("load_paths_from_logs").entered();
             let local = Operation::latest_local(hoard_name, None)
                 .await
                 .map_err(Box::new)?;
@@ -208,6 +210,7 @@ impl AllFilesIter {
         }
     }
 
+    #[tracing::instrument]
     async fn get_next_entry_with_prefix(&mut self) -> Option<(io::Result<fs::DirEntry>, PathBuf)> {
         if let Some(stream) = self.system_entries.as_mut() {
             let prefix = self
@@ -238,6 +241,7 @@ impl AllFilesIter {
         None
     }
 
+    #[tracing::instrument]
     async fn get_next_relative_path(&mut self) -> io::Result<Option<RelativePath>> {
         match self.get_next_entry_with_prefix().await {
             None => Ok(None),
@@ -271,6 +275,7 @@ impl AllFilesIter {
         }
     }
 
+    #[tracing::instrument]
     async fn process_dir_entry(&mut self) -> Result<Option<HoardItem>, io::Error> {
         let current_root = self
             .current_root
@@ -319,6 +324,7 @@ impl AllFilesIter {
     }
 
     #[allow(clippy::option_option)]
+    #[tracing::instrument]
     async fn ensure_dir_entries(&mut self) -> Option<Option<io::Result<HoardItem>>> {
         // Attempt to create direntry iterator.
         // If a path to a file is encountered, return that.
@@ -377,6 +383,7 @@ impl AllFilesIter {
         None
     }
 
+    #[tracing::instrument]
     async fn next_item(&mut self) -> Option<io::Result<HoardItem>> {
         loop {
             if let Some(return_value) = self.ensure_dir_entries().await {
@@ -404,6 +411,7 @@ impl AllFilesIter {
 ///
 /// Any errors that may occur while building the stream. See [`Error`](super::Error) for more.
 #[allow(clippy::module_name_repetitions)]
+#[tracing::instrument]
 pub async fn all_files_stream(
     hoards_root: &HoardPath,
     hoard_name: &HoardName,

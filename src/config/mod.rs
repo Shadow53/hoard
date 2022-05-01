@@ -1,12 +1,15 @@
 //! See [`Config`].
 
-pub use self::builder::Builder;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use thiserror::Error;
+
 use crate::command::{self, Command};
 use crate::hoard::{self, Hoard};
 use crate::newtypes::HoardName;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use thiserror::Error;
+
+pub use self::builder::Builder;
 
 pub mod builder;
 
@@ -66,6 +69,7 @@ impl Config {
     /// # Errors
     ///
     /// The error returned by [`Builder::from_args_then_file`], wrapped in [`Error::Builder`].
+    #[tracing::instrument(level = "debug", name = "load_config")]
     pub async fn load() -> Result<Self, Error> {
         tracing::debug!("loading configuration...");
         let config = Builder::from_args_then_file()
@@ -82,6 +86,7 @@ impl Config {
         self.config_file.clone()
     }
 
+    #[tracing::instrument(level = "debug")]
     fn get_hoards<'a>(
         &'a self,
         hoards: &'a [HoardName],
@@ -91,7 +96,7 @@ impl Config {
             Ok(self.hoards.iter().collect())
         } else {
             tracing::debug!("using hoard names provided on cli");
-            tracing::trace!(?hoards);
+            tracing::debug!(?hoards);
             hoards
                 .iter()
                 .map(|key| self.get_hoard(key).map(|hoard| (key, hoard)))
@@ -99,6 +104,7 @@ impl Config {
         }
     }
 
+    #[tracing::instrument]
     fn get_hoard<'a>(&'a self, name: &'_ HoardName) -> Result<&'a Hoard, Error> {
         self.hoards
             .get(name)
@@ -110,6 +116,7 @@ impl Config {
     /// # Errors
     ///
     /// Any [`enum@Error`] that might happen while running the command.
+    #[tracing::instrument(name = "run_command")]
     pub async fn run(&self) -> Result<(), Error> {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {

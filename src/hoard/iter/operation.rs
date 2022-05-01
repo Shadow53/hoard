@@ -13,6 +13,7 @@ use futures::{TryStream, TryStreamExt};
 ///
 /// Any errors that may occur while initially creating the stream.
 #[allow(clippy::module_name_repetitions)]
+#[tracing::instrument]
 pub async fn operation_stream(
     hoards_root: &HoardPath,
     hoard_name: HoardName,

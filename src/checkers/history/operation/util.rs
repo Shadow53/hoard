@@ -1,19 +1,22 @@
 //! Helpful functions to use while working with [`Operation`](super::Operation) log files.
 
-use super::{Error, Operation};
-use crate::checkers::history::get_history_root_dir;
-use crate::checkers::history::operation::OperationImpl;
-use crate::checkers::Checker;
-use crate::hoard::Direction;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+
 use futures::{StreamExt, TryStream, TryStreamExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
 use time::format_description::FormatItem;
 use tokio::fs;
 use tokio_stream::wrappers::ReadDirStream;
 use uuid::Uuid;
+
+use crate::checkers::history::get_history_root_dir;
+use crate::checkers::history::operation::OperationImpl;
+use crate::checkers::Checker;
+use crate::hoard::Direction;
+
+use super::{Error, Operation};
 
 /// The format that should be used when converting an [`Operation`](super::Operation)'s timestamp
 /// into a file name.
@@ -36,8 +39,8 @@ pub(crate) static LOG_FILE_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Inspects the file name portion of the `path` to determine if it matches the format used
 /// for [`Operation`](super::Operation) log files.
 #[must_use]
+#[tracing::instrument]
 pub fn file_is_log(path: &Path) -> bool {
-    let _span = tracing::trace_span!("file_is_log", ?path).entered();
     let result = path.is_file()
         && match path.file_name() {
             None => false, // grcov: ignore
@@ -46,12 +49,17 @@ pub fn file_is_log(path: &Path) -> bool {
                 Some(name) => LOG_FILE_REGEX.is_match(name),
             },
         };
-    tracing::trace!(result, "determined if file is operation log");
+    if result {
+        tracing::trace!("file is operation log");
+    } else {
+        tracing::trace!("file is NOT operation log");
+    }
     result
 }
 
 // Async because it is used in a stream mapping method, which requires async
 #[allow(clippy::unused_async)]
+#[tracing::instrument(level = "trace")]
 async fn only_valid_uuid_path(entry: fs::DirEntry) -> Result<Option<fs::DirEntry>, Error> {
     tracing::trace!(
         "checking if {} is a system directory",
@@ -70,6 +78,7 @@ async fn only_valid_uuid_path(entry: fs::DirEntry) -> Result<Option<fs::DirEntry
     }
 }
 
+#[tracing::instrument(level = "trace")]
 async fn log_files_to_delete_from_dir(
     path: PathBuf,
 ) -> Result<impl TryStream<Ok = PathBuf, Error = Error>, Error> {
@@ -121,6 +130,7 @@ async fn log_files_to_delete_from_dir(
 }
 
 // For each system folder, make a list of all log files, excluding 1 or 2 to keep.
+#[tracing::instrument]
 async fn log_files_to_delete(
     entry: fs::DirEntry,
 ) -> Result<impl TryStream<Ok = PathBuf, Error = Error>, Error> {
@@ -151,6 +161,7 @@ async fn log_files_to_delete(
 ///
 /// - Any I/O error from working with and deleting multiple files
 /// - Any [`Error`]s from parsing files to determine whether or not to keep them
+#[tracing::instrument(level = "trace")]
 pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
     // Get hoard history root
     // Iterate over every uuid in the directory
@@ -178,6 +189,7 @@ pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
         .map(|(count, _)| count)
 }
 
+#[tracing::instrument(level = "trace")]
 async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error>, Error> {
     let history_dir = get_history_root_dir();
     tracing::trace!(?history_dir);
@@ -219,12 +231,14 @@ async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error
     Ok(iter)
 }
 
+#[tracing::instrument(level = "trace")]
 async fn sorted_operations() -> Result<Vec<Operation>, Error> {
     let mut list: Vec<Operation> = all_operations().await?.try_collect().await?;
     list.sort_unstable_by_key(Operation::timestamp);
     Ok(list)
 }
 
+#[tracing::instrument(level = "trace")]
 pub(crate) async fn upgrade_operations() -> Result<(), Error> {
     let mut top_file_checksum_map = HashMap::new();
     let mut top_file_set = HashMap::new();
