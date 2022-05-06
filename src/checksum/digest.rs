@@ -1,13 +1,15 @@
-use digest::generic_array::{ArrayLength, GenericArray};
-use digest::typenum::Unsigned;
-use hex::FromHex;
-use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::LowerHex;
 use std::hash::{Hash, Hasher};
 use std::ops::Add;
 use std::str::FromStr;
+
+use digest::generic_array::{ArrayLength, GenericArray};
+use digest::typenum::Unsigned;
+use hex::FromHex;
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+use tap::TapFallible;
 use thiserror::Error;
 
 /// Digest definition for MD5.
@@ -24,12 +26,15 @@ where
 
 mod sealed {
     pub trait Sealed {}
+
     impl Sealed for md5::Md5 {}
+
     impl Sealed for sha2::Sha256 {}
 }
 
 pub trait Digestable: sealed::Sealed {
     type OutputSize: ArrayLength<u8> + Add<Self::OutputSize>;
+    const DIGEST_NAME: &'static str;
     fn digest_from_str(s: &str) -> Result<GenericArray<u8, Self::OutputSize>, Error> {
         let v = Vec::from_hex(s).map_err(|_| Error::InvalidDigest(s.to_string()))?;
         let received_len = v.len();
@@ -49,6 +54,7 @@ pub trait Digestable: sealed::Sealed {
 
 impl Digestable for md5::Md5 {
     type OutputSize = <md5::Md5 as md5::digest::OutputSizeUser>::OutputSize;
+    const DIGEST_NAME: &'static str = "MD5";
     fn digest_to_array<D: AsRef<[u8]>>(data: D) -> GenericArray<u8, Self::OutputSize> {
         <md5::Md5 as md5::Digest>::digest(data.as_ref())
     }
@@ -56,6 +62,7 @@ impl Digestable for md5::Md5 {
 
 impl Digestable for sha2::Sha256 {
     type OutputSize = <sha2::Sha256 as sha2::digest::OutputSizeUser>::OutputSize;
+    const DIGEST_NAME: &'static str = "SHA256";
     fn digest_to_array<D: AsRef<[u8]>>(data: D) -> GenericArray<u8, Self::OutputSize> {
         <sha2::Sha256 as sha2::Digest>::digest(data.as_ref())
     }
@@ -180,8 +187,11 @@ where
     <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
 {
     type Err = Error;
+    #[tracing::instrument(name = "digest_from_str")]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        T::digest_from_str(s).map(Digest)
+        T::digest_from_str(s).map(Digest).tap_err(|error| {
+            tracing::error!(%error, "failed to parse \"{}\" as {}", s, T::DIGEST_NAME);
+        })
     }
 }
 
@@ -218,8 +228,9 @@ mod tests {
     // TODO: Error conditions for digest_from_str()
 
     mod md5 {
-        use super::*;
         use ::md5::Md5;
+
+        use super::*;
 
         #[test]
         fn test_md5_output_size() {
@@ -249,8 +260,9 @@ mod tests {
     }
 
     mod sha256 {
-        use super::*;
         use ::sha2::Sha256;
+
+        use super::*;
 
         const SHA256_STR: &str = "cf80cd8aed482d5d1527d7dc72fceff84e6326592848447d2dc0b0e87dfc9a90";
         const SHA256_ARR: [u8; 32] = [
@@ -290,9 +302,10 @@ mod tests {
     }
 
     mod digest {
-        use super::*;
         use ::md5::Md5;
         use serde_test::{assert_tokens, Token};
+
+        use super::*;
 
         #[test]
         fn test_from_str() {
