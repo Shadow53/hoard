@@ -285,6 +285,7 @@ async fn sorted_operations() -> Result<Vec<Operation>, Error> {
 
 #[tracing::instrument(level = "trace")]
 pub(crate) async fn upgrade_operations() -> Result<(), Error> {
+    tracing::debug!("upgrading operation files to latest version");
     let mut top_file_checksum_map = HashMap::new();
     let mut top_file_set = HashMap::new();
 

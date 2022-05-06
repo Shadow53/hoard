@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
+use tap::TapFallible;
 //use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::fs;
@@ -152,11 +153,15 @@ async fn create_all_with_perms(
     perms: Permissions,
 ) -> Result<(), Error> {
     // Create all directories above root with system default permissions
-    fs::create_dir_all(&root).await?;
+    fs::create_dir_all(&root).await.tap_err(|error| {
+        tracing::error!(%error, "failed to create pile root {} with system default permissions", root.display());
+    })?;
 
     for path in ParentIter::new(root, path) {
         if !path.is_dir() {
-            fs::create_dir(&path).await?;
+            fs::create_dir(&path).await.tap_err(|error| {
+                tracing::error!(%error, "failed to create {}", path.display());
+            })?;
         }
 
         perms.set_on_path(&path).await?;
@@ -187,25 +192,17 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
         } else {
             dest_root.to_path_buf()
         };
-        if let Err(err) = create_all_with_perms(root, parent, Permissions::folder_default()).await {
-            tracing::error!(
-                "failed to create parent directories for {}: {}",
-                dest.display(),
-                err
-            );
-            return Err(err);
-        }
+        create_all_with_perms(root, parent, Permissions::folder_default()).await?;
     }
     tracing::debug!("copying {} to {}", src.display(), dest.display());
-    if let Err(err) = fs::copy(src, dest).await {
+    fs::copy(src, dest).await.tap_err(|error| {
         tracing::error!(
-            "failed to copy {} to {}: {}",
+            %error,
+            "failed to copy {} to {}",
             src.display(),
             dest.display(),
-            err
         );
-        return Err(Error::IO(err));
-    }
+    })?;
 
     Ok(())
 }
@@ -297,10 +294,9 @@ async fn backup_or_restore<'a>(
                     };
                     if to_remove.exists() {
                         tracing::debug!("deleting {}", to_remove.display());
-                        if let Err(err) = fs::remove_file(to_remove).await {
-                            tracing::error!("failed to delete {}: {}", to_remove.display(), err);
-                            return Err(Error::IO(err));
-                        }
+                        fs::remove_file(to_remove).await.tap_err(|error| {
+                            tracing::error!(%error, "failed to delete {}", to_remove.display());
+                        })?;
                     }
                 }
                 ItemOperation::Nothing(file) => {
