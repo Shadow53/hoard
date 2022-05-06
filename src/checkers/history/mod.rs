@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 
 use futures::TryStreamExt;
+use tap::TapFallible;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 use uuid::Uuid;
@@ -43,7 +44,12 @@ async fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Er
         return Ok(Vec::new());
     }
 
-    fs::read_dir(root).await.map(ReadDirStream::new)?
+    fs::read_dir(&root)
+        .await
+        .map(ReadDirStream::new)
+        .tap_err(|error| {
+            tracing::error!(%error, "failed to list items in history root directory {}", root.display());
+        })?
         .try_filter_map(|entry| async move {
             let path = entry.path();
             path.file_name().and_then(|file_name| {
@@ -61,6 +67,9 @@ async fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Er
         })
         .try_collect()
         .await
+        .tap_err(|error| {
+            tracing::error!(%error, "failed to read metadata for system history directory");
+        })
 }
 
 /// Get this machine's unique UUID, creating if necessary.
@@ -89,13 +98,13 @@ pub async fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
                 None
             }
         },
-        Err(err) => {
-            if err.kind() == io::ErrorKind::NotFound {
+        Err(error) => {
+            if error.kind() == io::ErrorKind::NotFound {
                 tracing::trace!("no uuid file found: creating one");
                 None
             } else {
-                tracing::error!(error = %err, "error while reading uuid file");
-                return Err(err);
+                tracing::error!(%error, "error while reading uuid file {}", uuid_file.display());
+                return Err(error);
             }
         }
     };
@@ -105,20 +114,19 @@ pub async fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
         None => {
             let new_id = Uuid::new_v4();
             tracing::debug!(new_uuid = %new_id, "generated new uuid");
-            if let Err(err) = fs::create_dir_all(
+            fs::create_dir_all(
                 uuid_file
                     .parent()
                     .expect("uuid file should always have a parent directory"),
             )
             .await
-            {
-                tracing::error!(error = %err, "error while create parent dir");
-                return Err(err);
-            }
-            if let Err(err) = fs::write(&uuid_file, new_id.as_hyphenated().to_string()).await {
-                tracing::error!(error = %err, "error while saving uuid to file");
-                return Err(err);
-            }
+            .tap_err(|error| {
+                tracing::error!(%error, "error while create parent dir");
+            })?;
+            fs::write(&uuid_file, new_id.as_hyphenated().to_string())
+                .await.tap_err(|error| {
+                tracing::error!(%error, "error while saving uuid to file {}", uuid_file.display());
+            })?;
             Ok(new_id)
         }
         Some(id) => Ok(id),

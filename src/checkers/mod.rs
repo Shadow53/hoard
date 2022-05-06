@@ -75,7 +75,6 @@ impl Checkers {
         hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)>,
         direction: Direction,
     ) -> Result<Self, Error> {
-        let _span = tracing::debug_span!("create_checkers", ?hoards_root).entered();
         let mut last_paths = HashMap::new();
         let mut operations = HashMap::new();
 
@@ -95,7 +94,6 @@ impl Checkers {
 
     #[tracing::instrument(level = "debug", name = "checkers_check")]
     pub(crate) async fn check(&mut self) -> Result<(), Error> {
-        let _span = tracing::debug_span!("running_checks").entered();
         for last_path in &mut self.last_paths.values_mut() {
             last_path.check().await?;
         }

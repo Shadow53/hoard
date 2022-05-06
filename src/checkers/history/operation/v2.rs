@@ -306,6 +306,7 @@ impl Hoard {
     ) -> Result<Checksum, Error> {
         checksum
             .ok_or_else(|| {
+                tracing::error!("expected checksum for {} but found nothing", path);
                 Error::IO(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!("could not find item at \"{}\"", path),

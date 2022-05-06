@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use futures::{StreamExt, TryStream, TryStreamExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use tap::TapFallible;
 use time::format_description::FormatItem;
 use tokio::fs;
 use tokio_stream::wrappers::ReadDirStream;
@@ -83,7 +84,7 @@ async fn log_files_to_delete_from_dir(
     path: PathBuf,
 ) -> Result<impl TryStream<Ok = PathBuf, Error = Error>, Error> {
     tracing::trace!("checking files in directory: {}", path.display());
-    let mut files: Vec<PathBuf> = fs::read_dir(path)
+    let mut files: Vec<PathBuf> = fs::read_dir(&path)
         .await
         .map(ReadDirStream::new)?
         .map_err(Error::IO)
@@ -92,7 +93,10 @@ async fn log_files_to_delete_from_dir(
             Ok(file_is_log(&subentry.path()).then(|| subentry.path()))
         })
         .try_collect()
-        .await?;
+        .await
+        .tap_err(|error| {
+            tracing::error!(%error, "failed to read contents of {}", path.display());
+        })?;
 
     files.sort_unstable();
 
@@ -103,7 +107,7 @@ async fn log_files_to_delete_from_dir(
     if let Some(recent) = recent {
         let recent = Operation::from_file(&recent).await?;
         if recent.direction() == Direction::Restore {
-            tracing::trace!(
+            tracing::debug!(
                 "most recent log is not a backup, making sure to retain a backup log too"
             );
             // Find the index of the latest backup
@@ -117,7 +121,10 @@ async fn log_files_to_delete_from_dir(
                 ),
             )
             .try_next()
-            .await?;
+            .await
+            .tap_err(|error| {
+                tracing::error!(%error, "error while finding most recent backup");
+            })?;
 
             if let Some(index) = index {
                 // Found index of latest backup, remove it from deletion list
@@ -166,18 +173,27 @@ pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
     // Get hoard history root
     // Iterate over every uuid in the directory
     let root = get_history_root_dir();
-    fs::read_dir(root)
+    fs::read_dir(&root)
         .await
         .map(ReadDirStream::new)
-        .map_err(|err| (0, Error::IO(err)))?
-        .map_err(Error::IO)
+        .map_err(|error| {
+            tracing::error!(%error, "failed to list items in {}", root.display());
+            (0, Error::IO(error))
+        })?
+        .map_err(|error| {
+            tracing::error!(%error, "failed to read item in {}", root.display());
+            Error::IO(error)
+        })
         .try_filter_map(only_valid_uuid_path)
         .and_then(log_files_to_delete)
         .try_flatten()
         // Delete each file.
         .and_then(|path| async move {
             tracing::trace!("deleting {}", path.display());
-            fs::remove_file(path).await.map_err(Error::IO)
+            fs::remove_file(&path).await.map_err(|error| {
+                tracing::error!(%error, "failed to delete {}", path.display());
+                Error::IO(error)
+            })
         })
         // Return the first error or the number of files deleted.
         .fold(Ok((0, ())), |acc, res2| async move {
@@ -193,9 +209,16 @@ pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
 async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error>, Error> {
     let history_dir = get_history_root_dir();
     tracing::trace!(?history_dir);
-    let iter = fs::read_dir(history_dir)
+    let iter = fs::read_dir(&history_dir)
         .await
-        .map(ReadDirStream::new)?
+        .map(ReadDirStream::new)
+        .tap_err(|error| {
+            tracing::error!(
+                %error,
+                "failed to list items in history dir {}",
+                history_dir.display(),
+            );
+        })?
         .try_filter_map(|uuid_entry| async move {
             let is_uuid = uuid_entry
                 .file_name()
@@ -211,7 +234,18 @@ async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error
                 .map(Ok)
                 .transpose()
         })
-        .and_then(|entry| async move { fs::read_dir(entry).await.map(ReadDirStream::new) })
+        .and_then(|entry| async move {
+            fs::read_dir(&entry)
+                .await
+                .map(ReadDirStream::new)
+                .tap_err(|error| {
+                    tracing::error!(
+                        %error,
+                        "failed to list items in system history dir {}",
+                        entry.display(),
+                    );
+                })
+        })
         .try_flatten()
         .try_filter_map(|hoard_entry| async move {
             hoard_entry
@@ -221,7 +255,18 @@ async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error
                 .map(Ok)
                 .transpose()
         }) // Iterator of PathBuf
-        .and_then(|entry| async move { fs::read_dir(entry).await.map(ReadDirStream::new) })
+        .and_then(|entry| async move {
+            fs::read_dir(&entry)
+                .await
+                .map(ReadDirStream::new)
+                .tap_err(|error| {
+                    tracing::error!(
+                        %error,
+                        "failed to list items in hoard history dir {}",
+                        entry.display(),
+                    );
+                })
+        })
         .try_flatten() // Iterator of DirEntry (log files)
         .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
         .try_filter_map(|path| async move { Ok(file_is_log(&path).then(|| path)) }) // Only those paths that are log files

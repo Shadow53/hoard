@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use futures::stream::TryStreamExt;
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
+use tap::tap::TapFallible;
 use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::{fs, io};
@@ -20,6 +21,7 @@ use crate::checkers::Checker;
 use crate::checksum::Checksum;
 use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
+use crate::log_and_return_error;
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 
@@ -156,8 +158,8 @@ impl<'de> Deserialize<'de> for OperationVersion {
             }
         }
 
-        Err(D::Error::custom(
-            "data did not match any operation log version",
+        log_and_return_error!(D::Error::custom(
+            "data did not match any operation log version"
         ))
     }
 }
@@ -195,7 +197,7 @@ pub trait OperationImpl {
         _hoard_path: &HoardPath,
         _hoard: &Hoard,
     ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
-        Err(Error::UpgradeRequired)
+        log_and_return_error!(Error::UpgradeRequired)
     }
 
     /// Returns the operation performed on the given file, if any.
@@ -211,7 +213,7 @@ pub trait OperationImpl {
         _pile_name: &PileName,
         _rel_path: &RelativePath,
     ) -> Result<Option<OperationType>, Error> {
-        Err(Error::UpgradeRequired)
+        log_and_return_error!(Error::UpgradeRequired)
     }
 }
 
@@ -362,8 +364,7 @@ impl Operation {
         if let Self(OperationVersion::V2(_)) = self {
             Ok(())
         } else {
-            tracing::error!("{}", Error::UpgradeRequired);
-            Err(Error::UpgradeRequired)
+            log_and_return_error!(Error::UpgradeRequired)
         }
     }
 
@@ -388,14 +389,14 @@ impl Operation {
     #[tracing::instrument(name = "operation_from_file")]
     async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::trace!(path=%path.display(), "loading operation log from path");
-        let content = fs::read(path).await.map_err(|err| {
-            tracing::error!("failed to open file at {}: {}", path.display(), err);
-            Error::from(err)
+        let content = fs::read(path).await.tap_err(|error| {
+            tracing::error!(%error, "failed to open file at {}", path.display());
         })?;
-        serde_json::from_slice(&content).map_err(|err| {
-            tracing::error!("failed to parse JSON from {}: {}", path.display(), err);
-            Error::from(err)
-        })
+        serde_json::from_slice(&content)
+            .map_err(Error::from)
+            .tap_err(|error| {
+                tracing::error!(%error, "failed to parse JSON from {}", path.display());
+            })
     }
 
     async fn reduce_latest(left: Option<Self>, right: Self) -> Result<Option<Self>, Error> {
@@ -505,12 +506,11 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     pub async fn latest_local(
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
     ) -> Result<Option<Self>, Error> {
-        let _span = tracing::debug_span!("latest_local", %hoard).entered();
         tracing::trace!("finding latest Operation file for this machine");
         let uuid = super::get_or_generate_uuid().await?;
         let self_folder = super::get_history_dir_for_id(uuid);
@@ -525,13 +525,12 @@ impl Operation {
     ///
     /// - Any errors that occur while reading from the filesystem
     /// - Any parsing errors from `serde_json` when parsing the file
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "debug")]
     pub(crate) async fn latest_remote_backup(
         hoard: &HoardName,
         file: Option<(&PileName, &RelativePath)>,
         only_modified: bool,
     ) -> Result<Option<Self>, Error> {
-        let _span = tracing::debug_span!("latest_remote_backup").entered();
         tracing::trace!("finding latest Operation file from remote machines");
         let uuid = super::get_or_generate_uuid().await?;
         let other_folders = super::get_history_dirs_not_for_id(&uuid).await?;
@@ -603,10 +602,8 @@ impl Checker for Operation {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(level = "trace", name = "commit_operation_to_disk")]
     async fn commit_to_disk(self) -> Result<(), Error> {
-        let _span =
-            tracing::trace_span!("commit_operation_to_disk", hoard=%self.hoard_name()).entered();
         let id = super::get_or_generate_uuid().await?;
         let path = super::get_history_dir_for_id(id)
             .join(&RelativePath::from(self.hoard_name()))
@@ -615,16 +612,27 @@ impl Checker for Operation {
                     "{}.log",
                     self.timestamp()
                         .format(&TIME_FORMAT)
-                        .map_err(Error::FormatDatetime)?
+                        .map_err(Error::FormatDatetime)
+                        .tap_err(crate::tap_log_error)?
                 )))
                 .expect("file name is always a valid RelativePath"),
             );
         tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
+            fs::create_dir_all(parent).await.tap_err(|error| {
+                tracing::error!(
+                    %error,
+                    "failed to create parent directory {} for operation log",
+                    parent.display()
+                );
+            })?;
         }
-        let content = serde_json::to_vec(&self)?;
-        fs::write(path, &content).await?;
+        let content = serde_json::to_vec(&self).tap_err(|error| {
+            tracing::error!(%error, "failed to serialize operation log as JSON");
+        })?;
+        fs::write(&path, &content).await.tap_err(|error| {
+            tracing::error!(%error, "failed to write operation log file to {}", path.display());
+        })?;
         Ok(())
     }
 }
