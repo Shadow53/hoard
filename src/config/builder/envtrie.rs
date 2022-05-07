@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
+use tap::TapFallible;
 use thiserror::Error;
 
 use crate::env_vars::PathWithEnv;
@@ -109,14 +110,7 @@ impl<'a> Evaluation<'a> {
                         Ordering::Less => Ok(false),
                         Ordering::Greater => Ok(true),
                         Ordering::Equal => {
-                            tracing::error!(
-                                left_eval = ?self,
-                                right_eval = ?other,
-                                "cannot choose between {} and {}",
-                                self.name,
-                                other.name
-                            );
-                            Err(Error::Indecision(self.name.clone(), other.name.clone()))
+                            crate::create_log_error(Error::Indecision(self.name.clone(), other.name.clone()))
                         }
                     }
                 }
@@ -131,13 +125,13 @@ impl Node {
         if let (Some(first), Some(second)) = (&self.value, &other.value) {
             // Make order of paths deterministic
             #[cfg(test)]
-            let (first, second) = if first < second {
+                let (first, second) = if first < second {
                 (first, second)
             } else {
                 (second, first) // grcov: ignore
             };
 
-            return Err(Error::DoubleDefine(first.clone(), second.clone()));
+            return crate::create_log_error(Error::DoubleDefine(first.clone(), second.clone()));
         }
 
         tracing::trace!("getting merged value, preferring left");
@@ -197,7 +191,7 @@ impl Node {
                     %name,
                     ?node
                 )
-                .entered();
+                    .entered();
                 // Ignore non-matching envs.
                 // Error on environments that don't exist.
                 if !envs
@@ -214,6 +208,7 @@ impl Node {
                     Ok(node_eval) => node_eval,
                     Err(err) => match err {
                         Error::Indecision(mut left, mut right) => {
+                            // Because this is recursively crafted, better to report at call site.
                             return Err(Error::Indecision(
                                 {
                                     left.insert(self.name.clone());
@@ -253,7 +248,7 @@ impl Node {
         envs: &BTreeMap<EnvironmentName, bool>,
     ) -> Result<Option<&PathWithEnv>, Error> {
         tracing::trace!("evaluating envtrie for best matching path");
-        let Evaluation { path, .. } = self.get_evaluation(envs)?;
+        let Evaluation { path, .. } = self.get_evaluation(envs).tap_err(crate::tap_log_error)?;
         Ok(path)
     }
 }
@@ -298,7 +293,7 @@ fn get_weighted_map(
     toposort(&score_dag, None).map_err(|cycle| {
         let node: &EnvironmentName = &score_dag[cycle.node_id()];
         Error::WeightCycle(node.clone())
-    })?;
+    }).tap_err(crate::tap_log_error)?;
 
     // Actually calculate map
     tracing::trace!("calculating environment weights from exclusivity lists");
@@ -393,7 +388,7 @@ impl EnvTrie {
                     for env2 in env_str.iter().skip(i + 1) {
                         if let Some(set) = exclusivity_map.get(env1) {
                             if set.contains(env2) {
-                                return Err(Error::CombinedMutuallyExclusive(env_str.clone()));
+                                return crate::create_log_error(Error::CombinedMutuallyExclusive(env_str.clone()));
                             }
                         }
                     }
@@ -401,7 +396,7 @@ impl EnvTrie {
 
                 let mut env_iter = env_str.into_iter().cloned().rev();
                 let mut prev_node = match env_iter.next() {
-                    None => return Err(Error::NoEnvironments),
+                    None => return crate::create_log_error(Error::NoEnvironments),
                     Some(name) => Node {
                         name,
                         score: 1,

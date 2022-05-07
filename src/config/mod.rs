@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tap::TapFallible;
 
 use thiserror::Error;
 
@@ -109,6 +110,7 @@ impl Config {
         self.hoards
             .get(name)
             .ok_or_else(|| Error::NoSuchHoard(name.clone()))
+            .tap_err(crate::tap_log_error)
     }
 
     /// Run the stored [`Command`] using this [`Config`].

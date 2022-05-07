@@ -161,7 +161,7 @@ impl Environment {
         let Environment { hostname, os, .. } = self;
         if let Some(comb) = hostname {
             if comb.is_only_and() || comb.is_complex() {
-                return Err(Error::InvalidCondition {
+                return crate::create_log_error(Error::InvalidCondition {
                     condition_str: comb.to_string(),
                     message: String::from("machines cannot have multiple hostnames at once!"),
                 });
@@ -170,7 +170,7 @@ impl Environment {
 
         if let Some(comb) = os {
             if comb.is_only_and() || comb.is_complex() {
-                return Err(Error::InvalidCondition {
+                return crate::create_log_error(Error::InvalidCondition {
                     condition_str: comb.to_string(),
                     message: String::from(
                         "machines cannot have multiple operating systems at once!",
@@ -212,9 +212,9 @@ mod tests {
             let exe_exists = ExeExists(PathBuf::from("test").try_into().unwrap());
             let path_exists = PathExists(Some(
                 #[cfg(unix)]
-                SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+                    SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
                 #[cfg(windows)]
-                SystemPath::try_from(PathBuf::from("C:\\test\\path")).unwrap(),
+                    SystemPath::try_from(PathBuf::from("C:\\test\\path")).unwrap(),
             ));
 
             let env = Environment {
@@ -232,7 +232,7 @@ mod tests {
                 format!("({})", exe_exists),
                 format!("({})", path_exists),
             ]
-            .join(" AND ");
+                .join(" AND ");
 
             assert_eq!(env.to_string(), expected);
         }

@@ -24,44 +24,44 @@
 #![deny(clippy::pedantic)]
 #![deny(rustdoc::missing_doc_code_examples)]
 #![deny(
-    absolute_paths_not_starting_with_crate,
-    anonymous_parameters,
-    bad_style,
-    const_err,
-    dead_code,
-    keyword_idents,
-    improper_ctypes,
-    macro_use_extern_crate,
-    meta_variable_misuse, // May have false positives
-    missing_abi,
-    missing_debug_implementations, // can affect compile time/code size
-    missing_docs,
-    no_mangle_generic_items,
-    non_shorthand_field_patterns,
-    noop_method_call,
-    overflowing_literals,
-    path_statements,
-    patterns_in_fns_without_body,
-    pointer_structural_match,
-    private_in_public,
-    semicolon_in_expressions_from_macros,
-    single_use_lifetimes,
-    trivial_casts,
-    trivial_numeric_casts,
-    unaligned_references,
-    unconditional_recursion,
-    unreachable_pub,
-    unsafe_code,
-    unused,
-    unused_allocation,
-    unused_comparisons,
-    unused_extern_crates,
-    unused_import_braces,
-    unused_lifetimes,
-    unused_parens,
-    unused_qualifications,
-    variant_size_differences,
-    while_true
+absolute_paths_not_starting_with_crate,
+anonymous_parameters,
+bad_style,
+const_err,
+dead_code,
+keyword_idents,
+improper_ctypes,
+macro_use_extern_crate,
+meta_variable_misuse, // May have false positives
+missing_abi,
+missing_debug_implementations, // can affect compile time/code size
+missing_docs,
+no_mangle_generic_items,
+non_shorthand_field_patterns,
+noop_method_call,
+overflowing_literals,
+path_statements,
+patterns_in_fns_without_body,
+pointer_structural_match,
+private_in_public,
+semicolon_in_expressions_from_macros,
+single_use_lifetimes,
+trivial_casts,
+trivial_numeric_casts,
+unaligned_references,
+unconditional_recursion,
+unreachable_pub,
+unsafe_code,
+unused,
+unused_allocation,
+unused_comparisons,
+unused_extern_crates,
+unused_import_braces,
+unused_lifetimes,
+unused_parens,
+unused_qualifications,
+variant_size_differences,
+while_true
 )]
 
 pub use config::Config;
@@ -87,3 +87,41 @@ pub const CONFIG_FILE_STEM: &str = "config";
 
 /// The name of the directory containing the backed up hoards.
 pub const HOARDS_DIR_SLUG: &str = "hoards";
+
+#[inline]
+pub(crate) fn tap_log_error<E: std::error::Error>(error: &E) {
+    tracing::error!(%error);
+}
+
+#[inline]
+pub(crate) fn tap_log_error_msg<E: std::error::Error>(msg: &str, error: &E) {
+    tracing::error!(%error, "{}", msg);
+}
+
+#[inline]
+pub(crate) fn create_log_error<T, E: std::error::Error>(error: E) -> Result<T, E> {
+    tap_log_error(&error);
+    Err(error)
+}
+
+#[inline]
+pub(crate) fn create_log_error_msg<T, E: std::error::Error>(msg: &str, error: E) -> Result<T, E> {
+    tap_log_error_msg(msg, &error);
+    Err(error)
+}
+
+pub(crate) fn map_log_error<E1: std::error::Error, E2: std::error::Error>(map: impl Fn(E1) -> E2) -> impl Fn(E1) -> E2 {
+    move |error| {
+        let error = map(error);
+        tap_log_error(&error);
+        error
+    }
+}
+
+pub(crate) fn map_log_error_msg<'m, E1: std::error::Error, E2: std::error::Error>(msg: &'m str, map: impl Fn(E1) -> E2 + 'm) -> impl Fn(E1) -> E2 + 'm {
+    move |error| {
+        let error = map(error);
+        tap_log_error_msg(msg, &error);
+        error
+    }
+}

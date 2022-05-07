@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
+use tap::TapFallible;
 
 /// A conditional structure that compares the system's hostname to the given string.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
@@ -15,7 +16,9 @@ impl TryInto<bool> for Hostname {
 
     fn try_into(self) -> Result<bool, super::Error> {
         let Hostname(expected) = self;
-        let host = hostname::get().map_err(super::Error::Hostname)?;
+        let host = hostname::get()
+            .map_err(super::Error::Hostname)
+            .tap_err(crate::tap_log_error)?;
 
         // grcov: ignore-start
         tracing::trace!(
