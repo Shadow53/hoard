@@ -1,11 +1,14 @@
-use crate::checksum::ChecksumType;
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs::Permissions as StdPermissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error as _;
+use tap::TapFallible;
 use tokio::{fs, io};
+
+use crate::checksum::ChecksumType;
 
 /// Configuration for symmetric (password) encryption.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -144,27 +147,19 @@ impl Permissions {
     pub async fn set_on_path(self, path: &Path) -> io::Result<()> {
         let perms = fs::metadata(path)
             .await
-            .map_err(|err| {
-                tracing::error!(
-                    "failed to read current permissions for {}: {}",
-                    path.display(),
-                    err
-                );
-                err
-            })?
+            .tap_err(crate::tap_log_error_msg(&format!("failed to read permissions on {}", path.display())))?
             .permissions();
         let perms = self.set_permissions(perms);
-        fs::set_permissions(path, perms).await.map_err(|err| {
-            tracing::error!("failed to set permissions on {}: {}", path.display(), err);
-            err
-        })
+        fs::set_permissions(path, perms).await.tap_err(crate::tap_log_error_msg(
+            &format!("failed to set permissions on {}", path.display())
+        ))
     }
 }
 
 #[allow(single_use_lifetimes)]
 fn deserialize_glob<'de, D>(deserializer: D) -> Result<Vec<glob::Pattern>, D::Error>
-where
-    D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
 {
     Vec::<String>::deserialize(deserializer)?
         .iter()
@@ -176,8 +171,8 @@ where
 
 #[allow(clippy::ptr_arg)]
 fn serialize_glob<S>(value: &Vec<glob::Pattern>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
+    where
+        S: Serializer,
 {
     let value = value
         .iter()
@@ -199,9 +194,9 @@ pub struct Config {
     pub encryption: Option<Encryption>,
     /// A list of glob patterns matching files to ignore.
     #[serde(
-        default,
-        deserialize_with = "deserialize_glob",
-        serialize_with = "serialize_glob"
+    default,
+    deserialize_with = "deserialize_glob",
+    serialize_with = "serialize_glob"
     )]
     pub ignore: Vec<glob::Pattern>,
     /// The [`Permissions`] to set on restored files.
@@ -251,9 +246,10 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::checksum::ChecksumType;
     use crate::hoard::pile_config::Permissions;
+
+    use super::*;
 
     #[test]
     fn test_layer_configs_both_none() {

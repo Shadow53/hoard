@@ -114,7 +114,7 @@ pub enum Hoard {
 }
 
 impl Hoard {
-    /// Returns an iterator over all piles with associates paths.
+    /// Returns an iterator over all piles with associated paths.
     ///
     /// The [`HoardPath`] and [`SystemPath`] represent the relevant prefix/root path for the given pile.
     #[must_use]

@@ -94,8 +94,10 @@ pub(crate) fn tap_log_error<E: std::error::Error>(error: &E) {
 }
 
 #[inline]
-pub(crate) fn tap_log_error_msg<E: std::error::Error>(msg: &str, error: &E) {
-    tracing::error!(%error, "{}", msg);
+pub(crate) fn tap_log_error_msg<'m, E: std::error::Error>(msg: &'m str) -> impl Fn(&E) + 'm {
+    move |error| {
+        tracing::error!(%error, "{}", msg);
+    }
 }
 
 #[inline]
@@ -106,7 +108,7 @@ pub(crate) fn create_log_error<T, E: std::error::Error>(error: E) -> Result<T, E
 
 #[inline]
 pub(crate) fn create_log_error_msg<T, E: std::error::Error>(msg: &str, error: E) -> Result<T, E> {
-    tap_log_error_msg(msg, &error);
+    tap_log_error_msg(msg)(&error);
     Err(error)
 }
 
@@ -121,7 +123,7 @@ pub(crate) fn map_log_error<E1: std::error::Error, E2: std::error::Error>(map: i
 pub(crate) fn map_log_error_msg<'m, E1: std::error::Error, E2: std::error::Error>(msg: &'m str, map: impl Fn(E1) -> E2 + 'm) -> impl Fn(E1) -> E2 + 'm {
     move |error| {
         let error = map(error);
-        tap_log_error_msg(msg, &error);
+        tap_log_error_msg(msg)(&error);
         error
     }
 }

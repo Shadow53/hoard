@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use futures::stream::Peekable;
 use futures::{StreamExt, TryStream};
+use futures::stream::Peekable;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
@@ -24,9 +24,9 @@ impl RootPathItem {
     fn keep(&self) -> bool {
         (!self.exists() || self.is_file() || self.is_dir())
             && self.filters.keep(
-                self.hoard_file.system_prefix(),
-                self.hoard_file.relative_path(),
-            )
+            self.hoard_file.system_prefix(),
+            self.hoard_file.relative_path(),
+        )
     }
 
     fn is_file(&self) -> bool {
@@ -72,7 +72,7 @@ impl AllFilesIter {
                         ),
                         filters,
                     }))
-                    .collect(),
+                        .collect(),
                 }
             }
             Hoard::Named(piles) => piles
@@ -81,7 +81,7 @@ impl AllFilesIter {
                 .filter_map(|(name, pile)| {
                     let filters = match Filters::new(&pile.config) {
                         Ok(filters) => filters,
-                        Err(err) => return Some(Err(super::Error::Filter(err))),
+                        Err(err) => return Some(crate::create_log_error(super::Error::Filter(err))),
                     };
                     let name_path = RelativePath::from(name);
                     pile.path.as_ref().map(|path| {
@@ -253,7 +253,7 @@ impl AllFilesIter {
                         .expect("prefix should always match path")
                         .to_path_buf(),
                 )
-                .expect("path created with strip_prefix should always be valid RelativePath");
+                    .expect("path created with strip_prefix should always be valid RelativePath");
                 Ok(Some(rel_path))
             }
             Some((Err(error), prefix)) => {
@@ -264,13 +264,11 @@ impl AllFilesIter {
                     .hoard_file
                     .relative_path()
                     .to_path_buf();
-                tracing::error!(
-                    "could not process entry in {}/{}: {}",
-                    prefix.display(),
-                    rel_path.display(),
-                    error
-                );
-                Err(error)
+                let path = prefix.join(rel_path);
+                crate::create_log_error_msg(&format!(
+                    "could not process entry in {}",
+                    path.display(),
+                ), error)
             }
         }
     }
@@ -345,12 +343,12 @@ impl AllFilesIter {
                                     if err.kind() == io::ErrorKind::NotFound {
                                         self.system_entries = None;
                                     } else {
-                                        tracing::error!(
-                                            "failed to read directory {}: {}",
-                                            system_path.display(),
-                                            err
-                                        );
-                                        return Some(Some(Err(err)));
+                                        return Some(Some(crate::create_log_error_msg(
+                                            &format!(
+                                                "failed to read directory {}",
+                                                system_path.display(),
+                                            ), err,
+                                        )));
                                     }
                                 }
                             }
@@ -362,12 +360,12 @@ impl AllFilesIter {
                                     if err.kind() == io::ErrorKind::NotFound {
                                         self.hoard_entries = None;
                                     } else {
-                                        tracing::error!(
-                                            "failed to read directory {}: {}",
-                                            hoard_path.display(),
-                                            err
-                                        );
-                                        return Some(Some(Err(err)));
+                                        return Some(Some(crate::create_log_error_msg(
+                                            &format!(
+                                                "failed to read directory {}",
+                                                hoard_path.display(),
+                                            ), err,
+                                        )));
                                     }
                                 }
                             }
@@ -416,7 +414,7 @@ pub async fn all_files_stream(
     hoards_root: &HoardPath,
     hoard_name: &HoardName,
     hoard: &Hoard,
-) -> Result<impl TryStream<Ok = HoardItem, Error = super::Error>, super::Error> {
+) -> Result<impl TryStream<Ok=HoardItem, Error=super::Error>, super::Error> {
     let mut all_files = AllFilesIter::new(hoards_root, hoard_name, hoard).await?;
     let stream = async_stream::try_stream! {
         while let Some(item) = all_files.next_item().await {
