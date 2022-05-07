@@ -16,24 +16,13 @@ use crate::paths::{RelativePath, SystemPath};
 
 use super::Filter;
 
-#[derive(Debug, Error)]
-pub enum Error {
-    /// An invalid glob was provided in the configuration file
-    #[error("invalid glob pattern \"{pattern}\": {error}")]
-    InvalidGlob {
-        pattern: String,
-        #[source]
-        error: PatternError,
-    },
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub(crate) struct IgnoreFilter {
     globs: Vec<Pattern>,
 }
 
 impl Filter for IgnoreFilter {
-    type Error = Error;
+    type Error = std::convert::Infallible;
 
     fn new(pile_config: &PileConfig) -> Result<Self, Self::Error> {
         Ok(IgnoreFilter {
