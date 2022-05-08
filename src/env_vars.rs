@@ -138,11 +138,10 @@ impl PathWithEnv {
             // (a) The context is not terribly important for the error
             // (b) This is used when parsing the configuration file, so there is no
             //     simple way to only parse the paths that apply to this system.
-            let value = env::var(var)
-                .map_err(|error| Error::Env {
-                    error,
-                    var: var.to_string(),
-                })?;
+            let value = env::var(var).map_err(|error| Error::Env {
+                error,
+                var: var.to_string(),
+            })?;
 
             old_start = start;
             start += mat.start() + value.len();
