@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 use std::fmt::Formatter;
+use tap::TapFallible;
 
 /// An internal container for the [`Combinator<T>`] type.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
@@ -167,7 +168,7 @@ where
     ///
     /// Any errors during the serialization process ([`toml::ser::Error`]).
     pub fn to_toml_string(&self) -> Result<String, toml::ser::Error> {
-        toml::to_string(&self)
+        toml::to_string(&self).tap_err(crate::tap_log_error_msg("failed to serialize combinator as TOML"))
     }
 }
 

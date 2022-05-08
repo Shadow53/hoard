@@ -10,8 +10,8 @@ use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 
-use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error as _;
 use thiserror::Error;
 
 use crate::newtypes::{HoardName, NonEmptyPileName, PileName};
@@ -69,8 +69,8 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 fn is_valid_absolute(path: &Path) -> bool {
     path.is_absolute()
         && path
-            .components()
-            .all(|comp| !matches!(comp, Component::ParentDir))
+        .components()
+        .all(|comp| !matches!(comp, Component::ParentDir))
 }
 
 /// Errors that may be returned when using [`TryFrom`] on a path wrapper.
@@ -140,14 +140,14 @@ impl TryFrom<PathBuf> for HoardPath {
     fn try_from(input: PathBuf) -> Result<Self, Self::Error> {
         let value = normalize_path(&input);
         if !is_valid_absolute(&value) {
-            return Err(Error::InvalidHoardPath(input));
+            return crate::create_log_error(Error::InvalidHoardPath(input));
         }
 
         let hoard_root = crate::dirs::data_dir();
         if value == hoard_root || value.strip_prefix(&hoard_root).is_ok() {
             Ok(Self(value))
         } else {
-            Err(Error::InvalidHoardPath(value))
+            crate::create_log_error(Error::InvalidHoardPath(value))
         }
     }
 }
@@ -174,7 +174,7 @@ impl HoardPath {
                 .as_ref()
                 .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path)),
         )
-        .expect("a HoardPath rooted in an existing HoardPath is always valid")
+            .expect("a HoardPath rooted in an existing HoardPath is always valid")
     }
 }
 
@@ -207,12 +207,12 @@ impl TryFrom<PathBuf> for SystemPath {
     fn try_from(input: PathBuf) -> Result<Self, Self::Error> {
         let value = normalize_path(&input);
         if !is_valid_absolute(&value) {
-            return Err(Error::InvalidSystemPath(input));
+            return crate::create_log_error(Error::InvalidSystemPath(input));
         }
 
         let hoard_root = crate::dirs::data_dir();
         if value == hoard_root || value.strip_prefix(&hoard_root).is_ok() {
-            Err(Error::InvalidSystemPath(value))
+            crate::create_log_error(Error::InvalidSystemPath(value))
         } else {
             Ok(Self(value))
         }
@@ -233,7 +233,7 @@ impl SystemPath {
                 .as_ref()
                 .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path)),
         )
-        .expect("a SystemPath rooted in an existing SystemPath is always valid")
+            .expect("a SystemPath rooted in an existing SystemPath is always valid")
     }
 }
 
@@ -252,8 +252,8 @@ pub struct RelativePath(Option<PathBuf>);
 
 impl Serialize for RelativePath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         self.0
             .clone()
@@ -264,8 +264,8 @@ impl Serialize for RelativePath {
 
 impl<'de> Deserialize<'de> for RelativePath {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let path = PathBuf::deserialize(deserializer)?;
         Self::try_from(path).map_err(D::Error::custom)
@@ -286,7 +286,7 @@ impl TryFrom<PathBuf> for RelativePath {
         {
             Ok(Self(Some(value)))
         } else {
-            Err(Error::InvalidRelativePath(value))
+            crate::create_log_error(Error::InvalidRelativePath(value))
         }
     }
 }
@@ -427,9 +427,9 @@ mod tests {
         #[test]
         fn test_absolute_paths_not_allowed() {
             #[cfg(unix)]
-            let bin_path = PathBuf::from("/bin/sh");
+                let bin_path = PathBuf::from("/bin/sh");
             #[cfg(windows)]
-            let bin_path = PathBuf::from("C:\\Windows\\System32\\cmd.exe");
+                let bin_path = PathBuf::from("C:\\Windows\\System32\\cmd.exe");
 
             let home_path = crate::dirs::home_dir().join("file.txt");
 
@@ -512,9 +512,9 @@ mod tests {
                 RelativePath(Some(valid_path))
             );
             #[cfg(unix)]
-            let invalid_path = PathBuf::from("/invalid/path");
+                let invalid_path = PathBuf::from("/invalid/path");
             #[cfg(windows)]
-            let invalid_path = PathBuf::from("C:\\\\invalid\\path");
+                let invalid_path = PathBuf::from("C:\\\\invalid\\path");
 
             assert!(
                 invalid_path.is_absolute(),

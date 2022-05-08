@@ -8,6 +8,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{env, fmt};
+use tap::TapFallible;
 
 // Following the example of `std::env::set_var`, the only things disallowed are
 // the equals sign and the NUL character.
@@ -137,7 +138,7 @@ impl PathWithEnv {
             let value = env::var(var).map_err(|error| Error::Env {
                 error,
                 var: var.to_string(),
-            })?;
+            }).tap_err(crate::tap_log_error)?;
 
             old_start = start;
             start += mat.start() + value.len();
