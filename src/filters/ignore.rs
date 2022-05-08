@@ -8,8 +8,7 @@
 /// ```
 ///
 /// This can be put under global, hoard, or pile scope.
-use glob::{Pattern, PatternError};
-use thiserror::Error;
+use glob::Pattern;
 
 use crate::hoard::PileConfig;
 use crate::paths::{RelativePath, SystemPath};
@@ -22,12 +21,10 @@ pub(crate) struct IgnoreFilter {
 }
 
 impl Filter for IgnoreFilter {
-    type Error = std::convert::Infallible;
-
-    fn new(pile_config: &PileConfig) -> Result<Self, Self::Error> {
-        Ok(IgnoreFilter {
+    fn new(pile_config: &PileConfig) -> Self {
+        IgnoreFilter {
             globs: pile_config.ignore.clone(),
-        })
+        }
     }
 
     #[tracing::instrument(name = "run_ignore_filter", skip(self, _prefix))]
@@ -56,14 +53,14 @@ mod tests {
                 ignore: vec![Pattern::new("testing/**").unwrap()],
                 ..PileConfig::default()
             };
-            IgnoreFilter::new(&config).expect("filter should be valid")
+            IgnoreFilter::new(&config)
         };
         let other = {
             let config = PileConfig {
                 ignore: vec![Pattern::new("test/**").unwrap()],
                 ..PileConfig::default()
             };
-            IgnoreFilter::new(&config).expect("filter should be valid")
+            IgnoreFilter::new(&config)
         };
         assert!(format!("{:?}", filter).contains("IgnoreFilter"));
         assert_eq!(filter, filter.clone());

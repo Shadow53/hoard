@@ -60,7 +60,7 @@ impl AllFilesIter {
         match hoard {
             Hoard::Anonymous(pile) => {
                 let path = pile.path.clone();
-                let filters = Filters::new(&pile.config)?;
+                let filters = Filters::new(&pile.config);
                 match path {
                     None => Ok(Vec::default()),
                     Some(system_prefix) => std::iter::once(Ok(RootPathItem {
@@ -79,10 +79,7 @@ impl AllFilesIter {
                 .piles
                 .iter()
                 .filter_map(|(name, pile)| {
-                    let filters = match Filters::new(&pile.config) {
-                        Ok(filters) => filters,
-                        Err(err) => return Some(crate::create_log_error(super::Error::Filter(err))),
-                    };
+                    let filters = Filters::new(&pile.config);
                     let name_path = RelativePath::from(name);
                     pile.path.as_ref().map(|path| {
                         let hoard_prefix = hoard_name_root.join(&name_path);

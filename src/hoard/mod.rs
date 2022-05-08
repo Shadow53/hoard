@@ -12,7 +12,6 @@ use tokio::io;
 
 pub use pile_config::Config as PileConfig;
 
-use crate::filters::Error as FilterError;
 use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 
@@ -59,9 +58,6 @@ pub enum Error {
         /// Destination path.
         dest: PathBuf,
     },
-    /// An error occurred while filtering files.
-    #[error("error while filtering files: {0}")]
-    Filter(#[from] FilterError),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -122,7 +118,7 @@ impl Hoard {
     pub fn get_paths(
         &self,
         hoards_root: HoardPath,
-    ) -> Box<dyn Iterator<Item = (PileName, HoardPath, SystemPath)>> {
+    ) -> Box<dyn Iterator<Item=(PileName, HoardPath, SystemPath)>> {
         match self {
             Hoard::Anonymous(pile) => match pile.path.clone() {
                 None => Box::new(std::iter::empty()),
