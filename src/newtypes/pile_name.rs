@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::{fmt, ops::Deref};
+use std::str::FromStr;
 
 use serde::{de, Deserialize, Deserializer, Serialize};
 
@@ -35,22 +35,22 @@ impl<'de> de::Visitor<'de> for PileNameVisitor {
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
+        where
+            E: de::Error,
     {
         v.parse().map_err(E::custom)
     }
 
     fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         deserializer.deserialize_str(self)
     }
 
     fn visit_none<E>(self) -> Result<Self::Value, E>
-    where
-        E: de::Error,
+        where
+            E: de::Error,
     {
         Ok(PileName(None))
     }
@@ -58,16 +58,16 @@ impl<'de> de::Visitor<'de> for PileNameVisitor {
 
 impl<'de> Deserialize<'de> for PileName {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         deserializer.deserialize_any(PileNameVisitor)
     }
 }
 
 impl<T> TryFrom<Option<T>> for PileName
-where
-    T: AsRef<str>,
+    where
+        T: AsRef<str>,
 {
     type Error = Error;
 
@@ -153,11 +153,11 @@ mod tests {
     #[test]
     fn test_from_str() {
         let inputs = vec![
-            ("", Err(Error::InvalidName(String::from("")))),
+            ("", Err(Error::DisallowedName(String::from("")))),
             ("name", Ok(PileName(Some("name".parse().unwrap())))),
             (
                 "invalid name",
-                Err(Error::InvalidName(String::from("invalid name"))),
+                Err(Error::DisallowedCharacters(String::from("invalid name"))),
             ),
         ];
 
@@ -172,7 +172,7 @@ mod tests {
                     (Error::EmptyName, _) | (_, Error::EmptyName) => {
                         panic!("expected {:?}, got {:?}", err1, err2);
                     }
-                    (Error::InvalidName(invalid1), Error::InvalidName(invalid2)) => {
+                    (Error::DisallowedName(invalid1) | Error::DisallowedCharacters(invalid1), Error::DisallowedName(invalid2) | Error::DisallowedCharacters(invalid2)) => {
                         assert_eq!(
                             invalid1, invalid2,
                             "expected invalid string to be {}, was {}",

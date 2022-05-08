@@ -59,14 +59,14 @@ mod tests {
     #[test]
     fn test_from_str() {
         let inputs = [
-            (String::from(""), Err(Error::InvalidName(String::from("")))),
+            (String::from(""), Err(Error::DisallowedName(String::from("")))),
             (
                 String::from("config"),
-                Err(Error::InvalidName(String::from("config"))),
+                Err(Error::DisallowedName(String::from("config"))),
             ),
             (
                 String::from("bad name"),
-                Err(Error::InvalidName(String::from("bad name"))),
+                Err(Error::DisallowedCharacters(String::from("bad name"))),
             ),
             (String::from("valid"), Ok(HoardName(String::from("valid")))),
         ];

@@ -53,10 +53,10 @@ mod tests {
     #[test]
     fn test_from_str() {
         let inputs = [
-            ("", Err(Error::InvalidName(String::from("")))),
+            ("", Err(Error::DisallowedName(String::from("")))),
             (
                 "invalid name",
-                Err(Error::InvalidName(String::from("invalid name"))),
+                Err(Error::DisallowedCharacters(String::from("invalid name"))),
             ),
             ("valid", Ok(EnvironmentName(String::from("valid")))),
         ];

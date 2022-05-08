@@ -20,9 +20,12 @@ mod pile_name;
 /// Errors that may occur while creating an instance of one of this newtypes.
 #[derive(Debug, Error, PartialEq)]
 pub enum Error {
-    /// The given string is not a valid name (alphanumeric).
-    #[error("invalid name: \"{0}\": must contain only alphanumeric characters")]
-    InvalidName(String),
+    /// The given string contains disallowed characters.
+    #[error("invalid name \"{0}\": must contain only alphanumeric characters, '-', '_', or '.'")]
+    DisallowedCharacters(String),
+    /// The given string is a disallowed name.
+    #[error("name \"{0}\" is not allowed")]
+    DisallowedName(String),
     /// The given string was empty, which is not allowed.
     #[error("name cannot be empty (null, None, or the empty string)")]
     EmptyName,
@@ -32,15 +35,18 @@ const DISALLOWED_NAMES: [&str; 2] = ["", "config"];
 
 #[tracing::instrument(level = "trace")]
 fn validate_name(name: String) -> Result<String, Error> {
-    if name
+    if !name
         .chars()
         .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
-        && DISALLOWED_NAMES
-            .iter()
-            .all(|disallowed| &name != disallowed)
     {
-        Ok(name)
-    } else {
-        Err(Error::InvalidName(name))
+        return crate::create_log_error(Error::DisallowedCharacters(name));
     }
+
+    if DISALLOWED_NAMES
+        .iter()
+        .any(|disallowed| &name == disallowed) {
+        return crate::create_log_error(Error::DisallowedName(name));
+    }
+
+    Ok(name)
 }

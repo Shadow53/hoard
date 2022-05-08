@@ -1,8 +1,10 @@
-use super::{EnvironmentName, Error};
-use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::str::FromStr;
+
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+
+use super::{EnvironmentName, Error};
 
 /// Newtype wrapper for `HashSet<EnvironmentName>` representing a list of environments.
 ///
@@ -59,8 +61,8 @@ impl fmt::Display for EnvironmentString {
 
 impl<'de> Deserialize<'de> for EnvironmentString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let inner = String::deserialize(deserializer)?;
         inner.parse().map_err(D::Error::custom)
@@ -69,8 +71,8 @@ impl<'de> Deserialize<'de> for EnvironmentString {
 
 impl Serialize for EnvironmentString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -100,8 +102,9 @@ impl EnvironmentString {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_test::{assert_tokens, Token};
+
+    use super::*;
 
     const NAME_1: &str = "3rd";
     const NAME_2: &str = "FIRST";
@@ -200,13 +203,13 @@ mod tests {
             let error = EnvironmentString::from_str(s).expect_err("input string should be invalid");
             match (expected, &error) {
                 (None, Error::EmptyName) => {}
-                (None, Error::InvalidName(_)) => {
+                (None, _) => {
                     panic!("expected Error::EmptyName, got {:?}", error)
                 }
                 (Some(s), Error::EmptyName) => {
                     panic!("expected Error::InvalidName(\"{}\"), got {:?}", s, error)
                 }
-                (Some(s1), Error::InvalidName(s2)) => assert_eq!(
+                (Some(s1), Error::DisallowedName(s2) | Error::DisallowedCharacters(s2)) => assert_eq!(
                     s1, s2,
                     "expected invalid name to be \"{}\", got \"{}\"",
                     s1, s2
