@@ -8,7 +8,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{env, fmt};
-use tap::TapFallible;
 
 // Following the example of `std::env::set_var`, the only things disallowed are
 // the equals sign and the NUL character.
@@ -135,12 +134,15 @@ impl PathWithEnv {
             let var = &var[2..var.len() - 1];
             tracing::trace!(var, "found environment variable {}", var,);
 
+            // Error is not logged here because:
+            // (a) The context is not terribly important for the error
+            // (b) This is used when parsing the configuration file, so there is no
+            //     simple way to only parse the paths that apply to this system.
             let value = env::var(var)
                 .map_err(|error| Error::Env {
                     error,
                     var: var.to_string(),
-                })
-                .tap_err(crate::tap_log_error)?;
+                })?;
 
             old_start = start;
             start += mat.start() + value.len();
