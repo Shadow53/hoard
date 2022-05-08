@@ -94,7 +94,7 @@ pub(crate) fn tap_log_error<E: std::error::Error>(error: &E) {
 }
 
 #[inline]
-pub(crate) fn tap_log_error_msg<'m, E: std::error::Error>(msg: &'m str) -> impl Fn(&E) + 'm {
+pub(crate) fn tap_log_error_msg<E: std::error::Error>(msg: &'_ str) -> impl Fn(&E) + '_ {
     move |error| {
         tracing::error!(%error, "{}", msg);
     }
