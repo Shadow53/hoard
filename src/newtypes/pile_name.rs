@@ -206,7 +206,7 @@ mod tests {
     fn test_serde_empty_str() {
         serde_test::assert_de_tokens_error::<PileName>(
             &[Token::Str("")],
-            "invalid name: \"\": must contain only alphanumeric characters",
+            "name \"\" is not allowed",
         );
     }
 
