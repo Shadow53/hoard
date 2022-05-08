@@ -214,7 +214,7 @@ mod tests {
                         s1, s2,
                         "expected invalid name to be \"{}\", got \"{}\"",
                         s1, s2
-                    )
+                    );
                 }
             }
         }
