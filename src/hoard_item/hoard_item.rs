@@ -1,4 +1,5 @@
 use std::path::Path;
+use tap::TapFallible;
 
 use tokio::io;
 
@@ -127,7 +128,9 @@ impl HoardItem {
     }
 
     async fn content(path: &Path) -> io::Result<FileContent> {
-        FileContent::read_path(path).await
+        FileContent::read_path(path).await.tap_err(
+            crate::tap_log_error_msg(&format!("failed to read content from {}", path.display()))
+        )
     }
 
     async fn raw_content(path: &Path) -> io::Result<Option<Vec<u8>>> {
