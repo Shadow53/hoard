@@ -65,10 +65,10 @@ pub fn set_known_folder(folder_id: GUID, new_path: &Path) -> WinResult<()> {
 }
 
 macro_rules! get_and_log_known_folder {
-    ($id: ident) => {
+    ($id: ident) => {{
         tracing::trace!("attempting to get known folder {}", std::stringify!($id));
         get_known_folder($id)
-    };
+    }};
 }
 
 #[must_use]
