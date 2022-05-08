@@ -44,7 +44,8 @@ fn validate_name(name: String) -> Result<String, Error> {
 
     if DISALLOWED_NAMES
         .iter()
-        .any(|disallowed| &name == disallowed) {
+        .any(|disallowed| &name == disallowed)
+    {
         return crate::create_log_error(Error::DisallowedName(name));
     }
 

@@ -112,7 +112,9 @@ pub(crate) fn create_log_error_msg<T, E: std::error::Error>(msg: &str, error: E)
     Err(error)
 }
 
-pub(crate) fn map_log_error<E1: std::error::Error, E2: std::error::Error>(map: impl Fn(E1) -> E2) -> impl Fn(E1) -> E2 {
+pub(crate) fn map_log_error<E1: std::error::Error, E2: std::error::Error>(
+    map: impl Fn(E1) -> E2,
+) -> impl Fn(E1) -> E2 {
     move |error| {
         let error = map(error);
         tap_log_error(&error);
@@ -120,7 +122,10 @@ pub(crate) fn map_log_error<E1: std::error::Error, E2: std::error::Error>(map: i
     }
 }
 
-pub(crate) fn map_log_error_msg<'m, E1: std::error::Error, E2: std::error::Error>(msg: &'m str, map: impl Fn(E1) -> E2 + 'm) -> impl Fn(E1) -> E2 + 'm {
+pub(crate) fn map_log_error_msg<'m, E1: std::error::Error, E2: std::error::Error>(
+    msg: &'m str,
+    map: impl Fn(E1) -> E2 + 'm,
+) -> impl Fn(E1) -> E2 + 'm {
     move |error| {
         let error = map(error);
         tap_log_error_msg(msg)(&error);

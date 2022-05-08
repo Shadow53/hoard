@@ -13,9 +13,9 @@ use tokio::{fs, io};
 use environment::Environment;
 
 use crate::command::Command;
-use crate::CONFIG_FILE_STEM;
 use crate::hoard::PileConfig;
 use crate::newtypes::{EnvironmentName, HoardName};
+use crate::CONFIG_FILE_STEM;
 
 use super::Config;
 
@@ -48,7 +48,9 @@ pub enum Error {
     #[error("failed to process hoard configuration: {0}")]
     ProcessHoard(#[from] hoard::Error),
     /// The given file has no or invalid file extension
-    #[error("configuration file does not have file extension \".toml\", \".yaml\", or \".yml\": {0}")]
+    #[error(
+        "configuration file does not have file extension \".toml\", \".yaml\", or \".yml\": {0}"
+    )]
     InvalidExtension(PathBuf),
 }
 
@@ -127,24 +129,22 @@ impl Builder {
     #[tracing::instrument(level = "debug", name = "config_builder_from_file")]
     pub async fn from_file(path: &Path) -> Result<Self, Error> {
         tracing::debug!("reading configuration");
-        let s = fs::read_to_string(path).await.map_err(crate::map_log_error(Error::ReadConfig))?;
+        let s = fs::read_to_string(path)
+            .await
+            .map_err(crate::map_log_error(Error::ReadConfig))?;
         // Necessary because Deserialize on enums erases any errors returned by each variant.
         match path.extension().and_then(std::ffi::OsStr::to_str) {
             None => crate::create_log_error(Error::InvalidExtension(path.to_owned())),
             Some(ext) => match ext {
-                "toml" | "TOML" => toml::from_str(&s).map_err(
-                    crate::map_log_error_msg(
-                        &format!("failed to parse TOML from {}", path.display()),
-                        Error::DeserializeTOML,
-                    )
-                ),
+                "toml" | "TOML" => toml::from_str(&s).map_err(crate::map_log_error_msg(
+                    &format!("failed to parse TOML from {}", path.display()),
+                    Error::DeserializeTOML,
+                )),
                 "yaml" | "yml" | "YAML" | "YML" => {
-                    serde_yaml::from_str(&s).map_err(
-                        crate::map_log_error_msg(
-                            &format!("failed to parse YAML from {}", path.display()),
-                            Error::DeserializeYAML,
-                        )
-                    )
+                    serde_yaml::from_str(&s).map_err(crate::map_log_error_msg(
+                        &format!("failed to parse YAML from {}", path.display()),
+                        Error::DeserializeYAML,
+                    ))
                 }
                 _ => crate::create_log_error(Error::InvalidExtension(path.to_owned())),
             },
@@ -193,25 +193,25 @@ impl Builder {
                     .iter()
                     .map(|suffix| Ok((suffix, parent.clone()))),
             )
-                .try_filter_map(|(suffix, parent)| async move {
-                    let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
-                    let path = parent.join(path);
-                    match Self::from_file(&path).await {
-                        Err(Error::ReadConfig(err)) => {
-                            if let io::ErrorKind::NotFound = err.kind() {
-                                Ok(None)
-                            } else {
-                                crate::create_log_error(Error::ReadConfig(err))
-                            }
+            .try_filter_map(|(suffix, parent)| async move {
+                let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
+                let path = parent.join(path);
+                match Self::from_file(&path).await {
+                    Err(Error::ReadConfig(err)) => {
+                        if let io::ErrorKind::NotFound = err.kind() {
+                            Ok(None)
+                        } else {
+                            crate::create_log_error(Error::ReadConfig(err))
                         }
-                        Ok(config) => Ok(Some(config)),
-                        Err(err) => crate::create_log_error(err),
                     }
-                }),
+                    Ok(config) => Ok(Some(config)),
+                    Err(err) => crate::create_log_error(err),
+                }
+            }),
         )
-            .try_next()
-            .await?
-            .ok_or_else(error_closure)
+        .try_next()
+        .await?
+        .ok_or_else(error_closure)
     }
 
     /// Helper method to process command-line arguments and the config file specified on CLI

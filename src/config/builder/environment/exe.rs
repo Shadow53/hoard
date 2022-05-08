@@ -1,6 +1,5 @@
 //! See [`ExeExists`].
 
-use std::{fs, io};
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Debug;
@@ -8,6 +7,7 @@ use std::ops::Deref;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;

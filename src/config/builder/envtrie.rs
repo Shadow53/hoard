@@ -109,9 +109,10 @@ impl<'a> Evaluation<'a> {
                     match rel_score.cmp(&0) {
                         Ordering::Less => Ok(false),
                         Ordering::Greater => Ok(true),
-                        Ordering::Equal => {
-                            crate::create_log_error(Error::Indecision(self.name.clone(), other.name.clone()))
-                        }
+                        Ordering::Equal => crate::create_log_error(Error::Indecision(
+                            self.name.clone(),
+                            other.name.clone(),
+                        )),
                     }
                 }
             },
@@ -125,7 +126,7 @@ impl Node {
         if let (Some(first), Some(second)) = (&self.value, &other.value) {
             // Make order of paths deterministic
             #[cfg(test)]
-                let (first, second) = if first < second {
+            let (first, second) = if first < second {
                 (first, second)
             } else {
                 (second, first) // grcov: ignore
@@ -191,7 +192,7 @@ impl Node {
                     %name,
                     ?node
                 )
-                    .entered();
+                .entered();
                 // Ignore non-matching envs.
                 // Error on environments that don't exist.
                 if !envs
@@ -290,10 +291,12 @@ fn get_weighted_map(
         }
     }
 
-    toposort(&score_dag, None).map_err(|cycle| {
-        let node: &EnvironmentName = &score_dag[cycle.node_id()];
-        Error::WeightCycle(node.clone())
-    }).tap_err(crate::tap_log_error)?;
+    toposort(&score_dag, None)
+        .map_err(|cycle| {
+            let node: &EnvironmentName = &score_dag[cycle.node_id()];
+            Error::WeightCycle(node.clone())
+        })
+        .tap_err(crate::tap_log_error)?;
 
     // Actually calculate map
     tracing::trace!("calculating environment weights from exclusivity lists");
@@ -388,7 +391,9 @@ impl EnvTrie {
                     for env2 in env_str.iter().skip(i + 1) {
                         if let Some(set) = exclusivity_map.get(env1) {
                             if set.contains(env2) {
-                                return crate::create_log_error(Error::CombinedMutuallyExclusive(env_str.clone()));
+                                return crate::create_log_error(Error::CombinedMutuallyExclusive(
+                                    env_str.clone(),
+                                ));
                             }
                         }
                     }

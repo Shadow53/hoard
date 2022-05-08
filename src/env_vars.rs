@@ -135,10 +135,12 @@ impl PathWithEnv {
             let var = &var[2..var.len() - 1];
             tracing::trace!(var, "found environment variable {}", var,);
 
-            let value = env::var(var).map_err(|error| Error::Env {
-                error,
-                var: var.to_string(),
-            }).tap_err(crate::tap_log_error)?;
+            let value = env::var(var)
+                .map_err(|error| Error::Env {
+                    error,
+                    var: var.to_string(),
+                })
+                .tap_err(crate::tap_log_error)?;
 
             old_start = start;
             start += mat.start() + value.len();

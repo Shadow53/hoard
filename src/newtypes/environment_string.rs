@@ -61,8 +61,8 @@ impl fmt::Display for EnvironmentString {
 
 impl<'de> Deserialize<'de> for EnvironmentString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let inner = String::deserialize(deserializer)?;
         inner.parse().map_err(D::Error::custom)
@@ -71,8 +71,8 @@ impl<'de> Deserialize<'de> for EnvironmentString {
 
 impl Serialize for EnvironmentString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -209,11 +209,13 @@ mod tests {
                 (Some(s), Error::EmptyName) => {
                     panic!("expected Error::InvalidName(\"{}\"), got {:?}", s, error)
                 }
-                (Some(s1), Error::DisallowedName(s2) | Error::DisallowedCharacters(s2)) => assert_eq!(
-                    s1, s2,
-                    "expected invalid name to be \"{}\", got \"{}\"",
-                    s1, s2
-                ),
+                (Some(s1), Error::DisallowedName(s2) | Error::DisallowedCharacters(s2)) => {
+                    assert_eq!(
+                        s1, s2,
+                        "expected invalid name to be \"{}\", got \"{}\"",
+                        s1, s2
+                    )
+                }
             }
         }
     }

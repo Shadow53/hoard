@@ -82,7 +82,10 @@ mod tests {
     #[test]
     fn test_from_str_and_try_from_string() {
         let inputs = vec![
-            (String::from(""), Err(Error::DisallowedName(String::from("")))),
+            (
+                String::from(""),
+                Err(Error::DisallowedName(String::from(""))),
+            ),
             (
                 String::from("testing"),
                 Ok(NonEmptyPileName(String::from("testing"))),

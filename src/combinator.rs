@@ -168,7 +168,9 @@ where
     ///
     /// Any errors during the serialization process ([`toml::ser::Error`]).
     pub fn to_toml_string(&self) -> Result<String, toml::ser::Error> {
-        toml::to_string(&self).tap_err(crate::tap_log_error_msg("failed to serialize combinator as TOML"))
+        toml::to_string(&self).tap_err(crate::tap_log_error_msg(
+            "failed to serialize combinator as TOML",
+        ))
     }
 }
 

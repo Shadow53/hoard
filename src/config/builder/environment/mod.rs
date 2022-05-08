@@ -212,9 +212,9 @@ mod tests {
             let exe_exists = ExeExists(PathBuf::from("test").try_into().unwrap());
             let path_exists = PathExists(Some(
                 #[cfg(unix)]
-                    SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
+                SystemPath::try_from(PathBuf::from("/test/path")).unwrap(),
                 #[cfg(windows)]
-                    SystemPath::try_from(PathBuf::from("C:\\test\\path")).unwrap(),
+                SystemPath::try_from(PathBuf::from("C:\\test\\path")).unwrap(),
             ));
 
             let env = Environment {
@@ -232,7 +232,7 @@ mod tests {
                 format!("({})", exe_exists),
                 format!("({})", path_exists),
             ]
-                .join(" AND ");
+            .join(" AND ");
 
             assert_eq!(env.to_string(), expected);
         }

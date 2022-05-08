@@ -118,7 +118,7 @@ impl Hoard {
     pub fn get_paths(
         &self,
         hoards_root: HoardPath,
-    ) -> Box<dyn Iterator<Item=(PileName, HoardPath, SystemPath)>> {
+    ) -> Box<dyn Iterator<Item = (PileName, HoardPath, SystemPath)>> {
         match self {
             Hoard::Anonymous(pile) => match pile.path.clone() {
                 None => Box::new(std::iter::empty()),

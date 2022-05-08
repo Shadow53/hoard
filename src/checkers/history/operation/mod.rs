@@ -4,8 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use futures::stream::TryStreamExt;
-use serde::{Deserialize, Serialize};
 use serde::de::Error as _;
+use serde::{Deserialize, Serialize};
 use tap::tap::TapFallible;
 use thiserror::Error;
 use time::OffsetDateTime;
@@ -14,10 +14,10 @@ use tokio_stream::wrappers::ReadDirStream;
 
 pub(crate) use util::cleanup_operations;
 
-use crate::checkers::Checker;
 use crate::checkers::history::operation::util::TIME_FORMAT;
 use crate::checkers::history::operation::v1::OperationV1;
 use crate::checkers::history::operation::v2::OperationV2;
+use crate::checkers::Checker;
 use crate::checksum::Checksum;
 use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
@@ -122,8 +122,8 @@ enum OperationVersion {
 impl<'de> Deserialize<'de> for OperationVersion {
     #[tracing::instrument(skip_all, name = "deserialize_operation")]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         let content =
             match <serde::__private::de::Content as Deserialize>::deserialize(deserializer) {
@@ -158,7 +158,7 @@ impl<'de> Deserialize<'de> for OperationVersion {
         }
 
         crate::create_log_error(D::Error::custom(
-            "data did not match any operation log version"
+            "data did not match any operation log version",
         ))
     }
 }
@@ -184,7 +184,7 @@ pub trait OperationImpl {
     fn checksum_for(&self, pile_name: &PileName, rel_path: &RelativePath) -> Option<Checksum>;
     /// An iterator over all files that exist within this operation log, not including any that
     /// were deleted.
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a>;
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a>;
     /// Returns an iterator of the file operations represented by this operation object.
     ///
     /// # Errors
@@ -195,7 +195,7 @@ pub trait OperationImpl {
         &'a self,
         _hoard_path: &HoardPath,
         _hoard: &Hoard,
-    ) -> Result<Box<dyn Iterator<Item=ItemOperation<HoardItem>> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         crate::create_log_error(Error::UpgradeRequired)
     }
 
@@ -257,7 +257,7 @@ impl OperationImpl for OperationVersion {
         }
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         match &self {
             OperationVersion::V1(one) => one.all_files_with_checksums(),
             OperationVersion::V2(two) => two.all_files_with_checksums(),
@@ -268,7 +268,7 @@ impl OperationImpl for OperationVersion {
         &'a self,
         hoard_root: &HoardPath,
         hoard: &Hoard,
-    ) -> Result<Box<dyn Iterator<Item=ItemOperation<HoardItem>> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         match &self {
             OperationVersion::V1(v1) => v1.hoard_operations_iter(hoard_root, hoard),
             OperationVersion::V2(v2) => v2.hoard_operations_iter(hoard_root, hoard),
@@ -320,7 +320,7 @@ impl OperationImpl for Operation {
         self.0.checksum_for(pile_name, rel_path)
     }
 
-    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item=OperationFileInfo> + 'a> {
+    fn all_files_with_checksums<'a>(&'a self) -> Box<dyn Iterator<Item = OperationFileInfo> + 'a> {
         self.0.all_files_with_checksums()
     }
 
@@ -328,7 +328,7 @@ impl OperationImpl for Operation {
         &'a self,
         hoard_root: &HoardPath,
         hoard: &Hoard,
-    ) -> Result<Box<dyn Iterator<Item=ItemOperation<HoardItem>> + 'a>, Error> {
+    ) -> Result<Box<dyn Iterator<Item = ItemOperation<HoardItem>> + 'a>, Error> {
         self.0.hoard_operations_iter(hoard_root, hoard)
     }
 
@@ -614,7 +614,7 @@ impl Checker for Operation {
                         .map_err(Error::FormatDatetime)
                         .tap_err(crate::tap_log_error)?
                 )))
-                    .expect("file name is always a valid RelativePath"),
+                .expect("file name is always a valid RelativePath"),
             );
         tracing::trace!(path=%path.display(), "ensuring parent directories for operation log file");
         if let Some(parent) = path.parent() {
