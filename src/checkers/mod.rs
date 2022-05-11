@@ -92,7 +92,7 @@ impl Checkers {
         })
     }
 
-    #[tracing::instrument(level = "debug", name = "checkers_check")]
+    #[tracing::instrument(level = "debug", name = "checkers_check", skip_all)]
     pub(crate) async fn check(&mut self) -> Result<(), Error> {
         for last_path in &mut self.last_paths.values_mut() {
             last_path.check().await?;
@@ -103,7 +103,7 @@ impl Checkers {
         Ok(())
     }
 
-    #[tracing::instrument(level = "debug", name = "checkers_commit")]
+    #[tracing::instrument(level = "debug", name = "checkers_commit", skip_all)]
     pub(crate) async fn commit_to_disk(self) -> Result<(), Error> {
         let Self {
             last_paths,

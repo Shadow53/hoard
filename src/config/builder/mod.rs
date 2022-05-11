@@ -326,7 +326,6 @@ impl Builder {
     /// Set the command that will be run.
     #[must_use]
     pub fn set_command(mut self, cmd: Command) -> Self {
-        tracing::trace!(command = ?cmd, "setting command");
         self.command = Some(cmd);
         self
     }
@@ -345,7 +344,7 @@ impl Builder {
     /// # Errors
     ///
     /// Any error that occurs while evaluating the environments.
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip_all)]
     fn evaluated_environments(&self) -> Result<BTreeMap<EnvironmentName, bool>, Error> {
         if let Some(envs) = &self.environments {
             for (key, env) in envs {
@@ -371,9 +370,10 @@ impl Builder {
     /// # Errors
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
-    #[tracing::instrument(name = "build_config")]
+    #[tracing::instrument(name = "build_config", skip_all)]
     pub fn build(mut self) -> Result<Config, Error> {
         tracing::debug!("building configuration from builder");
+        tracing::trace!(builder=?self);
         let environments = self.evaluated_environments()?;
         tracing::debug!(?environments);
         let exclusivity = self.exclusivity.unwrap_or_default();

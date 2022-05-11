@@ -20,7 +20,7 @@ use crate::checkers::history::operation::v2::OperationV2;
 use crate::checkers::Checker;
 use crate::checksum::Checksum;
 use crate::hoard::{Direction, Hoard};
-use crate::hoard_item::HoardItem;
+use crate::hoard_item::{CachedHoardItem, HoardItem};
 use crate::newtypes::{HoardName, PileName};
 use crate::paths::{HoardPath, RelativePath};
 
@@ -71,6 +71,18 @@ pub enum ItemOperation<T> {
     Nothing(T),
     /// Indicates a file that does not exist but is listed directly in the config.
     DoesNotExist(T),
+}
+
+impl ItemOperation<CachedHoardItem> {
+    pub(crate) fn short_name(&self) -> String {
+        match self {
+            ItemOperation::Create(file) => format!("create {}", file.system_path().display()),
+            ItemOperation::Modify(file) => format!("modify {}", file.system_path().display()),
+            ItemOperation::Delete(file) => format!("delete {}", file.system_path().display()),
+            ItemOperation::Nothing(file) => format!("do nothing with {}", file.system_path().display()),
+            ItemOperation::DoesNotExist(file) => format!("{} does not exist", file.system_path().display()),
+        }
+    }
 }
 
 impl<T> ItemOperation<T> {
@@ -545,22 +557,20 @@ impl Operation {
     }
 
     #[tracing::instrument(level = "trace")]
-    pub(crate) fn check_has_same_files(&self, other: &Self) -> Result<(), Error> {
-        let self_files: HashSet<OperationFileInfo> = self
+    fn check_has_same_files(&self, remote: &Self) -> Result<Option<Vec<OperationFileInfo>>, Error> {
+        let local_files: HashSet<OperationFileInfo> = self
             .as_latest_version()?
             .all_files_with_checksums()
             .collect();
-        let other_files: HashSet<OperationFileInfo> = other
+        let remote_files: HashSet<OperationFileInfo> = remote
             .as_latest_version()?
             .all_files_with_checksums()
             .collect();
-        if self_files == other_files {
-            Ok(())
+        if local_files == remote_files {
+            Ok(None)
         } else {
-            match self.0.direction() {
-                Direction::Backup => Err(Error::RestoreRequired),
-                Direction::Restore => Err(Error::BackupRequired),
-            }
+            let remote_diffs = remote_files.difference(&local_files).cloned().collect();
+            Ok(Some(remote_diffs))
         }
     }
 }
@@ -583,19 +593,40 @@ impl Checker for Operation {
         let last_local = Self::latest_local(self.hoard_name(), None).await?;
         let last_remote = Self::latest_remote_backup(self.hoard_name(), None, false).await?;
 
-        if self.direction() != Direction::Backup {
-            return Ok(());
-        }
+        let error = match self.0.direction() {
+            Direction::Backup => Error::RestoreRequired,
+            Direction::Restore => Error::BackupRequired,
+        };
 
         match (last_local, last_remote) {
             (_, None) => Ok(()),
-            (None, Some(last_remote)) => self.check_has_same_files(&last_remote),
+            (None, Some(last_remote)) => {
+                self.check_has_same_files(&last_remote)
+                    .map(|list_op| match list_op {
+                        None => Ok(()),
+                        Some(_) => Err(error),
+                    })?
+            },
             (Some(last_local), Some(last_remote)) => {
                 if last_local.timestamp() > last_remote.timestamp() {
                     // Allow if the last operation on this machine
                     Ok(())
                 } else {
-                    self.check_has_same_files(&last_remote)
+                    match self.check_has_same_files(&last_remote)? {
+                        None => Ok(()),
+                        Some(list) => {
+                            // Check if any of the files are unchanged compared to when last seen
+                            // This can happen if the file is deleted and then recreated remotely
+                            let matches_previous = list.into_iter().all(|item| {
+                                item.checksum == last_local.checksum_for(&item.pile_name, &item.relative_path)
+                            });
+                            if matches_previous {
+                                Ok(())
+                            } else {
+                                Err(error)
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -170,7 +170,7 @@ async fn create_all_with_perms(
     Ok(())
 }
 
-#[tracing::instrument]
+#[tracing::instrument(fields(file = ?file.system_path()))]
 async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
     let (src, dest, dest_root) = match direction {
         Direction::Backup => (
@@ -207,7 +207,7 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
     Ok(())
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip(hoard))]
 async fn fix_permissions(
     hoard: &Hoard,
     operation: &ItemOperation<HoardItem>,
@@ -282,7 +282,6 @@ async fn backup_or_restore<'a>(
             .hoard_operations_iter(&hoard_prefix, hoard)
             .map_err(ConsistencyError::Operation)?;
         for operation in iter {
-            tracing::trace!("found operation: {:?}", operation);
             match &operation {
                 ItemOperation::Create(file) | ItemOperation::Modify(file) => {
                     copy_file(file, direction).await?;

@@ -79,7 +79,6 @@ pub enum Error {
     },
 }
 
-#[derive(Debug)]
 #[repr(transparent)]
 pub struct Digest<T>(GenericArray<u8, T::OutputSize>)
 where
@@ -178,6 +177,16 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", checksum_to_string(&self.0))
+    }
+}
+
+impl<T> fmt::Debug for Digest<T>
+where
+    T: Digestable,
+    <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

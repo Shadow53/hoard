@@ -7,7 +7,7 @@ use crate::hoard::Hoard;
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
 
-#[tracing::instrument]
+#[tracing::instrument(skip(hoard))]
 pub(crate) async fn run_diff(
     hoard: &Hoard,
     hoard_name: &HoardName,

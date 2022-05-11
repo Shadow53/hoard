@@ -45,7 +45,7 @@ pub struct OperationV2 {
 }
 
 impl OperationV2 {
-    #[tracing::instrument(level = "trace", name = "new_operation_v2")]
+    #[tracing::instrument(level = "trace", name = "new_operation_v2", skip(hoard))]
     pub(super) async fn new(
         hoards_root: &HoardPath,
         name: &HoardName,
@@ -332,7 +332,7 @@ impl Hoard {
         .unwrap_or_default()
     }
 
-    #[tracing::instrument(name = "v2_new_hoard")]
+    #[tracing::instrument(name = "v2_new_hoard", skip(hoard))]
     async fn new(
         hoards_root: &HoardPath,
         hoard_name: &HoardName,
@@ -344,6 +344,7 @@ impl Hoard {
                 .await?
                 .map_err(Error::Iterator)
                 .try_fold(HashMap::new(), |mut acc, op| async move {
+                    tracing::debug!(operation=%op.short_name(), "pending operation");
                     match op {
                         ItemOperation::Create(file) => {
                             let checksum = match direction {
