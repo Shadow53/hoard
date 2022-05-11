@@ -2,19 +2,21 @@
 //! [`Hoard`](crate::config::builder::hoard::Hoard)s. See documentation for builder `Hoard`s
 //! for more details.
 
-pub mod iter;
-pub(crate) mod pile_config;
-
-use crate::filters::Error as FilterError;
-use crate::newtypes::{NonEmptyPileName, PileName};
-use crate::paths::{HoardPath, RelativePath, SystemPath};
-pub use pile_config::Config as PileConfig;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::io;
+
+pub use pile_config::Config as PileConfig;
+
+use crate::newtypes::{NonEmptyPileName, PileName};
+use crate::paths::{HoardPath, RelativePath, SystemPath};
+
+pub mod iter;
+pub(crate) mod pile_config;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]
@@ -56,9 +58,6 @@ pub enum Error {
         /// Destination path.
         dest: PathBuf,
     },
-    /// An error occurred while filtering files.
-    #[error("error while filtering files: {0}")]
-    Filter(#[from] FilterError),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -111,10 +110,11 @@ pub enum Hoard {
 }
 
 impl Hoard {
-    /// Returns an iterator over all piles with associates paths.
+    /// Returns an iterator over all piles with associated paths.
     ///
     /// The [`HoardPath`] and [`SystemPath`] represent the relevant prefix/root path for the given pile.
     #[must_use]
+    #[tracing::instrument(name = "get_hoard_paths")]
     pub fn get_paths(
         &self,
         hoards_root: HoardPath,

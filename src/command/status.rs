@@ -1,9 +1,11 @@
+use futures::TryStreamExt;
+
 use crate::hoard::iter::{diff_stream, DiffSource, HoardFileDiff};
 use crate::hoard::Hoard;
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
-use futures::TryStreamExt;
 
+#[tracing::instrument(skip(hoards))]
 pub(crate) async fn run_status<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)>,

@@ -141,7 +141,7 @@ where
         writeln!(writer)?;
 
         // Format spans only if tracing verbosity
-        if self.max_level == Level::TRACE {
+        if matches!(self.max_level, Level::TRACE | Level::DEBUG) {
             if let Some(scope) = ctx.event_scope() {
                 for span in scope.from_root() {
                     write!(writer, "{}at {}", EMPTY_PREFIX, span.name())?;

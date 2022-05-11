@@ -1,8 +1,10 @@
-use atty::Stream;
 use std::{
     path::{Path, PathBuf},
     process::ExitStatus,
 };
+
+use atty::Stream;
+use tap::TapFallible;
 use thiserror::Error;
 use tokio::{fs, io};
 
@@ -42,39 +44,54 @@ const DEFAULT_CONFIG: &str = include_str!("../../config.toml.sample");
 /// # Errors
 ///
 /// See [`Error`].
+#[tracing::instrument]
 pub(crate) async fn run_edit(path: &Path) -> Result<(), super::Error> {
-    let _span = tracing::trace_span!("edit", ?path).entered();
-
-    let tmp_dir = tempfile::tempdir().map_err(Error::IO)?;
+    let tmp_dir = tempfile::tempdir().map_err(Error::IO).tap_err(|error| {
+        tracing::error!(%error, "failed to create temporary file for editing");
+    })?;
     let tmp_file = tmp_dir.path().join(
         path.file_name()
             .ok_or_else(|| Error::IsDirectory(path.to_path_buf()))?,
     );
 
     if path.exists() {
-        fs::copy(path, &tmp_file).await.map_err(Error::IO)?;
+        fs::copy(path, &tmp_file).await.map_err(|error| {
+            tracing::error!(%error, "failed to copy config file ({}) to temporary file ({})", path.display(), tmp_file.display());
+            Error::IO(error)
+        })?;
     } else {
         fs::write(&tmp_file, DEFAULT_CONFIG.as_bytes())
             .await
-            .map_err(Error::IO)?;
+            .map_err(|error| {
+                tracing::error!(%error, "failed to write default sample config to temporary file ({})", tmp_file.display());
+                Error::IO(error)
+            })?;
     }
 
     let mut cmd = if atty::is(Stream::Stdout) && atty::is(Stream::Stderr) && atty::is(Stream::Stdin)
     {
-        open_cmd::open_editor(tmp_file.clone()).map_err(Error::Start)?
+        open_cmd::open_editor(tmp_file.clone()).map_err(|error| {
+            tracing::error!(%error, "failed to generate CLI editor command");
+            Error::Start(error)
+        })?
     } else {
-        open_cmd::open(tmp_file.clone()).map_err(Error::Start)?
+        open_cmd::open(tmp_file.clone()).map_err(|error| {
+            tracing::error!(%error, "failed to generate editor command");
+            Error::Start(error)
+        })?
     };
 
-    let status = cmd
-        .status()
-        .map_err(open_cmd::Error::from)
-        .map_err(Error::Start)
-        .map_err(super::Error::Edit)?;
+    let status = cmd.status().map_err(|error| {
+        tracing::error!(%error, "failed to run editor command");
+        super::Error::Edit(Error::Start(open_cmd::Error::from(error)))
+    })?;
 
     if status.success() {
         tracing::debug!("editing exited without error, copying temporary file back to original");
-        fs::copy(tmp_file, path).await.map_err(Error::IO)?;
+        fs::copy(&tmp_file, path).await.map_err(|error| {
+            tracing::error!(%error, "failed to copy temporary file ({}) to config file location ({})", tmp_file.display(), path.display());
+            Error::IO(error)
+        })?;
     } else {
         tracing::error!("edit command exited with status {}", status);
         return Err(super::Error::Edit(Error::Exit(status)));

@@ -1,3 +1,11 @@
+use std::ffi::OsString;
+use std::path::{Component, Path, PathBuf};
+
+use tap::TapFallible;
+//use std::path::{Path, PathBuf};
+use thiserror::Error;
+use tokio::fs;
+
 use crate::checkers::history::operation::ItemOperation;
 use crate::checkers::{history::operation::OperationImpl, Checkers, Error as ConsistencyError};
 use crate::hoard::iter::Error as IterError;
@@ -6,11 +14,6 @@ use crate::hoard::{Direction, Hoard};
 use crate::hoard_item::HoardItem;
 use crate::newtypes::HoardName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::ffi::OsString;
-use std::path::{Component, Path, PathBuf};
-//use std::path::{Path, PathBuf};
-use thiserror::Error;
-use tokio::fs;
 
 /// Errors that may occur while backing up or restoring hoards.
 #[derive(Debug, Error)]
@@ -27,6 +30,7 @@ pub enum Error {
 }
 
 #[allow(single_use_lifetimes)]
+#[tracing::instrument(skip(hoards))]
 pub(crate) async fn run_backup<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
@@ -38,6 +42,7 @@ pub(crate) async fn run_backup<'a>(
 }
 
 #[allow(single_use_lifetimes)]
+#[tracing::instrument(skip(hoards))]
 pub(crate) async fn run_restore<'a>(
     hoards_root: &HoardPath,
     hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)> + Clone,
@@ -148,11 +153,15 @@ async fn create_all_with_perms(
     perms: Permissions,
 ) -> Result<(), Error> {
     // Create all directories above root with system default permissions
-    fs::create_dir_all(&root).await?;
+    fs::create_dir_all(&root).await.tap_err(|error| {
+        tracing::error!(%error, "failed to create pile root {} with system default permissions", root.display());
+    })?;
 
     for path in ParentIter::new(root, path) {
         if !path.is_dir() {
-            fs::create_dir(&path).await?;
+            fs::create_dir(&path).await.tap_err(|error| {
+                tracing::error!(%error, "failed to create {}", path.display());
+            })?;
         }
 
         perms.set_on_path(&path).await?;
@@ -161,6 +170,7 @@ async fn create_all_with_perms(
     Ok(())
 }
 
+#[tracing::instrument(fields(file = ?file.system_path()))]
 async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> {
     let (src, dest, dest_root) = match direction {
         Direction::Backup => (
@@ -182,29 +192,22 @@ async fn copy_file(file: &HoardItem, direction: Direction) -> Result<(), Error> 
         } else {
             dest_root.to_path_buf()
         };
-        if let Err(err) = create_all_with_perms(root, parent, Permissions::folder_default()).await {
-            tracing::error!(
-                "failed to create parent directories for {}: {}",
-                dest.display(),
-                err
-            );
-            return Err(err);
-        }
+        create_all_with_perms(root, parent, Permissions::folder_default()).await?;
     }
     tracing::debug!("copying {} to {}", src.display(), dest.display());
-    if let Err(err) = fs::copy(src, dest).await {
+    fs::copy(src, dest).await.tap_err(|error| {
         tracing::error!(
-            "failed to copy {} to {}: {}",
+            %error,
+            "failed to copy {} to {}",
             src.display(),
             dest.display(),
-            err
         );
-        return Err(Error::IO(err));
-    }
+    })?;
 
     Ok(())
 }
 
+#[tracing::instrument(skip(hoard))]
 async fn fix_permissions(
     hoard: &Hoard,
     operation: &ItemOperation<HoardItem>,
@@ -279,7 +282,6 @@ async fn backup_or_restore<'a>(
             .hoard_operations_iter(&hoard_prefix, hoard)
             .map_err(ConsistencyError::Operation)?;
         for operation in iter {
-            tracing::trace!("found operation: {:?}", operation);
             match &operation {
                 ItemOperation::Create(file) | ItemOperation::Modify(file) => {
                     copy_file(file, direction).await?;
@@ -291,10 +293,9 @@ async fn backup_or_restore<'a>(
                     };
                     if to_remove.exists() {
                         tracing::debug!("deleting {}", to_remove.display());
-                        if let Err(err) = fs::remove_file(to_remove).await {
-                            tracing::error!("failed to delete {}: {}", to_remove.display(), err);
-                            return Err(Error::IO(err));
-                        }
+                        fs::remove_file(to_remove).await.tap_err(|error| {
+                            tracing::error!(%error, "failed to delete {}", to_remove.display());
+                        })?;
                     }
                 }
                 ItemOperation::Nothing(file) => {
@@ -317,8 +318,9 @@ mod tests {
     use super::*;
 
     mod parent_iter {
-        use super::*;
         use crate::test::path_string;
+
+        use super::*;
 
         #[test]
         fn test_single_path() {

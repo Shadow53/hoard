@@ -19,6 +19,7 @@ pub enum FileContent {
 }
 
 impl FileContent {
+    #[tracing::instrument(level = "debug")]
     pub async fn read(mut file: fs::File) -> io::Result<Self> {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).await?;
@@ -28,6 +29,7 @@ impl FileContent {
         }
     }
 
+    #[tracing::instrument(level = "debug")]
     pub async fn read_path(path: &Path) -> io::Result<Self> {
         match fs::File::open(path).await {
             Ok(file) => FileContent::read(file).await,
@@ -38,6 +40,7 @@ impl FileContent {
         }
     }
 
+    #[tracing::instrument(level = "debug")]
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
             Self::Text(s) => Some(s.as_bytes()),

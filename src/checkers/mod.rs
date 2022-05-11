@@ -3,21 +3,23 @@
 //! This module includes a single trait, [`Checker`], and all types that implement it.
 //! Currently, that is only the [`LastPaths`](history::last_paths::LastPaths) checker.
 
-pub mod history;
+use std::collections::HashMap;
+
+use thiserror::Error;
 
 use crate::checkers::history::last_paths::{Error as LastPathsError, LastPaths};
 use crate::checkers::history::operation::{Error as OperationError, Operation};
 use crate::hoard::{Direction, Hoard};
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
-use std::collections::HashMap;
-use thiserror::Error;
+
+pub mod history;
 
 /// Trait for validating [`Hoard`]s.
 ///
 /// A [`Checker`] takes a [`Hoard`] and its name (as [`&str`]) as parameters and uses that
 /// information plus any internal state to validate that it is safe to operate on that [`Hoard`].
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait(? Send)]
 pub trait Checker: Sized + Unpin {
     /// The error type returned from the check.
     type Error: std::error::Error;
@@ -67,12 +69,12 @@ pub(crate) struct Checkers {
 
 impl Checkers {
     #[allow(single_use_lifetimes)]
+    #[tracing::instrument(level = "debug", name = "checkers_new", skip(hoards))]
     pub(crate) async fn new<'a>(
         hoards_root: &HoardPath,
         hoards: impl IntoIterator<Item = (&'a HoardName, &'a Hoard)>,
         direction: Direction,
     ) -> Result<Self, Error> {
-        let _span = tracing::debug_span!("create_checkers", ?hoards_root).entered();
         let mut last_paths = HashMap::new();
         let mut operations = HashMap::new();
 
@@ -90,8 +92,8 @@ impl Checkers {
         })
     }
 
+    #[tracing::instrument(level = "debug", name = "checkers_check", skip_all)]
     pub(crate) async fn check(&mut self) -> Result<(), Error> {
-        let _span = tracing::debug_span!("running_checks").entered();
         for last_path in &mut self.last_paths.values_mut() {
             last_path.check().await?;
         }
@@ -101,6 +103,7 @@ impl Checkers {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", name = "checkers_commit", skip_all)]
     pub(crate) async fn commit_to_disk(self) -> Result<(), Error> {
         let Self {
             last_paths,

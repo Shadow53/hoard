@@ -1,8 +1,10 @@
-use super::{EnvironmentName, Error};
-use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::str::FromStr;
+
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+
+use super::{EnvironmentName, Error};
 
 /// Newtype wrapper for `HashSet<EnvironmentName>` representing a list of environments.
 ///
@@ -14,6 +16,7 @@ pub struct EnvironmentString(BTreeSet<EnvironmentName>);
 impl FromStr for EnvironmentString {
     type Err = Error;
 
+    #[tracing::instrument(level = "trace", name = "parse_environment_string")]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.split('|')
             .map(EnvironmentName::from_str)
@@ -99,8 +102,9 @@ impl EnvironmentString {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_test::{assert_tokens, Token};
+
+    use super::*;
 
     const NAME_1: &str = "3rd";
     const NAME_2: &str = "FIRST";
@@ -199,17 +203,19 @@ mod tests {
             let error = EnvironmentString::from_str(s).expect_err("input string should be invalid");
             match (expected, &error) {
                 (None, Error::EmptyName) => {}
-                (None, Error::InvalidName(_)) => {
+                (None, _) => {
                     panic!("expected Error::EmptyName, got {:?}", error)
                 }
                 (Some(s), Error::EmptyName) => {
                     panic!("expected Error::InvalidName(\"{}\"), got {:?}", s, error)
                 }
-                (Some(s1), Error::InvalidName(s2)) => assert_eq!(
-                    s1, s2,
-                    "expected invalid name to be \"{}\", got \"{}\"",
-                    s1, s2
-                ),
+                (Some(s1), Error::DisallowedName(s2) | Error::DisallowedCharacters(s2)) => {
+                    assert_eq!(
+                        s1, s2,
+                        "expected invalid name to be \"{}\", got \"{}\"",
+                        s1, s2
+                    );
+                }
             }
         }
     }

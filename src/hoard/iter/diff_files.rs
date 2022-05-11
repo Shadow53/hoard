@@ -1,23 +1,26 @@
 #![allow(unused)]
-use super::all_files::all_files_stream;
-use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
-use crate::diff::Diff;
-use crate::hoard::Hoard;
-use crate::hoard_item::{CachedHoardItem, HoardItem};
-use futures::{TryStream, TryStreamExt};
+
 use std::cmp::Ordering;
 use std::fmt;
 use std::fs::Permissions;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use futures::{TryStream, TryStreamExt};
 use tokio::io;
 use tokio_stream::{Iter, Stream, StreamExt};
 use tracing::trace_span;
 
+use crate::checkers::history::operation::{Operation, OperationImpl, OperationType};
 use crate::checksum::Checksum;
+use crate::diff::Diff;
 use crate::hoard::iter::Error;
+use crate::hoard::Hoard;
+use crate::hoard_item::{CachedHoardItem, HoardItem};
 use crate::newtypes::HoardName;
 use crate::paths::HoardPath;
+
+use super::all_files::all_files_stream;
 
 /// Indicates where a given change originated from.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -94,6 +97,53 @@ pub enum HoardFileDiff {
     Nonexistent(CachedHoardItem),
 }
 
+impl fmt::Display for HoardFileDiff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HoardFileDiff::BinaryModified { file, diff_source } => write!(
+                f,
+                "BinaryModified {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::TextModified {
+                file,
+                unified_diff,
+                diff_source,
+            } => write!(
+                f,
+                "TextModified {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::Created {
+                file,
+                unified_diff,
+                diff_source,
+            } => write!(
+                f,
+                "Created {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::Deleted { file, diff_source } => write!(
+                f,
+                "Deleted {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::Unchanged(file) => {
+                write!(f, "Unchanged {{ file: {} }}", file.system_path().display())
+            }
+            HoardFileDiff::Nonexistent(file) => write!(
+                f,
+                "Nonexistent {{ file: {} }}",
+                file.system_path().display()
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct ProcessedFile {
     file: CachedHoardItem,
@@ -108,6 +158,7 @@ struct ProcessedFile {
 }
 
 impl ProcessedFile {
+    #[tracing::instrument(name = "process_file", fields(file = %file.system_path().display()))]
     async fn process(hoard_name: &HoardName, file: CachedHoardItem) -> Result<Self, Error> {
         let _span = tracing::trace_span!("processing_file", hoard=%hoard_name, ?file).entered();
         let diff = file.diff().cloned();
@@ -182,18 +233,21 @@ impl ProcessedFile {
     }
 
     #[allow(clippy::too_many_lines)]
+    #[tracing::instrument(skip_all)]
     fn get_hoard_diff(self) -> HoardFileDiff {
-        let _span = tracing::trace_span!("get_diff", processed_file=?self).entered();
+        let span = tracing::trace_span!("get_diff", processed_file=?self).entered();
         let local_op_type = self.local_op_type();
         let remote_op_type = self.remote_op_type();
         let unexpected_op_type = self.unexpected_hoard_op();
         let has_logs = self.latest_remote_log.is_some() || self.latest_local_log.is_some();
 
         let file = self.file.clone();
-        let _span = tracing::trace_span!("expected_diff", %has_logs, ?local_op_type, ?remote_op_type, diff=?self.diff).entered();
+        drop(span);
+
+        let _span = tracing::debug_span!("calculate_diff", %has_logs, ?local_op_type, ?remote_op_type, diff=?self.diff, file=?file.system_path()).entered();
 
         #[allow(clippy::match_same_arms)]
-        let expected_diff = match (
+        let diff = match (
             has_logs,
             unexpected_op_type,
             local_op_type,
@@ -520,10 +574,7 @@ impl ProcessedFile {
                 unreachable!("should have detected unexpected hoard file creation");
             }
             (true, None, None, Some(OperationType::Create | OperationType::Modify), None) => {
-                HoardFileDiff::Deleted {
-                    file,
-                    diff_source: DiffSource::Unknown,
-                }
+                HoardFileDiff::Unchanged(file)
             }
             (true, None, None, Some(OperationType::Delete), None) => HoardFileDiff::Deleted {
                 file,
@@ -597,10 +648,11 @@ impl ProcessedFile {
                 unreachable!("should have detected unexpected hoard file creation");
             }
         };
-        tracing::trace!(?expected_diff);
-        expected_diff
+        tracing::debug!(%diff, "found diff");
+        diff
     }
 
+    #[tracing::instrument]
     fn remote_op_type(&self) -> Option<OperationType> {
         (!self.local_log_is_latest).then(|| {
             self.latest_remote_log.as_ref().and_then(|op| {
@@ -646,13 +698,13 @@ impl ProcessedFile {
 /// # Errors
 ///
 /// Any errors that may occur while creating the stream.
+#[tracing::instrument]
 pub async fn diff_stream(
     hoards_root: &HoardPath,
     hoard_name: HoardName,
     hoard: &Hoard,
 ) -> Result<impl TryStream<Ok = HoardFileDiff, Error = Error>, Error> {
-    let _span = tracing::trace_span!("file_diffs_iterator").entered();
-    tracing::trace!("creating new diff iterator");
+    tracing::trace!("creating new diff stream");
     let stream = all_files_stream(hoards_root, &hoard_name, hoard)
         .await?
         .map_ok(move |file| (file, hoard_name.clone()))
@@ -673,6 +725,7 @@ pub async fn diff_stream(
 /// # Errors
 ///
 /// See [`diff_stream`]
+#[tracing::instrument]
 pub async fn changed_diff_only_stream(
     hoards_root: &HoardPath,
     hoard_name: HoardName,

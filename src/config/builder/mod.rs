@@ -3,22 +3,23 @@
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
-use tokio::{fs, io};
 
 use clap::Parser;
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::{fs, io};
 
-use self::hoard::Hoard;
 use environment::Environment;
 
 use crate::command::Command;
+use crate::hoard::PileConfig;
+use crate::newtypes::{EnvironmentName, HoardName};
 use crate::CONFIG_FILE_STEM;
 
 use super::Config;
-use crate::hoard::PileConfig;
-use crate::newtypes::{EnvironmentName, HoardName};
-use futures::TryStreamExt;
+
+use self::hoard::Hoard;
 
 pub mod environment;
 pub mod envtrie;
@@ -47,7 +48,9 @@ pub enum Error {
     #[error("failed to process hoard configuration: {0}")]
     ProcessHoard(#[from] hoard::Error),
     /// The given file has no or invalid file extension
-    #[error("configuration file must have file extension \".toml\", \".yaml\", or \".yml\": {0}")]
+    #[error(
+        "configuration file does not have file extension \".toml\", \".yaml\", or \".yml\": {0}"
+    )]
     InvalidExtension(PathBuf),
 }
 
@@ -92,6 +95,7 @@ impl Default for Builder {
 
 impl Builder {
     /// Returns the default path for the configuration file.
+    #[tracing::instrument]
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
         crate::dirs::config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
@@ -122,27 +126,29 @@ impl Builder {
     /// # Errors
     ///
     /// Variants of [`enum@Error`] related to reading and parsing the file.
+    #[tracing::instrument(level = "debug", name = "config_builder_from_file")]
     pub async fn from_file(path: &Path) -> Result<Self, Error> {
-        let _span = tracing::debug_span!("config_from_file", ?path).entered();
         tracing::debug!("reading configuration");
-        let s = fs::read_to_string(path).await.map_err(Error::ReadConfig)?;
+        let s = fs::read_to_string(path)
+            .await
+            .map_err(crate::map_log_error(Error::ReadConfig))?;
         // Necessary because Deserialize on enums erases any errors returned by each variant.
-        let result = match path.extension().and_then(std::ffi::OsStr::to_str) {
-            None => Err(Error::InvalidExtension(path.to_owned())),
+        match path.extension().and_then(std::ffi::OsStr::to_str) {
+            None => crate::create_log_error(Error::InvalidExtension(path.to_owned())),
             Some(ext) => match ext {
-                "toml" | "TOML" => toml::from_str(&s).map_err(Error::DeserializeTOML),
+                "toml" | "TOML" => toml::from_str(&s).map_err(crate::map_log_error_msg(
+                    &format!("failed to parse TOML from {}", path.display()),
+                    Error::DeserializeTOML,
+                )),
                 "yaml" | "yml" | "YAML" | "YML" => {
-                    serde_yaml::from_str(&s).map_err(Error::DeserializeYAML)
+                    serde_yaml::from_str(&s).map_err(crate::map_log_error_msg(
+                        &format!("failed to parse YAML from {}", path.display()),
+                        Error::DeserializeYAML,
+                    ))
                 }
-                _ => Err(Error::InvalidExtension(path.to_owned())),
+                _ => crate::create_log_error(Error::InvalidExtension(path.to_owned())),
             },
-        };
-
-        if let Err(err) = &result {
-            tracing::error!("failed to read config from file: {}", err);
         }
-
-        result
     }
 
     /// Reads configuration from the default configuration file.
@@ -153,10 +159,11 @@ impl Builder {
     ///
     /// - Any errors from attempting to parse the file.
     /// - A custom not found error if no default file is found.
+    #[tracing::instrument(level = "debug", name = "config_builder_from_default_file")]
     pub async fn from_default_file() -> Result<Self, Error> {
         let error_closure = || {
             let path = Self::default_config_file();
-            Error::ReadConfig(io::Error::new(
+            let error = Error::ReadConfig(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
                     "could not find any of {name}.toml, {name}.yaml, or {name}.yml in {dir}",
@@ -169,14 +176,16 @@ impl Builder {
                         .expect("default config should always have a parent")
                         .to_string_lossy()
                 ),
-            ))
+            ));
+            crate::tap_log_error(&error);
+            error
         };
 
         let parent = Self::default_config_file()
             .parent()
             .expect("default config file should always have a file name")
             .canonicalize()
-            .map_err(Error::ReadConfig)?;
+            .map_err(crate::map_log_error(Error::ReadConfig))?;
 
         Box::pin(
             tokio_stream::iter(
@@ -192,11 +201,11 @@ impl Builder {
                         if let io::ErrorKind::NotFound = err.kind() {
                             Ok(None)
                         } else {
-                            Err(Error::ReadConfig(err))
+                            crate::create_log_error(Error::ReadConfig(err))
                         }
                     }
                     Ok(config) => Ok(Some(config)),
-                    Err(err) => Err(err),
+                    Err(err) => crate::create_log_error(err),
                 }
             }),
         )
@@ -211,6 +220,7 @@ impl Builder {
     /// # Errors
     ///
     /// See [`Builder::from_file`]
+    #[tracing::instrument(level = "debug", name = "config_builder_from_args_then_file")]
     pub async fn from_args_then_file() -> Result<Self, Error> {
         tracing::debug!("loading configuration from cli arguments");
         let from_args = Self::parse();
@@ -235,14 +245,8 @@ impl Builder {
 
     /// Applies all configured values in `other` over those in *this* `ConfigBuilder`.
     #[must_use]
+    #[tracing::instrument(level = "trace")]
     pub fn layer(mut self, other: Self) -> Self {
-        let _span = tracing::trace_span!(
-            "layering_config_builders",
-            top_layer = ?other,
-            bottom_layer = ?self
-        )
-        .entered();
-
         if let Some(path) = other.config_dir {
             self = self.set_config_dir(path);
         }
@@ -322,7 +326,6 @@ impl Builder {
     /// Set the command that will be run.
     #[must_use]
     pub fn set_command(mut self, cmd: Command) -> Self {
-        tracing::trace!(command = ?cmd, "setting command");
         self.command = Some(cmd);
         self
     }
@@ -341,8 +344,8 @@ impl Builder {
     /// # Errors
     ///
     /// Any error that occurs while evaluating the environments.
+    #[tracing::instrument(level = "trace", skip_all)]
     fn evaluated_environments(&self) -> Result<BTreeMap<EnvironmentName, bool>, Error> {
-        let _span = tracing::trace_span!("eval_env").entered();
         if let Some(envs) = &self.environments {
             for (key, env) in envs {
                 tracing::trace!(%key, %env);
@@ -359,7 +362,7 @@ impl Builder {
                         .collect()
                 },
             )
-            .map_err(Error::Environment)
+            .map_err(crate::map_log_error(Error::Environment))
     }
 
     /// Build this [`Builder`] into a [`Config`].
@@ -367,8 +370,10 @@ impl Builder {
     /// # Errors
     ///
     /// Any [`enum@Error`] that occurs while evaluating environment or hoard definitions.
+    #[tracing::instrument(name = "build_config", skip_all)]
     pub fn build(mut self) -> Result<Config, Error> {
         tracing::debug!("building configuration from builder");
+        tracing::trace!(builder=?self);
         let environments = self.evaluated_environments()?;
         tracing::debug!(?environments);
         let exclusivity = self.exclusivity.unwrap_or_default();

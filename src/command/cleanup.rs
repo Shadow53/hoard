@@ -1,5 +1,6 @@
 use crate::checkers::history::operation::cleanup_operations;
 
+#[tracing::instrument]
 pub(crate) async fn run_cleanup() -> Result<(), super::Error> {
     match cleanup_operations().await {
         Ok(count) => {

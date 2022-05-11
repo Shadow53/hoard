@@ -1,7 +1,9 @@
-use super::{Error, NonEmptyPileName};
-use serde::{de, Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
 use std::{fmt, ops::Deref};
+
+use serde::{de, Deserialize, Deserializer, Serialize};
+
+use super::{Error, NonEmptyPileName};
 
 /// Newtype wrapper for `Option<String>` representing a pile name.
 ///
@@ -17,6 +19,7 @@ pub struct PileName(Option<NonEmptyPileName>);
 impl FromStr for PileName {
     type Err = Error;
 
+    #[tracing::instrument(level = "trace", name = "parse_pile_name")]
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         NonEmptyPileName::from_str(value).map(Some).map(Self)
     }
@@ -68,6 +71,7 @@ where
 {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "pile_name_try_from_option_str", skip_all)]
     fn try_from(value: Option<T>) -> Result<Self, Self::Error> {
         match value {
             None => Ok(Self(None)),
@@ -85,6 +89,7 @@ impl From<NonEmptyPileName> for PileName {
 impl TryFrom<PileName> for NonEmptyPileName {
     type Error = Error;
 
+    #[tracing::instrument(level = "trace", name = "non_empty_pile_name_try_from_pile_name")]
     fn try_from(value: PileName) -> Result<Self, Self::Error> {
         Option::<Self>::from(value).ok_or(Error::EmptyName)
     }
@@ -141,17 +146,18 @@ impl PileName {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_test::{assert_de_tokens, assert_tokens, Token};
+
+    use super::*;
 
     #[test]
     fn test_from_str() {
         let inputs = vec![
-            ("", Err(Error::InvalidName(String::from("")))),
+            ("", Err(Error::DisallowedName(String::from("")))),
             ("name", Ok(PileName(Some("name".parse().unwrap())))),
             (
                 "invalid name",
-                Err(Error::InvalidName(String::from("invalid name"))),
+                Err(Error::DisallowedCharacters(String::from("invalid name"))),
             ),
         ];
 
@@ -166,7 +172,10 @@ mod tests {
                     (Error::EmptyName, _) | (_, Error::EmptyName) => {
                         panic!("expected {:?}, got {:?}", err1, err2);
                     }
-                    (Error::InvalidName(invalid1), Error::InvalidName(invalid2)) => {
+                    (
+                        Error::DisallowedName(invalid1) | Error::DisallowedCharacters(invalid1),
+                        Error::DisallowedName(invalid2) | Error::DisallowedCharacters(invalid2),
+                    ) => {
                         assert_eq!(
                             invalid1, invalid2,
                             "expected invalid string to be {}, was {}",
@@ -200,7 +209,7 @@ mod tests {
     fn test_serde_empty_str() {
         serde_test::assert_de_tokens_error::<PileName>(
             &[Token::Str("")],
-            "invalid name: \"\": must contain only alphanumeric characters",
+            "name \"\" is not allowed",
         );
     }
 

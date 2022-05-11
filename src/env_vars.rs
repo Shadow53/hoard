@@ -123,18 +123,21 @@ impl PathWithEnv {
     /// # Errors
     ///
     /// See [`Error`]
+    #[tracing::instrument(level = "debug", name = "process_path_with_env")]
     pub fn process(self) -> Result<SystemPath, Error> {
         let mut new_path = self.0;
         let mut start: usize = 0;
         let mut old_start: usize;
-
-        let _span = tracing::debug_span!("expand_env_in_path", path=%new_path).entered();
 
         while let Some(mat) = ENV_REGEX.find(&new_path[start..]) {
             let var = mat.as_str();
             let var = &var[2..var.len() - 1];
             tracing::trace!(var, "found environment variable {}", var,);
 
+            // Error is not logged here because:
+            // (a) The context is not terribly important for the error
+            // (b) This is used when parsing the configuration file, so there is no
+            //     simple way to only parse the paths that apply to this system.
             let value = env::var(var).map_err(|error| Error::Env {
                 error,
                 var: var.to_string(),

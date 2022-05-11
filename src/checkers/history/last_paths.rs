@@ -4,16 +4,20 @@
 //! See the documentation for [`HoardPaths::enforce_old_and_new_piles_are_same`] for an
 //! explanation of why this is useful.
 
-use super::super::Checker;
-use crate::hoard::{Direction, Hoard};
-use crate::newtypes::{HoardName, NonEmptyPileName};
-use crate::paths::{HoardPath, RelativePath, SystemPath};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+use tap::TapFallible;
 use thiserror::Error;
 use time::OffsetDateTime;
 use tokio::{fs, io};
+
+use crate::hoard::{Direction, Hoard};
+use crate::newtypes::{HoardName, NonEmptyPileName};
+use crate::paths::{HoardPath, RelativePath, SystemPath};
+
+use super::super::Checker;
 
 const FILE_NAME: &str = "last_paths.json";
 
@@ -47,8 +51,8 @@ where
     }
 }
 
+#[tracing::instrument(level = "debug")]
 async fn get_last_paths_file_path() -> Result<HoardPath, io::Error> {
-    tracing::debug!("getting lastpaths file path");
     let id = super::get_or_generate_uuid().await?;
     Ok(super::get_history_dir_for_id(id).join(
         &RelativePath::try_from(PathBuf::from(FILE_NAME))
@@ -56,13 +60,16 @@ async fn get_last_paths_file_path() -> Result<HoardPath, io::Error> {
     ))
 }
 
+#[tracing::instrument(level = "debug")]
 async fn read_last_paths_file() -> io::Result<Vec<u8>> {
     let path = get_last_paths_file_path().await?;
-    tracing::debug!(?path, "opening lastpaths file at path");
-    fs::read(path).await
+    tracing::debug!("opening lastpaths file at {}", path.display());
+    fs::read(&path).await.tap_err(
+        |error| tracing::error!(%error, "failed to read lastpaths file at {}", path.display()),
+    )
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait(? Send)]
 impl Checker for LastPaths {
     type Error = Error;
     async fn new(
@@ -78,8 +85,8 @@ impl Checker for LastPaths {
         }))
     }
 
+    #[tracing::instrument(name = "last_paths_check")]
     async fn check(&mut self) -> Result<(), Self::Error> {
-        let _span = tracing::debug_span!("last_paths_check", current=?self).entered();
         let (name, new_hoard) = self.0.iter().next().ok_or(Error::NoEntries)?;
 
         let last_paths = LastPaths::from_default_file().await?;
@@ -91,22 +98,29 @@ impl Checker for LastPaths {
         Ok(())
     }
 
+    #[tracing::instrument(name = "last_paths_commit")]
     async fn commit_to_disk(self) -> Result<(), Self::Error> {
         let mut last_paths = LastPaths::from_default_file().await?;
         for (name, hoard) in self.0 {
             last_paths.set_hoard(name, hoard);
         }
 
-        tracing::debug!("saving lastpaths to disk");
+        tracing::debug!("saving last paths to disk");
         let path = get_last_paths_file_path().await?;
-        tracing::trace!("converting lastpaths to JSON");
-        let content = serde_json::to_string(&last_paths)?;
+        tracing::trace!("converting last paths to JSON");
+        let content = serde_json::to_string(&last_paths).tap_err(|error| {
+            tracing::error!(%error, "failed to serialize last paths record as JSON");
+        })?;
         if let Some(parent) = path.parent() {
             tracing::trace!("ensuring parent directories exist");
-            fs::create_dir_all(parent).await?;
+            fs::create_dir_all(&parent).await.tap_err(|error| {
+                tracing::error!(%error, "failed to create parent directory {}", parent.display());
+            })?;
         }
-        tracing::trace!("writing lastpaths file");
-        fs::write(path, content).await?;
+        tracing::trace!("writing last paths file");
+        fs::write(&path, content).await.tap_err(|error| {
+            tracing::error!(%error, "failed to write last paths to {}", path.display());
+        })?;
         Ok(())
     }
 }
@@ -130,21 +144,22 @@ impl LastPaths {
     /// Any I/O or `serde` error that occurs while reading and parsing the file.
     /// The exception is an I/O error with kind `NotFound`, which returns an empty
     /// `LastPaths`.
+    #[tracing::instrument(level = "debug")]
     pub async fn from_default_file() -> Result<Self, Error> {
-        tracing::debug!("reading lastpaths from file");
-        let content = match read_last_paths_file().await {
-            Ok(content) => content,
+        match read_last_paths_file().await {
+            Ok(content) => serde_json::from_slice(&content).map_err(|error| {
+                tracing::error!(%error, "failed to parse last paths file as JSON");
+                Error::from(error)
+            }),
             Err(err) => {
                 if err.kind() == io::ErrorKind::NotFound {
-                    tracing::debug!("lastpaths file not found, creating new instance");
-                    return Ok(Self::default());
+                    tracing::debug!("last paths file not found, creating new instance");
+                    Ok(Self::default())
+                } else {
+                    Err(Error::from(err))
                 }
-                tracing::error!(error=%err);
-                return Err(err.into());
             }
-        };
-
-        serde_json::from_slice(&content).map_err(Into::into)
+        }
     }
 }
 
@@ -284,6 +299,7 @@ impl HoardPaths {
     /// # Errors
     ///
     /// [`Error::HoardPathsMismatch`] if there is a difference between `old` and `new`.
+    #[tracing::instrument(level = "trace")]
     pub fn enforce_old_and_new_piles_are_same(old: &Self, new: &Self) -> Result<(), Error> {
         tracing::debug!("comparing old and new piles' paths");
         tracing::trace!(?old, ?new);
@@ -365,9 +381,11 @@ impl HoardPaths {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test::system_path;
     use maplit::hashmap;
+
+    use crate::test::system_path;
+
+    use super::*;
 
     const NAMED_PILE_1: &str = "test1";
     const NAMED_PILE_2: &str = "test2";

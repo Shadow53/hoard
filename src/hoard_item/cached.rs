@@ -1,11 +1,14 @@
-use super::hoard_item::HoardItem;
+use std::collections::BTreeMap;
+
+use tokio::io;
+use tokio::try_join;
+
 use crate::checksum::{Checksum, ChecksumType, MD5, SHA256};
 use crate::diff::{str_diff, Diff, FileContent};
 use crate::newtypes::PileName;
 use crate::paths::{HoardPath, RelativePath, SystemPath};
-use std::collections::BTreeMap;
-use tokio::io;
-use tokio::try_join;
+
+use super::hoard_item::HoardItem;
 
 /// Wrapper around [`HoardItem`] that accesses the filesystem at creation time and
 /// caches file data.
@@ -46,6 +49,7 @@ impl CachedHoardItem {
     ///
     /// Will return I/O errors if they occur while processing file data, with the exception of
     /// `NotFound` errors, which are translated into `None` values, as applicable.
+    #[tracing::instrument(name = "new_cached_hoard_item")]
     pub async fn new(
         pile_name: PileName,
         hoard_prefix: HoardPath,
@@ -61,6 +65,7 @@ impl CachedHoardItem {
     /// # Errors
     ///
     /// Any I/O errors while reading the associated files, etc.
+    #[tracing::instrument]
     pub async fn try_from_hoard_item(inner: HoardItem) -> io::Result<Self> {
         let (is_file, is_dir) = {
             let system_exists = inner.system_path().exists();
@@ -220,6 +225,8 @@ impl CachedHoardItem {
     pub fn diff(&self) -> Option<&Diff> {
         self.diff.as_ref()
     }
+
+    #[tracing::instrument(name = "calculate_calculate_cached_hoard_item_checksums")]
 
     fn checksums(content: &FileContent) -> Option<BTreeMap<ChecksumType, Checksum>> {
         match content {

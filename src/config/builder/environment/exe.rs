@@ -1,16 +1,17 @@
 //! See [`ExeExists`].
 
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Debug;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
-use std::{fs, io};
-use thiserror::Error;
-
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::{fs, io};
+
+use serde::{Deserialize, Serialize};
+use tap::TapFallible;
+use thiserror::Error;
 
 /// The contained path was not a valid [`Executable`].
 ///
@@ -28,6 +29,8 @@ impl fmt::Display for InvalidPathError {
         )
     }
 }
+
+impl std::error::Error for InvalidPathError {}
 
 impl From<InvalidPathError> for PathBuf {
     fn from(error: InvalidPathError) -> PathBuf {
@@ -70,12 +73,13 @@ impl From<Executable> for PathBuf {
 impl TryFrom<PathBuf> for Executable {
     type Error = InvalidPathError;
 
+    #[tracing::instrument(name = "new_executable")]
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let is_lone_file_name = value.parent().map_or(false, |s| s.as_os_str().is_empty());
         if value.is_absolute() || is_lone_file_name {
             Ok(Self(value))
         } else {
-            Err(InvalidPathError(value))
+            crate::create_log_error(InvalidPathError(value))
         }
     }
 }
@@ -145,7 +149,8 @@ fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
             if file.exists() {
                 let is_file = fs::metadata(&file)
                     .map(|meta| meta.is_file())
-                    .map_err(|error| Error::Metadata { path: file, error })?;
+                    .map_err(|error| Error::Metadata { path: file, error })
+                    .tap_err(crate::tap_log_error)?;
 
                 if is_file {
                     return Ok(true);
@@ -167,6 +172,7 @@ fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
                 meta.is_file() && meta.mode() & 0o000_111 != 0
             })
             .map_err(|error| Error::Metadata { path: file, error })
+            .tap_err(crate::tap_log_error)
     } else {
         Ok(false)
     }
