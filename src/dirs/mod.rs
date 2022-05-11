@@ -1,6 +1,7 @@
 //! Functions to determine special folders for Hoard to work with on different platforms.
 use std::path::{Path, PathBuf};
 
+use once_cell::sync::Lazy;
 #[cfg(windows)]
 pub use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 
@@ -27,6 +28,8 @@ pub const DATA_DIR_ENV: &str = "HOARD_DATA_DIR";
 /// The environment variable that takes precendence over config dir detection.
 pub const CONFIG_DIR_ENV: &str = "HOARD_CONFIG_DIR";
 
+static EMPTY_SPAN: Lazy<tracing::Span> = Lazy::new(|| tracing::trace_span!("get_dir_path"));
+
 #[inline]
 #[tracing::instrument(level = "trace")]
 fn path_from_env(var: &str) -> Option<PathBuf> {
@@ -48,8 +51,8 @@ fn path_from_env(var: &str) -> Option<PathBuf> {
 /// - macOS/Linux/BSD: The value of `$HOME`.
 #[must_use]
 #[inline]
-#[tracing::instrument(level = "trace")]
 pub fn home_dir() -> PathBuf {
+    let _span = tracing::trace_span!(parent: &*EMPTY_SPAN, "home_dir").entered();
     sys::home_dir()
 }
 
@@ -64,8 +67,8 @@ pub fn home_dir() -> PathBuf {
 /// - Linux/BSD: `${XFG_CONFIG_HOME}/hoard`, if `XDG_CONFIG_HOME` is set, otherwise `$HOME/.config/hoard`.
 #[must_use]
 #[inline]
-#[tracing::instrument(level = "trace")]
 pub fn config_dir() -> PathBuf {
+    let _span = tracing::trace_span!(parent: &*EMPTY_SPAN, "config_dir").entered();
     path_from_env(CONFIG_DIR_ENV).unwrap_or_else(sys::config_dir)
 }
 
@@ -78,8 +81,8 @@ pub fn config_dir() -> PathBuf {
 /// - Linux/BSD: `${XFG_DATA_HOME}/hoard`, if `XDG_DATA_HOME` is set, otherwise `$HOME/.local/share/hoard`.
 #[must_use]
 #[inline]
-#[tracing::instrument(level = "trace")]
 pub fn data_dir() -> PathBuf {
+    let _span = tracing::trace_span!(parent: &*EMPTY_SPAN, "data_dir").entered();
     path_from_env(DATA_DIR_ENV).unwrap_or_else(sys::data_dir)
 }
 

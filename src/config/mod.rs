@@ -78,6 +78,7 @@ impl Config {
             .map(Builder::build)?
             .map_err(Error::Builder)?;
         tracing::debug!("loaded configuration.");
+        tracing::trace!(?config);
         Ok(config)
     }
 
@@ -87,7 +88,7 @@ impl Config {
         self.config_file.clone()
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", name = "config_get_hoard", skip(self))]
     fn get_hoards<'a>(
         &'a self,
         hoards: &'a [HoardName],
@@ -105,7 +106,7 @@ impl Config {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(name = "config_get_hoard", skip(self))]
     fn get_hoard<'a>(&'a self, name: &'_ HoardName) -> Result<&'a Hoard, Error> {
         self.hoards
             .get(name)
@@ -118,7 +119,7 @@ impl Config {
     /// # Errors
     ///
     /// Any [`enum@Error`] that might happen while running the command.
-    #[tracing::instrument(name = "run_command")]
+    #[tracing::instrument(name = "run_command", skip(self))]
     pub async fn run(&self) -> Result<(), Error> {
         tracing::trace!(command = ?self.command, "running command");
         match &self.command {
