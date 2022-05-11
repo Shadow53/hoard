@@ -608,7 +608,7 @@ impl Checker for Operation {
                 self.check_has_same_files(&last_remote)
                     .map(|list_op| match list_op {
                         None => Ok(()),
-                        Some(_) => Err(error),
+                        Some(_) => crate::create_log_error(error),
                     })?
             }
             (Some(last_local), Some(last_remote)) => {
@@ -628,7 +628,7 @@ impl Checker for Operation {
                             if matches_previous {
                                 Ok(())
                             } else {
-                                Err(error)
+                                crate::create_log_error(error)
                             }
                         }
                     }
