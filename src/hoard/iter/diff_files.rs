@@ -100,12 +100,46 @@ pub enum HoardFileDiff {
 impl fmt::Display for HoardFileDiff {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            HoardFileDiff::BinaryModified { file, diff_source } => write!(f, "BinaryModified {{ source: {}, file: {} }}", diff_source, file.system_path().display()),
-            HoardFileDiff::TextModified { file, unified_diff, diff_source } => write!(f, "TextModified {{ source: {}, file: {} }}", diff_source, file.system_path().display()),
-            HoardFileDiff::Created { file, unified_diff, diff_source } => write!(f, "Created {{ source: {}, file: {} }}", diff_source, file.system_path().display()),
-            HoardFileDiff::Deleted { file, diff_source } => write!(f, "Deleted {{ source: {}, file: {} }}", diff_source, file.system_path().display()),
-            HoardFileDiff::Unchanged(file) => write!(f, "Unchanged {{ file: {} }}", file.system_path().display()),
-            HoardFileDiff::Nonexistent(file) => write!(f, "Nonexistent {{ file: {} }}", file.system_path().display()),
+            HoardFileDiff::BinaryModified { file, diff_source } => write!(
+                f,
+                "BinaryModified {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::TextModified {
+                file,
+                unified_diff,
+                diff_source,
+            } => write!(
+                f,
+                "TextModified {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::Created {
+                file,
+                unified_diff,
+                diff_source,
+            } => write!(
+                f,
+                "Created {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::Deleted { file, diff_source } => write!(
+                f,
+                "Deleted {{ source: {}, file: {} }}",
+                diff_source,
+                file.system_path().display()
+            ),
+            HoardFileDiff::Unchanged(file) => {
+                write!(f, "Unchanged {{ file: {} }}", file.system_path().display())
+            }
+            HoardFileDiff::Nonexistent(file) => write!(
+                f,
+                "Nonexistent {{ file: {} }}",
+                file.system_path().display()
+            ),
         }
     }
 }

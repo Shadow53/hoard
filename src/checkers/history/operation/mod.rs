@@ -79,8 +79,12 @@ impl ItemOperation<CachedHoardItem> {
             ItemOperation::Create(file) => format!("create {}", file.system_path().display()),
             ItemOperation::Modify(file) => format!("modify {}", file.system_path().display()),
             ItemOperation::Delete(file) => format!("delete {}", file.system_path().display()),
-            ItemOperation::Nothing(file) => format!("do nothing with {}", file.system_path().display()),
-            ItemOperation::DoesNotExist(file) => format!("{} does not exist", file.system_path().display()),
+            ItemOperation::Nothing(file) => {
+                format!("do nothing with {}", file.system_path().display())
+            }
+            ItemOperation::DoesNotExist(file) => {
+                format!("{} does not exist", file.system_path().display())
+            }
         }
     }
 }
@@ -606,7 +610,7 @@ impl Checker for Operation {
                         None => Ok(()),
                         Some(_) => Err(error),
                     })?
-            },
+            }
             (Some(last_local), Some(last_remote)) => {
                 if last_local.timestamp() > last_remote.timestamp() {
                     // Allow if the last operation on this machine
@@ -618,7 +622,8 @@ impl Checker for Operation {
                             // Check if any of the files are unchanged compared to when last seen
                             // This can happen if the file is deleted and then recreated remotely
                             let matches_previous = list.into_iter().all(|item| {
-                                item.checksum == last_local.checksum_for(&item.pile_name, &item.relative_path)
+                                item.checksum
+                                    == last_local.checksum_for(&item.pile_name, &item.relative_path)
                             });
                             if matches_previous {
                                 Ok(())
