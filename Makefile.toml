@@ -93,3 +93,7 @@
 
 [tasks.check-all]
     dependencies = ["clippy", "check-format", "docs", "test-nextest", "deadlinks"]
+
+[tasks.changelog]
+    command = "git-cliff"
+    args = ["-o", "CHANGELOG.md"]
