@@ -25,7 +25,8 @@ impl Default for ChecksumType {
 /// A file's checksum as a human-readable string.
 ///
 /// If you have a choice of which variant to construct,
-/// prefer using [`HoardItem::system_checksum`] or [`HoardItem::hoard_checksum`] with the
+/// prefer using [`HoardItem::system_checksum`](crate::hoard_item::HoardItem::system_checksum)
+/// or [`HoardItem::hoard_checksum`](crate::hoard_item::HoardItem::system_checksum) with the
 /// return value of [`ChecksumType::default()`]
 ///
 /// # TODO

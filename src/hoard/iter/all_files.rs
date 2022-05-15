@@ -402,11 +402,11 @@ impl AllFilesIter {
     }
 }
 
-/// A [`Stream`] of all managed files under the given [`Hoard`].
+/// A [`TryStream`] of all managed files under the given [`Hoard`].
 ///
 /// # Errors
 ///
-/// Any errors that may occur while building the stream. See [`Error`](super::Error) for more.
+/// Any errors that may occur while building the stream. See [`Error`](enum@super::Error) for more.
 #[allow(clippy::module_name_repetitions)]
 #[tracing::instrument]
 pub async fn all_files_stream(

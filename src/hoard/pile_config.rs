@@ -1,3 +1,5 @@
+//! Helper types representing a pile's configuration.
+
 use std::fs::Permissions as StdPermissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -10,7 +12,7 @@ use tokio::{fs, io};
 
 use crate::checksum::ChecksumType;
 
-/// Configuration for symmetric (password) encryption.
+/// Configuration for symmetric (password) encryption. (Not yet implemented)
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SymmetricEncryption {
     /// Raw password.
@@ -21,14 +23,15 @@ pub enum SymmetricEncryption {
     PasswordCmd(Vec<String>),
 }
 
-/// Configuration for asymmetric (public key) encryption.
+/// Configuration for asymmetric (public key) encryption. (Not yet implemented)
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AsymmetricEncryption {
+    /// The public key to encrypt with.
     #[serde(rename = "public_key")]
-    pub(crate) public_key: String,
+    pub public_key: String,
 }
 
-/// Configuration for hoard/pile encryption.
+/// Configuration for hoard/pile encryption. (Not yet implemented)
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Encryption {
@@ -41,17 +44,29 @@ pub enum Encryption {
 /// Configurable permissions for files and folders.
 ///
 /// Can be declared as a unix `chmod(1)` style mode or as a set of boolean flags.
+///
+/// Note that, on Windows, only setting whether the owner can write to the file/folder is supported.
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
 pub enum Permissions {
+    /// A unix-style mode, e.g. `0o777` means "accessible to all".
     Mode(u32),
+    /// Explicit permissions as boolean flags.
     #[serde(rename = "permissions")]
     Manual {
+        /// If the file/folder can be executed by the owner.
+        ///
+        /// On non-Windows systems, a folder must be "executable" in order to list its contents.
         is_executable: bool,
+        /// If the file/folder can be read by the owner.
         is_readable: bool,
+        /// If the file/folder can be modified/deleted by the owner.
         is_writable: bool,
+        /// If other users can read the file/folder.
         others_can_read: bool,
+        /// If other users can write/delete the file/folder.
         others_can_write: bool,
+        /// If other users can "execute" the file/folder.
         #[serde(alias = "others_can_list")]
         others_can_execute: bool,
     },
@@ -69,6 +84,7 @@ impl Permissions {
     /// The default permissions for files.
     ///
     /// Currently, this is owner-only read/write permissions.
+    #[must_use]
     pub fn file_default() -> Self {
         Self::Mode(Self::OWNER_READ | Self::OWNER_WRITE)
     }
@@ -77,10 +93,13 @@ impl Permissions {
     ///
     /// Currently, this is owner-only read/write/execute permissions
     /// (execute is necessary on unix-y systems to list the contents).
+    #[must_use]
     pub fn folder_default() -> Self {
         Self::Mode(Self::OWNER_READ | Self::OWNER_WRITE | Self::OWNER_EXE)
     }
 
+    /// Returns the [`Permissions`] as a unix-style mode number.
+    #[must_use]
     pub fn as_mode(self) -> u32 {
         match self {
             Self::Mode(mode) => mode,
@@ -129,6 +148,8 @@ impl Permissions {
         }
     }
 
+    /// Returns whether the [`Permissions`] indicate that the target is read-only.
+    #[must_use]
     pub fn is_readonly(self) -> bool {
         match self {
             Self::Mode(mode) => (mode & Self::OWNER_WRITE) == 0,
@@ -136,6 +157,8 @@ impl Permissions {
         }
     }
 
+    /// Modifies the provided permissions to set them equal to this [`Permissions`].
+    #[must_use]
     pub fn set_permissions(self, mut perms: StdPermissions) -> StdPermissions {
         #[cfg(unix)]
         perms.set_mode(self.as_mode());
@@ -144,6 +167,12 @@ impl Permissions {
         perms
     }
 
+    /// Set this [`Permissions`] on whatever is at the given path.
+    ///
+    /// # Errors
+    ///
+    /// Any I/O errors that might occur while reading metadata and/or setting permissions,
+    /// including any "not found" errors.
     pub async fn set_on_path(self, path: &Path) -> io::Result<()> {
         let perms = fs::metadata(path)
             .await

@@ -10,7 +10,7 @@ use super::{Error, NonEmptyPileName};
 /// - `None` indicates an anonymous (unnamed) pile.
 /// - `Some(name)` indicates a named pile with name `name`.
 ///
-/// See the [module documentation](self) for what makes an acceptable name.
+/// See the [module documentation](super) for what makes an acceptable name.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[repr(transparent)]
 #[serde(transparent)]

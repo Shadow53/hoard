@@ -1,11 +1,4 @@
-//! Keeping track of all operations.
-//!
-//! The types in this module are used for logging all operations to disk. This information can be
-//! used for debugging purposes, but is more directly used as a [`Checker`] to help prevent
-//! synchronized changes from being overwritten.
-//!
-//! It does this by parsing synchronized logs from this and other systems to determine which system
-//! was the last one to touch a file.
+//! The first operation log format, retained for backwards compatibility.
 
 use crate::checkers::history::operation::OperationFileInfo;
 use crate::checksum::{Checksum, MD5};
@@ -19,7 +12,7 @@ use time::OffsetDateTime;
 /// A single operation log.
 ///
 /// This keeps track of the timestamp of the operation (which may include multiple hoards),
-/// all hoards involved in the operation (and the related [`HoardOperation`]), and a record
+/// all hoards involved in the operation (and the related [`Hoard` operation](Hoard)), and a record
 /// of the latest operation log for each external system at the time of invocation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::module_name_repetitions)]

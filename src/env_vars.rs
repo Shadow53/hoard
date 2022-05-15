@@ -1,6 +1,4 @@
 //! Expand environment variables inside of a path.
-//!
-//! The only function exported from this module is [`expand_env_in_path`].
 
 use crate::paths::{Error as PathError, SystemPath};
 use once_cell::sync::Lazy;
@@ -31,7 +29,7 @@ pub enum Error {
         /// The variable that caused the error.
         var: String,
     },
-    /// The error returned while creating a [`SystemPath`] using [`expand_env_in_path`].
+    /// The error returned while creating a [`SystemPath`] using [`PathWithEnv`].
     Path(PathError),
 }
 

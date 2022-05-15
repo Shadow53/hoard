@@ -86,7 +86,7 @@ fn is_valid_absolute(path: &Path) -> bool {
 pub enum Error {
     /// The path provided to [`HoardPath::try_from()`] was invalid.
     ///
-    /// The path is invalid if it is not the hoards root (see [`hoard_dir`]) or a child of it.
+    /// The path is invalid if it is not the hoards root (see [`hoards_dir`]) or a child of it.
     #[error("invalid HoardPath: {0:?}")]
     InvalidHoardPath(PathBuf),
     /// The path provided to [`SystemPath::try_from()`] was invalid.
