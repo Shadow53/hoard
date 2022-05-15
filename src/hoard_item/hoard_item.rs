@@ -174,7 +174,7 @@ impl HoardItem {
     /// error cases for [`std::fs::read`], including if `hoard_path` is a directory.
     ///
     /// If always calling this function with a constant or programmer-determined value,
-    /// consider using [`hoard_md5`] or [`hoard_sha256`] instead.
+    /// consider using [`HoardItem::hoard_md5`] or [`HoardItem::hoard_sha256`] instead.
     #[tracing::instrument(name = "hoard_item_hoard_checksum")]
     pub async fn hoard_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
         match typ {
@@ -217,7 +217,7 @@ impl HoardItem {
     /// error cases for [`std::fs::read`], including if `system_path` is a directory.
     ///
     /// If always calling this function with a constant or programmer-determined value,
-    /// consider using [`system_md5`] or [`system_sha256`] instead.
+    /// consider using [`HoardItem::system_md5`] or [`HoardItem::system_sha256`] instead.
     #[tracing::instrument(name = "hoard_item_system_checksum")]
     pub async fn system_checksum(&self, typ: ChecksumType) -> io::Result<Option<Checksum>> {
         match typ {

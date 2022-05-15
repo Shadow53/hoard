@@ -16,7 +16,7 @@ use crate::newtypes::{NonEmptyPileName, PileName};
 use crate::paths::{HoardPath, RelativePath, SystemPath};
 
 pub mod iter;
-pub(crate) mod pile_config;
+pub mod pile_config;
 
 /// Errors that can happen while backing up or restoring a hoard.
 #[derive(Debug, Error)]

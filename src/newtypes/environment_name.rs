@@ -6,7 +6,7 @@ use super::{validate_name, Error};
 
 /// Newtype wrapper for `String` representing an [environment](https://hoard.rs/config/envs.html).
 ///
-/// See the [module documentation](self) for what makes an acceptable name.
+/// See the [module documentation](super) for what makes an acceptable name.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[repr(transparent)]
 #[serde(transparent)]

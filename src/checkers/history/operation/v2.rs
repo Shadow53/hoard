@@ -1,11 +1,7 @@
-//! Keeping track of all operations.
+//! The current version of the operation log format.
 //!
-//! The types in this module are used for logging all operations to disk. This information can be
-//! used for debugging purposes, but is more directly used as a [`Checker`] to help prevent
-//! synchronized changes from being overwritten.
-//!
-//! It does this by parsing synchronized logs from this and other systems to determine which system
-//! was the last one to touch a file.
+//! This type should be interacted with using the top-level [`Operation`](super::Operation)
+//! instead of being used directly.
 
 use std::collections::{HashMap, HashSet};
 
@@ -29,7 +25,7 @@ use super::{Error, ItemOperation};
 /// A single operation log.
 ///
 /// This keeps track of the timestamp of the operation (which may include multiple hoards),
-/// all hoards involved in the operation (and the related [`HoardOperation`]), and a record
+/// all hoards involved in the operation (and the related hoard operation), and a record
 /// of the latest operation log for each external system at the time of invocation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(clippy::module_name_repetitions)]

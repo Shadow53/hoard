@@ -22,8 +22,8 @@ type ConfigMultiple = crate::config::hoard::MultipleEntries;
 type ConfigSingle = crate::config::hoard::Pile;
 type ConfigHoard = crate::config::hoard::Hoard;
 
-/// Errors that may occur while processing a [`Builder`](super::Builder) [`Hoard`] into a [`Config`]
-/// [`Hoard`](crate::config::hoard::Hoard).
+/// Errors that may occur while processing a [`Builder`](super::Builder) [`Hoard`] into and
+/// [`Config`](crate::config::Config) [`Hoard`](crate::hoard::Hoard).
 #[derive(Debug, Error)]
 pub enum Error {
     /// Error while evaluating a [`Pile`]'s [`EnvTrie`].
@@ -44,7 +44,7 @@ pub struct Pile {
     pub config: Option<PileConfig>,
     /// Mapping of environment strings to a string path that may contain environment variables.
     ///
-    /// See [`expand_env_in_path`] for more on path format.
+    /// See [`PathWithEnv`] for more on path format.
     #[serde(flatten)]
     pub items: BTreeMap<EnvironmentString, PathWithEnv>,
 }

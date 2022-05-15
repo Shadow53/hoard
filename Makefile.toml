@@ -82,3 +82,18 @@
 [tasks.book]
     command = "mdbook"
     args = ["serve", "./book"]
+
+[tasks.outdated]
+    command = "cargo"
+    args = ["outdated"]
+
+[tasks.deadlinks]
+    command = "cargo"
+    args = ["deadlinks"]
+
+[tasks.check-all]
+    dependencies = ["clippy", "check-format", "docs", "test-nextest", "deadlinks"]
+
+[tasks.changelog]
+    command = "git-cliff"
+    args = ["-o", "CHANGELOG.md"]

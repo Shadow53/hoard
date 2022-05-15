@@ -61,8 +61,9 @@ pub enum Error {
     Operation(#[from] OperationError),
 }
 
+/// A wrapper type for running all implemented [`Checker`] types at once.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Checkers {
+pub struct Checkers {
     last_paths: HashMap<HoardName, LastPaths>,
     operations: HashMap<HoardName, Operation>,
 }

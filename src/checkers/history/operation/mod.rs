@@ -1,4 +1,11 @@
-//! Types for recording metadata about a single backup or restore [`Operation`].
+//! Keeping track of all operations.
+//!
+//! The types in this module are used for logging all operations to disk. This information can be
+//! used for debugging purposes, but is more directly used as a [`Checker`]
+//! to help prevent synchronized changes from being overwritten.
+//!
+//! It does this by parsing synchronized logs from this and other systems to determine which system
+//! was the last one to touch a file.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{validate_name, Error};
 
-/// Like [`PileName`], but not allowed to be empty ("anonymous")
+/// Like [`PileName`](super::PileName), but not allowed to be empty ("anonymous")
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "String")]
