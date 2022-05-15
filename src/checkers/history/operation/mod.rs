@@ -7,7 +7,6 @@
 //! It does this by parsing synchronized logs from this and other systems to determine which system
 //! was the last one to touch a file.
 
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
