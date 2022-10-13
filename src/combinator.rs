@@ -23,7 +23,7 @@ use std::fmt::Formatter;
 use tap::TapFallible;
 
 /// An internal container for the [`Combinator<T>`] type.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum Inner<T: TryInto<bool>> {
     /// A single item that can be converted to a boolean.
@@ -106,7 +106,7 @@ where
 ///
 /// If at least one of the [`Inner<T>`] items evaluates to `true`, then entire `Combinator<T>`
 /// will evaluate to `true`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(transparent)]
 pub struct Combinator<T: TryInto<bool>>(pub Vec<Inner<T>>);
 

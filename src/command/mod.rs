@@ -62,7 +62,7 @@ pub enum Error {
 }
 
 /// The possible subcommands for `hoard`.
-#[derive(Clone, PartialEq, Debug, Parser)]
+#[derive(Clone, PartialEq, Eq, Debug, Parser)]
 pub enum Command {
     /// Loads all configuration for validation.
     /// If the configuration loads and builds, this command succeeds.

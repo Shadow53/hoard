@@ -39,7 +39,7 @@ pub enum Error {
 }
 
 /// Collection of the last paths matched per hoard.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LastPaths(HashMap<HoardName, HoardPaths>);
 
 impl<T> From<T> for LastPaths
@@ -168,7 +168,7 @@ impl LastPaths {
 /// Contains the timestamp of the last operation on this hoard and a mapping
 /// of every file in each of its piles to the corresponding path outside of the
 /// hoard.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HoardPaths {
     /// The timestamp of the most recent operation on this [`Hoard`].
     pub timestamp: OffsetDateTime,
@@ -177,7 +177,7 @@ pub struct HoardPaths {
 }
 
 /// Internal type for [`HoardPaths`] mapping to anonymous or named piles.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PilePaths {
     /// A single, anonymous pile's path.

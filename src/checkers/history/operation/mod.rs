@@ -421,6 +421,11 @@ impl Operation {
             })
     }
 
+    /// Returns the most recent `Operation`
+    ///
+    /// Is async because it's passed to [`TryFuture::try_fold`], which expects a function returning a future.
+    /// Returns a `Result` because that's the easiest signature to use.
+    #[allow(clippy::unused_async)]
     async fn reduce_latest(left: Option<Self>, right: Self) -> Result<Option<Self>, Error> {
         match left {
             None => Ok(Some(right)),
@@ -499,12 +504,12 @@ impl Operation {
             .try_filter_map(|item| async move {
                 // Only keep errors and anything where path() returns Some
                 let path = item.path();
-                Ok(util::file_is_log(&path).then(|| path))
+                Ok(util::file_is_log(&path).then_some(path))
             })
             .and_then(|path| async move { Self::from_file(&path).await })
             .try_filter_map(|operation| async {
                 (!backups_only || operation.direction() == Direction::Backup)
-                    .then(|| Ok(operation))
+                    .then_some(Ok(operation))
                     .transpose()
             })
             .try_filter_map(|operation| async {
@@ -512,7 +517,7 @@ impl Operation {
                     None => Ok(Some(operation)),
                     Some((pile_name, path)) => operation
                         .contains_file(pile_name, path, only_modified)
-                        .then(|| Ok(operation))
+                        .then_some(Ok(operation))
                         .transpose(),
                 }
             })

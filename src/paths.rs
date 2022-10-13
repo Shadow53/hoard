@@ -82,7 +82,7 @@ fn is_valid_absolute(path: &Path) -> bool {
 /// - No symbolic links are followed
 /// - No file or directory existence is checked
 /// - No other filesystem accesses are performed
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
     /// The path provided to [`HoardPath::try_from()`] was invalid.
     ///

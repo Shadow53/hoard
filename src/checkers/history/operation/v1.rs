@@ -14,7 +14,7 @@ use time::OffsetDateTime;
 /// This keeps track of the timestamp of the operation (which may include multiple hoards),
 /// all hoards involved in the operation (and the related [`Hoard` operation](Hoard)), and a record
 /// of the latest operation log for each external system at the time of invocation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::module_name_repetitions)]
 pub struct OperationV1 {
     /// Timestamp of last operation
@@ -96,7 +96,7 @@ impl super::OperationImpl for OperationV1 {
 /// Operation log information for a single hoard.
 ///
 /// Really just a wrapper for [`Pile`] because piles may be anonymous or named.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Hoard {
     /// Information for a single, anonymous pile.
     Anonymous(Pile),
@@ -105,7 +105,7 @@ pub enum Hoard {
 }
 
 /// A mapping of file path (relative to pile) to file checksum.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pile(pub(super) HashMap<RelativePath, MD5>);
 
 impl From<HashMap<RelativePath, MD5>> for Pile {

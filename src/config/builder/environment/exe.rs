@@ -109,7 +109,7 @@ impl TryFrom<PathBuf> for Executable {
 /// - `cmd.exe`
 /// - `CMD.EXE`
 /// - And so on, for extensions `.exe`, `.com`, `.bat`, and `.cmd`
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 #[allow(clippy::module_name_repetitions)]
 pub struct ExeExists(pub Executable);

@@ -35,7 +35,7 @@ pub enum Error {
 }
 
 /// A single pile in the hoard.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pile {
     /// Configuration specific to this pile.
     ///
@@ -76,7 +76,7 @@ impl Pile {
 }
 
 /// A set of multiple related piles (i.e. in a single hoard).
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultipleEntries {
     /// Any custom configuration that applies to all contained files.
     ///
@@ -114,7 +114,7 @@ impl MultipleEntries {
 }
 
 /// A definition of a Hoard.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Hoard {
     /// A single anonymous [`Pile`].

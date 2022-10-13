@@ -71,7 +71,7 @@ async fn only_valid_uuid_path(entry: fs::DirEntry) -> Result<Option<fs::DirEntry
             || Ok(None),
             |s| {
                 tracing::trace!("checking if {} is a valid UUID", s);
-                Uuid::parse_str(s).is_ok().then(|| Ok(entry)).transpose()
+                Uuid::parse_str(s).is_ok().then_some(Ok(entry)).transpose()
             },
         )
     } else {
@@ -116,7 +116,7 @@ async fn log_files_to_delete_from_dir(
                     |(i, path)| async move {
                         Operation::from_file(path)
                             .await
-                            .map(|op| (op.direction() == Direction::Backup).then(|| i))
+                            .map(|op| (op.direction() == Direction::Backup).then_some(i))
                     },
                 ),
             )
@@ -150,7 +150,7 @@ async fn log_files_to_delete(
             tracing::trace!("found hoard directory: {}", path.display());
             Ok(path)
         })
-        .try_filter_map(|path| async move { Ok(path.is_dir().then(|| path)) })
+        .try_filter_map(|path| async move { Ok(path.is_dir().then_some(path)) })
         .and_then(log_files_to_delete_from_dir)
         .try_flatten();
 
@@ -230,7 +230,7 @@ async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error
                 .is_some();
             let uuid_path = uuid_entry.path();
             (is_uuid && uuid_path.is_dir())
-                .then(|| uuid_path)
+                .then_some(uuid_path)
                 .map(Ok)
                 .transpose()
         })
@@ -269,7 +269,7 @@ async fn all_operations() -> Result<impl TryStream<Ok = Operation, Error = Error
         })
         .try_flatten() // Iterator of DirEntry (log files)
         .map_ok(|hoard_entry| hoard_entry.path()) // Iterator of PathBuf
-        .try_filter_map(|path| async move { Ok(file_is_log(&path).then(|| path)) }) // Only those paths that are log files
+        .try_filter_map(|path| async move { Ok(file_is_log(&path).then_some(path)) }) // Only those paths that are log files
         .map_err(Error::IO)
         .and_then(|path| async move { Operation::from_file(&path).await });
 

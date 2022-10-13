@@ -81,7 +81,7 @@ impl fmt::Display for Direction {
 }
 
 /// A single path to hoard, with configuration.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pile {
     /// Optional configuration for this path.
     pub config: PileConfig,
@@ -93,14 +93,14 @@ pub struct Pile {
 }
 
 /// A collection of multiple related [`Pile`]s.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MultipleEntries {
     /// The named [`Pile`]s in the hoard.
     pub piles: HashMap<NonEmptyPileName, Pile>,
 }
 
 /// A configured hoard. May contain one or more [`Pile`]s.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[allow(variant_size_differences)]
 pub enum Hoard {
     /// A single anonymous [`Pile`].

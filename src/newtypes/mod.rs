@@ -18,7 +18,7 @@ mod non_empty_pile_name;
 mod pile_name;
 
 /// Errors that may occur while creating an instance of one of this newtypes.
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
     /// The given string contains disallowed characters.
     #[error("invalid name \"{0}\": must contain only alphanumeric characters, '-', '_', or '.'")]

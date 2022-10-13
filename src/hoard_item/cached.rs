@@ -107,7 +107,7 @@ impl CachedHoardItem {
                 (FileContent::Binary(_), FileContent::Text(_))
                 | (FileContent::Text(_), FileContent::Binary(_)) => Some(Diff::Binary),
                 (FileContent::Binary(_), FileContent::Binary(_)) => {
-                    (system_checksums != hoard_checksums).then(|| Diff::Binary)
+                    (system_checksums != hoard_checksums).then_some(Diff::Binary)
                 }
                 (FileContent::Text(system_text), FileContent::Text(hoard_text)) => str_diff(
                     (inner.hoard_path(), hoard_text),

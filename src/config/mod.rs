@@ -31,7 +31,7 @@ pub enum Error {
 /// A (processed) configuration.
 ///
 /// To create a configuration, use [`Builder`] instead.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// The command to run.
     pub command: Command,

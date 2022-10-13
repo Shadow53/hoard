@@ -168,7 +168,6 @@ where
 }
 
 /// Returns a [`SubscriberBuilder`] with the default settings for Hoard.
-#[must_use]
 pub fn get_subscriber() -> SubscriberBuilder<Formatter, Formatter, EnvFilter> {
     let max_level = {
         let env_str = std::env::var(LOG_ENV).unwrap_or_else(|_| String::new());

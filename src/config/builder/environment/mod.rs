@@ -72,7 +72,7 @@ impl From<Infallible> for Error {
 /// - [`Hostname`]
 /// - [`OperatingSystem`]
 /// - [`PathExists`]
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(deny_unknown_fields)]
 pub struct Environment {
     hostname: Option<Combinator<Hostname>>,
