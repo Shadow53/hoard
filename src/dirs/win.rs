@@ -33,11 +33,7 @@ fn pwstr_len(pwstr: PWSTR) -> usize {
 #[allow(unsafe_code)]
 pub fn get_known_folder(folder_id: GUID) -> WinResult<PathBuf> {
     unsafe {
-        let flag = KF_FLAG_CREATE
-            .0
-            .try_into()
-            .expect("flag value should always be a non-negative integer");
-        SHGetKnownFolderPath(&folder_id, flag, HANDLE(0)).map(|pwstr| {
+        SHGetKnownFolderPath(&folder_id, KF_FLAG_CREATE, HANDLE(0)).map(|pwstr| {
             let slice = std::slice::from_raw_parts(pwstr.0, pwstr_len(pwstr));
             PathBuf::from(OsString::from_wide(slice))
         })
