@@ -11,7 +11,7 @@ async fn test_yaml_support() {
     let path = tester.config_dir().join("config.yaml");
 
     let builder: Builder = toml::from_str(common::base::BASE_CONFIG).expect("failed to parse TOML");
-    let content = serde_yaml::to_vec(&builder).expect("failed to serialize to YAML");
+    let content = serde_yaml::to_string(&builder).expect("failed to serialize to YAML");
     fs::write(&path, &content)
         .await
         .expect("failed to write to YAML config file");
@@ -50,19 +50,19 @@ async fn test_toml_takes_precedence() {
     let yaml_config = Builder::new()
         .set_environments(maplit::btreemap! { "yaml".parse().unwrap() => Environment::default() });
     {
-        let toml_bytes = toml::to_vec(&toml_config).expect("failed to serialize TOML");
+        let toml_bytes = toml::to_string(&toml_config).expect("failed to serialize TOML");
         fs::write(&toml_path, &toml_bytes)
             .await
             .expect("failed to write TOML to file");
     }
     {
-        let content = serde_yaml::to_vec(&yaml_config).expect("failed to serialize YAML");
+        let content = serde_yaml::to_string(&yaml_config).expect("failed to serialize YAML");
         fs::write(&yaml_path, &content)
             .await
             .expect("failed to write to YAML file");
     }
     {
-        let content = serde_yaml::to_vec(&yaml_config).expect("failed to serialize YAML");
+        let content = serde_yaml::to_string(&yaml_config).expect("failed to serialize YAML");
         fs::write(&yml_path, &content)
             .await
             .expect("failed to write to YML file");
