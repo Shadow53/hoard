@@ -12,7 +12,7 @@ other local-only configuration data.
 
 - Linux/BSD: `$XDG_CONFIG_HOME/hoard/` or `$HOME/.config/hoard/`
 - macos: `$HOME/Library/Application Support/com.shadow53.hoard/`
-- Windows: `%AppData%\shadow53\hoard\`
+- Windows: `%AppData%\shadow53\hoard\config\`
 
 ### Config File
 
