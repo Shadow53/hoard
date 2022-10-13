@@ -1,0 +1,27 @@
+[package]
+versioned_files = ["Cargo.toml"]
+changelog = "CHANGELOG.md"
+
+[[workflows]]
+name = "release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows.steps]]
+type = "Command"
+command = "git commit -m \"chore: prepare release $version\" && git push"
+
+[workflows.steps.variables]
+"$version" = "Version"
+
+[[workflows.steps]]
+type = "Release"
+
+[[workflows.steps]]
+type = "Command"
+command = "cargo publish --dry-run --token \"${CARGO_TOKEN}\""
+
+[github]
+owner = "Shadow53"
+repo = "hoard"

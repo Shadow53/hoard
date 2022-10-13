@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  workflow_dispatch
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Install Knope
+        uses: knope-dev/action@v1
+      - uses: Swatinem/rust-cache@v1
+      - run: |
+          knope release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
