@@ -1,6 +1,6 @@
 [package]
 name = "hoard"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Michael Bryant <shadow53@shadow53.com>"]
 edition = "2021"
 license = "BSD-3-Clause"

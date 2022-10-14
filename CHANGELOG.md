@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.1
+
+### Fixes
+
+- update rust crate similar to 2.2 (#150)
+- update rust crate md-5 to 0.10.5 (#143)
+- update rust crate digest to 0.10.5 (#142)
+- update rust crate regex to 1.6 (#141)
+- update rust crate uuid to 1.2 (#138)
+- update rust crate once_cell to 1.15 (#137)
+- update rust crate sha2 to 0.10.6 (#148)
+- update rust crate thiserror to 1.0.37 (#149)
+
 ## [unreleased]
 
 ### Bug Fixes
