@@ -37,7 +37,7 @@ impl<'de> de::Visitor<'de> for PathExistsVisitor {
 ///
 /// The path can be anything from a file, directory, symbolic link, or otherwise, so long as
 /// *something* with that name exists.
-#[derive(Clone, PartialEq, Debug, Hash, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize)]
 #[serde(transparent)]
 #[repr(transparent)]
 #[allow(clippy::module_name_repetitions)]

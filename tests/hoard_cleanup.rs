@@ -176,7 +176,7 @@ async fn test_operation_cleanup() {
                             let files = files
                                 .into_iter()
                                 .enumerate()
-                                .filter_map(|(i, path)| indices.contains(&i).then(|| path))
+                                .filter_map(|(i, path)| indices.contains(&i).then_some(path))
                                 .collect();
                             (*hoard, files)
                         })

@@ -55,7 +55,7 @@ pub enum Error {
 }
 
 /// Intermediate data structure to build a [`Config`](crate::config::Config).
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Parser)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Parser)]
 #[clap(author, version, about, long_about = None, rename_all = "kebab")]
 #[serde(rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]

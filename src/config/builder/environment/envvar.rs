@@ -7,7 +7,7 @@ use std::fmt::Formatter;
 
 /// A conditional structure that checks if the given environment variable exists and optionally if
 /// it is set to a specific value.
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Hash)]
 pub struct EnvVariable {
     /// The variable to check.
     pub var: String,

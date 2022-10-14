@@ -670,7 +670,9 @@ impl ProcessedFile {
             (None, None) => None,
             (None, Some(_)) => Some(OperationType::Create),
             (Some(_), None) => Some(OperationType::Delete),
-            (Some(expected), Some(current)) => (current != expected).then(|| OperationType::Modify),
+            (Some(expected), Some(current)) => {
+                (current != expected).then_some(OperationType::Modify)
+            }
         }
     }
 

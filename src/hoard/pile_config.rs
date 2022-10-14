@@ -13,7 +13,7 @@ use tokio::{fs, io};
 use crate::checksum::ChecksumType;
 
 /// Configuration for symmetric (password) encryption. (Not yet implemented)
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SymmetricEncryption {
     /// Raw password.
     #[serde(rename = "password")]
@@ -24,7 +24,7 @@ pub enum SymmetricEncryption {
 }
 
 /// Configuration for asymmetric (public key) encryption. (Not yet implemented)
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AsymmetricEncryption {
     /// The public key to encrypt with.
     #[serde(rename = "public_key")]
@@ -32,7 +32,7 @@ pub struct AsymmetricEncryption {
 }
 
 /// Configuration for hoard/pile encryption. (Not yet implemented)
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Encryption {
     /// Symmetric encryption.
@@ -46,7 +46,7 @@ pub enum Encryption {
 /// Can be declared as a unix `chmod(1)` style mode or as a set of boolean flags.
 ///
 /// Note that, on Windows, only setting whether the owner can write to the file/folder is supported.
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
 pub enum Permissions {
     /// A unix-style mode, e.g. `0o777` means "accessible to all".
@@ -218,7 +218,7 @@ where
 }
 
 /// Hoard/Pile configuration.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// The [`ChecksumType`] to use when hashing files.

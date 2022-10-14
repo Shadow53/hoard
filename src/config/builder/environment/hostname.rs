@@ -7,7 +7,7 @@ use std::fmt::Formatter;
 use tap::TapFallible;
 
 /// A conditional structure that compares the system's hostname to the given string.
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct Hostname(pub String);
 

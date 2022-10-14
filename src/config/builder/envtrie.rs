@@ -16,7 +16,7 @@ use crate::env_vars::PathWithEnv;
 use crate::newtypes::{EnvironmentName, EnvironmentString};
 
 /// Errors that may occur while building or evaluating an [`EnvTrie`].
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
     /// Cannot decide between two environment strings based on length and mutual exclusion.
     #[error("\"{0}\" and \"{1}\" have equal weight. Consider a more specific condition for the preferred one or make them mutually exclusive")]

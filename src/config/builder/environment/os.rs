@@ -13,7 +13,7 @@ use std::fmt::Formatter;
 /// detect the system as Linux.
 ///
 /// For possible values to check against, see [`std::env::consts::OS`].
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct OperatingSystem(pub String);
 
