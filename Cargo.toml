@@ -43,7 +43,7 @@ tokio-stream = { version = "0.1", default-features = false, features = ["fs"] }
 toml = "0.5.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
-uuid = { version = "1.0", features = ["serde", "v4"] }
+uuid = { version = "1.2", features = ["serde", "v4"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.42", features = ["Storage", "Win32_UI_Shell", "Win32_Foundation", "Win32_Globalization"] }
