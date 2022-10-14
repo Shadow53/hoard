@@ -19,6 +19,8 @@ jobs:
         uses: knope-dev/action@v1
       - uses: Swatinem/rust-cache@v1
       - run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
           knope release
         env:
           GITHUB_TOKEN: ${{ secrets.KNOPE_TOKEN }}
