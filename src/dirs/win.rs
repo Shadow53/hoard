@@ -13,9 +13,11 @@ use super::{path_from_env, COMPANY, PROJECT};
 #[allow(unsafe_code)]
 fn pwstr_len(pwstr: PWSTR) -> usize {
     unsafe {
-        u_strlen(pwstr.0)
-            .try_into()
-            .expect("a positive i32 should always fit in a usize")
+        // Not entirely sure if this is correct, but it should be:
+        // - The string is always returned from another Windows API
+        // - `as_wide` converts into a slice of u16 without '\0'
+        // - AFAICT, there are no multi-u16 characters
+        pwstr.as_wide().len()
     }
 }
 
