@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use windows::core::{Result as WinResult, GUID, PCWSTR, PWSTR};
 use windows::Win32::Foundation::HANDLE;
-use windows::Win32::Globalization::u_strlen;
 use windows::Win32::UI::Shell::{FOLDERID_Profile, FOLDERID_RoamingAppData};
 use windows::Win32::UI::Shell::{SHGetKnownFolderPath, SHSetKnownFolderPath, KF_FLAG_CREATE};
 
