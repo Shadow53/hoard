@@ -20,7 +20,7 @@ type = "Release"
 
 [[workflows.steps]]
 type = "Command"
-command = "cargo publish --dry-run --token \"${CARGO_TOKEN}\""
+command = "cargo publish --token \"${CARGO_TOKEN}\""
 
 [github]
 owner = "Shadow53"
