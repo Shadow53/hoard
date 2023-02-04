@@ -60,8 +60,8 @@ mod tests {
     fn test_from_str() {
         let inputs = [
             (
-                String::from(""),
-                Err(Error::DisallowedName(String::from(""))),
+                String::new(),
+                Err(Error::DisallowedName(String::new())),
             ),
             (
                 String::from("config"),
@@ -77,13 +77,13 @@ mod tests {
         for (s, expected) in inputs {
             let result = s.parse::<HoardName>();
             match (&result, &expected) {
-                (Ok(name), Err(err)) => panic!("expected error {:?}, got success {:?}", err, name),
-                (Err(err), Ok(name)) => panic!("expected success {:?}, got error {:?}", name, err),
+                (Ok(name), Err(err)) => panic!("expected error {err:?}, got success {name:?}"),
+                (Err(err), Ok(name)) => panic!("expected success {name:?}, got error {err:?}"),
                 (Ok(name), Ok(expected)) => {
-                    assert_eq!(name, expected, "expected {} but got {}", expected, name);
+                    assert_eq!(name, expected, "expected {expected} but got {name}");
                 }
                 (Err(err), Err(expected)) => {
-                    assert_eq!(err, expected, "expected {:?} but got {:?}", expected, err);
+                    assert_eq!(err, expected, "expected {expected:?} but got {err:?}");
                 }
             }
         }

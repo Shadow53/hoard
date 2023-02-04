@@ -62,7 +62,7 @@ mod tests {
             };
             IgnoreFilter::new(&config)
         };
-        assert!(format!("{:?}", filter).contains("IgnoreFilter"));
+        assert!(format!("{filter:?}").contains("IgnoreFilter"));
         assert_eq!(filter, filter.clone());
         assert_ne!(filter, other);
     }

@@ -47,7 +47,7 @@ mod tests {
             ..PileConfig::default()
         };
         let filters = Filters::new(&config);
-        assert!(format!("{:?}", filters).contains("Filters"));
+        assert!(format!("{filters:?}").contains("Filters"));
         assert_eq!(filters.clone().ignore, filters.ignore);
     }
 }

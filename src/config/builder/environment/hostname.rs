@@ -35,7 +35,7 @@ impl TryInto<bool> for Hostname {
 impl fmt::Display for Hostname {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let Hostname(hostname) = self;
-        write!(f, "HOSTNAME == {}", hostname)
+        write!(f, "HOSTNAME == {hostname}")
     }
 }
 

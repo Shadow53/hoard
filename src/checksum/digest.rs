@@ -21,7 +21,7 @@ fn checksum_to_string<H>(data: H) -> String
 where
     H: LowerHex,
 {
-    format!("{:x}", data)
+    format!("{data:x}")
 }
 
 mod sealed {
@@ -186,7 +186,7 @@ where
     <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -248,7 +248,7 @@ mod tests {
 
         #[test]
         fn test_md5_digest_to_array() {
-            let result = Md5::digest_to_array(&DATA);
+            let result = Md5::digest_to_array(DATA);
             let expected =
                 GenericArray::<u8, <Md5 as Digestable>::OutputSize>::from_slice(&MD5_ARR);
             assert_eq!(&result, expected);
@@ -262,7 +262,7 @@ mod tests {
 
         #[test]
         fn test_md5_digest_from_str() {
-            let expected = Md5::digest_to_array(&DATA);
+            let expected = Md5::digest_to_array(DATA);
             let result = Md5::digest_from_str(MD5_STR).unwrap();
             assert_eq!(expected, result);
         }
@@ -290,7 +290,7 @@ mod tests {
 
         #[test]
         fn test_sha256_digest_to_array() {
-            let result = Sha256::digest_to_array(&DATA);
+            let result = Sha256::digest_to_array(DATA);
             let expected =
                 GenericArray::<u8, <Sha256 as Digestable>::OutputSize>::from_slice(&SHA256_ARR);
             assert_eq!(&result, expected);
@@ -304,7 +304,7 @@ mod tests {
 
         #[test]
         fn test_sha256_digest_from_str() {
-            let expected = Sha256::digest_to_array(&DATA);
+            let expected = Sha256::digest_to_array(DATA);
             let result = Sha256::digest_from_str(SHA256_STR).unwrap();
             assert_eq!(expected, result);
         }
@@ -333,7 +333,7 @@ mod tests {
                 assert_eq!(received_len, 2);
                 assert_eq!(expected_len, <Md5 as Digestable>::OutputSize::to_usize());
             } else {
-                panic!("expected InvalidLength error, got {:?}", error);
+                panic!("expected InvalidLength error, got {error:?}");
             }
         }
 

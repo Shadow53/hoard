@@ -305,7 +305,7 @@ impl Hoard {
                 tracing::error!("expected checksum for {} but found nothing", path);
                 Error::IO(io::Error::new(
                     io::ErrorKind::NotFound,
-                    format!("could not find item at \"{}\"", path),
+                    format!("could not find item at \"{path}\""),
                 ))
             })
             .map(Ok)
@@ -321,8 +321,7 @@ impl Hoard {
                 .map(|pile| pile.config.checksum_type)
                 .expect("provided pile name should always be in hoard"),
             (hoard, pile_name) => panic!(
-                "mismatched hoard type and pile name option: hoard ({:?}), pile_name: {:?}",
-                hoard, pile_name
+                "mismatched hoard type and pile name option: hoard ({hoard:?}), pile_name: {pile_name:?}"
             ),
         }
         .unwrap_or_default()
@@ -503,7 +502,7 @@ mod tests {
     #[test]
     fn test_checksum_derives() {
         let checksum = Checksum::MD5(MD5::from_data("testing"));
-        assert!(format!("{:?}", checksum).contains("MD5"));
+        assert!(format!("{checksum:?}").contains("MD5"));
         assert_eq!(checksum, checksum.clone());
         assert_tokens(
             &checksum,

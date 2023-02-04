@@ -630,13 +630,13 @@ mod tests {
     trie_test_ignore_score! {
         name: test_valid_multi_env,
         environments: btreemap! {
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_1, LABEL_C_1).parse().unwrap() => PATH_1.into(),
+            format!("{LABEL_A_1}|{LABEL_B_1}|{LABEL_C_1}").parse().unwrap() => PATH_1.into(),
             // Testing merged trees
-            format!("{}|{}|{}", LABEL_A_1, LABEL_B_2, LABEL_C_1).parse().unwrap() => PATH_2.into(),
+            format!("{LABEL_A_1}|{LABEL_B_2}|{LABEL_C_1}").parse().unwrap() => PATH_2.into(),
             // The generated tree should be in sorted order
-            format!("{}|{}|{}", LABEL_B_3, LABEL_A_3, LABEL_C_2).parse().unwrap() => PATH_3.into(),
+            format!("{LABEL_B_3}|{LABEL_A_3}|{LABEL_C_2}").parse().unwrap() => PATH_3.into(),
             // Testing overlapping trees
-            format!("{}|{}", LABEL_A_3, LABEL_B_3).parse().unwrap() => PATH_2.into(),
+            format!("{LABEL_A_3}|{LABEL_B_3}").parse().unwrap() => PATH_2.into(),
         },
         exclusivity: vec![
             vec![LABEL_A_1.parse().unwrap(), LABEL_A_2.parse().unwrap(), LABEL_A_3.parse().unwrap()],
@@ -707,9 +707,9 @@ mod tests {
     trie_test_ignore_score! {
         name: test_combine_mutually_exclusive_is_invalid,
         environments: btreemap! {
-            format!("{}|{}", LABEL_A_1, LABEL_A_2).parse().unwrap() => PATH_1.into(),
+            format!("{LABEL_A_1}|{LABEL_A_2}").parse().unwrap() => PATH_1.into(),
         },
         exclusivity: vec![vec![LABEL_A_1.parse().unwrap(), LABEL_A_2.parse().unwrap()]],
-        expected: Err(Error::CombinedMutuallyExclusive(format!("{}|{}", LABEL_A_1, LABEL_A_2).parse().unwrap()))
+        expected: Err(Error::CombinedMutuallyExclusive(format!("{LABEL_A_1}|{LABEL_A_2}").parse().unwrap()))
     }
 }

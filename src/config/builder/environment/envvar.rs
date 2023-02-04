@@ -99,8 +99,7 @@ mod tests {
         let var = String::from("HOARD_ENV_NOT_SET");
         assert!(
             std::env::var_os(&var).is_none(),
-            "env var {} should not be set",
-            var
+            "env var {var} should not be set"
         );
         let is_set: bool = EnvVariable {
             var,

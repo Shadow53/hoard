@@ -39,7 +39,7 @@ impl fmt::Display for Error {
             Self::Env {
                 error: error @ env::VarError::NotPresent,
                 var,
-            } => write!(f, "{}: {}", error, var),
+            } => write!(f, "{error}: {var}"),
             // grcov: ignore-start
             // I do not think it is worth testing for this error just to get coverage.
             Self::Env {
@@ -47,7 +47,7 @@ impl fmt::Display for Error {
                 ..
             } => error.fmt(f),
             // grcov: ignore-end
-            Self::Path(error) => write!(f, "{}", error),
+            Self::Path(error) => write!(f, "{error}"),
         }
     }
 }

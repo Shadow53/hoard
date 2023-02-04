@@ -186,7 +186,7 @@ async fn assert_diff_contains(
         tester.assert_has_output(&content);
     } else {
         let debug_output = ""; //tester.extra_logging_output();
-        assert_eq!(tester.output(), content, "{}", debug_output);
+        assert_eq!(tester.output(), content, "{debug_output}");
     }
 }
 

@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn test_from_str() {
         let inputs = [
-            ("", Err(Error::DisallowedName(String::from("")))),
+            ("", Err(Error::DisallowedName(String::new()))),
             (
                 "invalid name",
                 Err(Error::DisallowedCharacters(String::from("invalid name"))),
@@ -65,20 +65,18 @@ mod tests {
             let result = s.parse::<EnvironmentName>();
             match (result, expected) {
                 (Ok(result), Err(expected)) => {
-                    panic!("expected error {:?} but got success {:?}", expected, result)
+                    panic!("expected error {expected:?} but got success {result:?}")
                 }
                 (Err(err), Ok(expected)) => {
-                    panic!("expected success {:?} but got error {:?}", expected, err)
+                    panic!("expected success {expected:?} but got error {err:?}")
                 }
                 (Ok(result), Ok(expected)) => assert_eq!(
                     result, expected,
-                    "expected {:?} but got {:?}",
-                    expected, result
+                    "expected {expected:?} but got {result:?}"
                 ),
                 (Err(err), Err(expected)) => assert_eq!(
                     err, expected,
-                    "expected error {:?} but got {:?}",
-                    expected, err
+                    "expected error {expected:?} but got {err:?}"
                 ),
             }
         }

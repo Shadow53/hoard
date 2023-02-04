@@ -83,8 +83,8 @@ mod tests {
     fn test_from_str_and_try_from_string() {
         let inputs = vec![
             (
-                String::from(""),
-                Err(Error::DisallowedName(String::from(""))),
+                String::new(),
+                Err(Error::DisallowedName(String::new())),
             ),
             (
                 String::from("testing"),
@@ -102,20 +102,17 @@ mod tests {
             match (&from_str, &try_from, &expected) {
                 (Ok(_), Err(_), _) | (Err(_), Ok(_), _) => {
                     panic!(
-                        "from_str ({:?}) and try_from_string ({:?}) returned different results",
-                        from_str, try_from
+                        "from_str ({from_str:?}) and try_from_string ({try_from:?}) returned different results"
                     )
                 }
                 (Ok(result), Ok(_), Err(err)) => {
                     panic!(
-                        "conversion succeeded ({}) but expected to fail with {:?}",
-                        result, err
+                        "conversion succeeded ({result}) but expected to fail with {err:?}"
                     );
                 }
                 (Err(err), Err(_), Ok(result)) => {
                     panic!(
-                        "conversion failed with {:?} but expected to succeed with {:?}",
-                        err, result
+                        "conversion failed with {err:?} but expected to succeed with {result:?}"
                     );
                 }
                 (Ok(from_str), Ok(try_from), Ok(expected)) => {
@@ -125,8 +122,7 @@ mod tests {
                     );
                     assert_eq!(
                         from_str, expected,
-                        "expected {} but got {}",
-                        expected, from_str
+                        "expected {expected} but got {from_str}"
                     );
                 }
                 (Err(from_str), Err(try_from), Err(expected)) => {
@@ -136,8 +132,7 @@ mod tests {
                     );
                     assert_eq!(
                         from_str, expected,
-                        "expected error {:?} but got {:?}",
-                        expected, from_str
+                        "expected error {expected:?} but got {from_str:?}"
                     );
                 }
             }

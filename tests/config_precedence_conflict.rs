@@ -35,8 +35,8 @@ fn test_results_in_indecision() {
                 hashset! { left, right },
                 hashset! { "foo".parse().unwrap(), "baz".parse().unwrap() }
             ),
-            _ => panic!("Unexpected error: {}", err),
+            _ => panic!("Unexpected error: {err}"),
         },
-        _ => panic!("Unexpected error: {}", err),
+        _ => panic!("Unexpected error: {err}"),
     }
 }

@@ -201,7 +201,7 @@ impl Tester {
         let list_home = Self::list_dir_to_string(self.home_dir(), 3).await;
         let list_data = Self::list_dir_to_string(self.data_dir(), 4).await;
         let list_env: String = std::env::vars()
-            .map(|(key, val)| format!("{} = {}", key, val))
+            .map(|(key, val)| format!("{key} = {val}"))
             .collect::<Vec<String>>()
             .join("\n");
         format!(
@@ -240,8 +240,7 @@ impl Tester {
         if let Err(error) = result {
             let debug_output = Self::extra_logging_output(self).await;
             panic!(
-                "command {:?} failed: {:?}\n{}",
-                command, error, debug_output
+                "command {command:?} failed: {error:?}\n{debug_output}"
             );
         }
     }
@@ -281,10 +280,7 @@ impl Tester {
         assert_eq!(
             self.has_output(output),
             matches,
-            "expected \"{}\" {}in program output\n{}",
-            output,
-            not_or_not,
-            debug_output
+            "expected \"{output}\" {not_or_not}in program output\n{debug_output}"
         );
     }
 
@@ -309,7 +305,7 @@ impl Tester {
             Ok(s) => s.parse().ok(),
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => None,
-                _ => panic!("unexpected error while reading UUID: {}", err),
+                _ => panic!("unexpected error while reading UUID: {err}"),
             },
         }
     }
