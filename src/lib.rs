@@ -27,7 +27,6 @@
 absolute_paths_not_starting_with_crate,
 anonymous_parameters,
 bad_style,
-const_err,
 dead_code,
 keyword_idents,
 improper_ctypes,
