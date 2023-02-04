@@ -352,7 +352,7 @@ impl DefaultConfigTester {
 
     async fn hash_file(file: &Path) -> GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize> {
         let data = fs::read(file).await.expect("file should always exist");
-        Sha256::digest(&data)
+        Sha256::digest(data)
     }
 
     async fn file_contents(

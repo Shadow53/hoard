@@ -172,7 +172,7 @@ impl HoardPath {
         Self::try_from(
             rhs.0
                 .as_ref()
-                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path)),
+                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(rel_path)),
         )
         .expect("a HoardPath rooted in an existing HoardPath is always valid")
     }
@@ -231,7 +231,7 @@ impl SystemPath {
         Self::try_from(
             rhs.0
                 .as_ref()
-                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(&rel_path)),
+                .map_or_else(|| self.0.clone(), |rel_path| self.0.join(rel_path)),
         )
         .expect("a SystemPath rooted in an existing SystemPath is always valid")
     }
@@ -468,8 +468,7 @@ mod tests {
                 assert_eq!(
                     rel_path,
                     RelativePath(None),
-                    "expected RelativePath(None), got {:?}",
-                    rel_path
+                    "expected RelativePath(None), got {rel_path:?}"
                 );
             }
         }

@@ -36,7 +36,7 @@ impl TryInto<bool> for OperatingSystem {
 impl fmt::Display for OperatingSystem {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let OperatingSystem(os) = self;
-        write!(f, "OPERATING SYSTEM == {}", os)
+        write!(f, "OPERATING SYSTEM == {os}")
     }
 }
 

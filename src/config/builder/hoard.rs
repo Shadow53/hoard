@@ -203,7 +203,7 @@ mod tests {
             let expected = RealPile {
                 config: PileConfig::default(),
                 path: Some(
-                    SystemPath::try_from(PathBuf::from(format!("{}/something", home))).unwrap(),
+                    SystemPath::try_from(PathBuf::from(format!("{home}/something"))).unwrap(),
                 ),
             };
 

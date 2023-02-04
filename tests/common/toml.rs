@@ -21,7 +21,6 @@ where
 
     assert_eq!(
         expected, &content,
-        "file contents do not match expected contents\nDeserialized from: {}",
-        content_str
+        "file contents do not match expected contents\nDeserialized from: {content_str}"
     );
 }

@@ -88,7 +88,7 @@ impl fmt::Display for Environment {
 
         if let Some(hostname) = &self.hostname {
             has_previous = true;
-            write!(f, "({})", hostname)?;
+            write!(f, "({hostname})")?;
         }
 
         if let Some(os) = &self.os {
@@ -96,7 +96,7 @@ impl fmt::Display for Environment {
                 write!(f, " AND ")?;
             }
             has_previous = true;
-            write!(f, "({})", os)?;
+            write!(f, "({os})")?;
         }
 
         if let Some(env) = &self.env {
@@ -104,7 +104,7 @@ impl fmt::Display for Environment {
                 write!(f, " AND ")?;
             }
             has_previous = true;
-            write!(f, "({})", env)?;
+            write!(f, "({env})")?;
         }
 
         if let Some(exe_exists) = &self.exe_exists {
@@ -112,14 +112,14 @@ impl fmt::Display for Environment {
                 write!(f, " AND ")?;
             }
             has_previous = true;
-            write!(f, "({})", exe_exists)?;
+            write!(f, "({exe_exists})")?;
         }
 
         if let Some(path_exists) = &self.path_exists {
             if has_previous {
                 write!(f, " AND ")?;
             }
-            write!(f, "({})", path_exists)?;
+            write!(f, "({path_exists})")?;
         }
 
         Ok(())
@@ -226,11 +226,11 @@ mod tests {
             };
 
             let expected = vec![
-                format!("({})", hostname),
-                format!("({})", os),
-                format!("({})", env_var),
-                format!("({})", exe_exists),
-                format!("({})", path_exists),
+                format!("({hostname})"),
+                format!("({os})"),
+                format!("({env_var})"),
+                format!("({exe_exists})"),
+                format!("({path_exists})"),
             ]
             .join(" AND ");
 
@@ -259,7 +259,7 @@ mod tests {
 
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {err}"),
             }
         }
 
@@ -283,7 +283,7 @@ mod tests {
                 .expect_err("expecting two hostnames at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {err}"),
             }
         }
 
@@ -325,7 +325,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {err}"),
             }
         }
 
@@ -349,7 +349,7 @@ mod tests {
                 .expect_err("expecting two operating systems at the same time should fail");
             match err {
                 Error::InvalidCondition { .. } => {}
-                err => panic!("unexpected error: {}", err),
+                err => panic!("unexpected error: {err}"),
             }
         }
 

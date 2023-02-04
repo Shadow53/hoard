@@ -40,12 +40,12 @@ impl FormatterVisitor {
 impl Visit for FormatterVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         if self.message.is_none() && field.name() == "message" {
-            self.message = Some(format!("{:?}", value));
+            self.message = Some(format!("{value:?}"));
         } else {
             let value = if self.is_terse {
-                format!("{:?}", value)
+                format!("{value:?}")
             } else {
-                format!("{:#?}", value)
+                format!("{value:#?}")
             };
 
             self.fields.insert(field.name().to_string(), value);
@@ -69,13 +69,8 @@ impl<'writer> FormatFields<'writer> for Formatter {
         let mut visitor = FormatterVisitor::new(is_terse);
         fields.record(&mut visitor);
 
-        let empty_prefix_newline = format!("\n{}", EMPTY_PREFIX);
-        let longest_name_len = visitor
-            .fields
-            .iter()
-            .map(|(name, _)| name.len())
-            .max()
-            .unwrap_or(0);
+        let empty_prefix_newline = format!("\n{EMPTY_PREFIX}");
+        let longest_name_len = visitor.fields.keys().map(String::len).max().unwrap_or(0);
         let fields = visitor
             .fields
             .iter()
@@ -85,10 +80,10 @@ impl<'writer> FormatFields<'writer> for Formatter {
                     .collect::<Vec<_>>()
                     .join(&empty_prefix_newline);
                 if is_terse {
-                    format!("{}={}", name, value)
+                    format!("{name}={value}")
                 } else {
                     let padding = " ".repeat(longest_name_len - name.len());
-                    format!("{}{} = {}", padding, name, value)
+                    format!("{padding}{name} = {value}")
                 }
             })
             .collect::<Vec<_>>();
@@ -96,22 +91,22 @@ impl<'writer> FormatFields<'writer> for Formatter {
         let fields_output = if is_terse {
             fields.join(", ")
         } else {
-            let fields = fields.join(&format!("\n{}      ", EMPTY_PREFIX));
+            let fields = fields.join(&format!("\n{EMPTY_PREFIX}      "));
             if fields.is_empty() {
                 fields
             } else {
-                format!("\n{}where {}", EMPTY_PREFIX, fields)
+                format!("\n{EMPTY_PREFIX}where {fields}")
             }
         };
 
         if let Some(msg) = visitor.message {
-            write!(writer, "{}", msg)?;
+            write!(writer, "{msg}")?;
             if is_terse && !fields_output.is_empty() {
                 write!(writer, ": ")?;
             }
         }
 
-        write!(writer, "{}", fields_output)
+        write!(writer, "{fields_output}")
     }
 }
 
@@ -153,7 +148,7 @@ where
                     if !fields.is_empty() {
                         // join string matches the above write!()
                         let fields = fields.split('\n').collect::<Vec<_>>().join("\n   ");
-                        write!(writer, ": {}", fields)?;
+                        write!(writer, ": {fields}")?;
                     }
                     writeln!(writer)?;
                 }

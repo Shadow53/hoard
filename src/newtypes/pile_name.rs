@@ -113,7 +113,7 @@ impl fmt::Display for PileName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.as_deref() {
             None => write!(f, ""),
-            Some(name) => write!(f, "{}", name),
+            Some(name) => write!(f, "{name}"),
         }
     }
 }
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn test_from_str() {
         let inputs = vec![
-            ("", Err(Error::DisallowedName(String::from("")))),
+            ("", Err(Error::DisallowedName(String::new()))),
             ("name", Ok(PileName(Some("name".parse().unwrap())))),
             (
                 "invalid name",
@@ -165,12 +165,12 @@ mod tests {
             let result = s.parse();
             match (expected, result) {
                 (Ok(name1), Ok(name2)) => {
-                    assert_eq!(name1, name2, "expected {} but got {}", name1, name2);
+                    assert_eq!(name1, name2, "expected {name1} but got {name2}");
                 }
                 (Err(err1), Err(err2)) => match (&err1, &err2) {
                     (Error::EmptyName, Error::EmptyName) => {}
                     (Error::EmptyName, _) | (_, Error::EmptyName) => {
-                        panic!("expected {:?}, got {:?}", err1, err2);
+                        panic!("expected {err1:?}, got {err2:?}");
                     }
                     (
                         Error::DisallowedName(invalid1) | Error::DisallowedCharacters(invalid1),
@@ -178,16 +178,15 @@ mod tests {
                     ) => {
                         assert_eq!(
                             invalid1, invalid2,
-                            "expected invalid string to be {}, was {}",
-                            invalid1, invalid2
+                            "expected invalid string to be {invalid1}, was {invalid2}"
                         );
                     }
                 },
                 (Ok(name), Err(err)) => {
-                    panic!("expected successful parse {:?}, got error {:?}", name, err);
+                    panic!("expected successful parse {name:?}, got error {err:?}");
                 }
                 (Err(err), Ok(name)) => {
-                    panic!("expected error {:?}, got success with {:?}", err, name);
+                    panic!("expected error {err:?}, got success with {name:?}");
                 }
             }
         }

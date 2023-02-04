@@ -98,7 +98,7 @@ impl Builder {
     #[tracing::instrument]
     fn default_config_file() -> PathBuf {
         tracing::debug!("getting default configuration file");
-        crate::dirs::config_dir().join(format!("{}.{}", CONFIG_FILE_STEM, DEFAULT_CONFIG_EXT))
+        crate::dirs::config_dir().join(format!("{CONFIG_FILE_STEM}.{DEFAULT_CONFIG_EXT}"))
     }
 
     /// Create a new `Builder`.
@@ -194,7 +194,7 @@ impl Builder {
                     .map(|suffix| Ok((suffix, parent.clone()))),
             )
             .try_filter_map(|(suffix, parent)| async move {
-                let path = PathBuf::from(format!("{}.{}", CONFIG_FILE_STEM, suffix));
+                let path = PathBuf::from(format!("{CONFIG_FILE_STEM}.{suffix}"));
                 let path = parent.join(path);
                 match Self::from_file(&path).await {
                     Err(Error::ReadConfig(err)) => {

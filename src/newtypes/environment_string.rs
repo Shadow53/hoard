@@ -49,7 +49,7 @@ impl fmt::Display for EnvironmentString {
         loop {
             match iter.next() {
                 None => break,
-                Some(name) => write!(f, "{}", name)?,
+                Some(name) => write!(f, "{name}")?,
             }
             if iter.peek().is_some() {
                 write!(f, "|")?;
@@ -124,9 +124,9 @@ mod tests {
         assert_eq!(result.to_string(), "test");
 
         let expected = expected();
-        let result1 = format!("{}|{}|{}", NAME_1, NAME_2, NAME_3).parse().unwrap();
+        let result1 = format!("{NAME_1}|{NAME_2}|{NAME_3}").parse().unwrap();
         // Order and repetition should not matter
-        let result2 = format!("{}|{}|{}|{}", NAME_2, NAME_3, NAME_1, NAME_2)
+        let result2 = format!("{NAME_2}|{NAME_3}|{NAME_1}|{NAME_2}")
             .parse()
             .unwrap();
 
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_to_string() {
         let env_str = expected();
-        let expected = format!("{}|{}|{}", NAME_1, NAME_2, NAME_3);
+        let expected = format!("{NAME_1}|{NAME_2}|{NAME_3}");
         assert_eq!(expected, env_str.to_string());
     }
 
@@ -204,17 +204,13 @@ mod tests {
             match (expected, &error) {
                 (None, Error::EmptyName) => {}
                 (None, _) => {
-                    panic!("expected Error::EmptyName, got {:?}", error)
+                    panic!("expected Error::EmptyName, got {error:?}")
                 }
                 (Some(s), Error::EmptyName) => {
-                    panic!("expected Error::InvalidName(\"{}\"), got {:?}", s, error)
+                    panic!("expected Error::InvalidName(\"{s}\"), got {error:?}")
                 }
                 (Some(s1), Error::DisallowedName(s2) | Error::DisallowedCharacters(s2)) => {
-                    assert_eq!(
-                        s1, s2,
-                        "expected invalid name to be \"{}\", got \"{}\"",
-                        s1, s2
-                    );
+                    assert_eq!(s1, s2, "expected invalid name to be \"{s1}\", got \"{s2}\"");
                 }
             }
         }

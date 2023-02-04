@@ -85,7 +85,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Inner::Single(item) => write!(f, "{}", item),
+            Inner::Single(item) => write!(f, "{item}"),
             Inner::Multiple(list) => {
                 let s = list.iter().map(ToString::to_string).reduce(|mut a, s| {
                     a.push_str(" AND ");
@@ -95,7 +95,7 @@ where
 
                 match s {
                     None => write!(f, ""),
-                    Some(s) => write!(f, "{}", s),
+                    Some(s) => write!(f, "{s}"),
                 }
             }
         }
@@ -188,7 +188,7 @@ where
                 if item.is_singleton() || item.is_empty() || is_one_item {
                     item.to_string()
                 } else {
-                    format!("({})", item)
+                    format!("({item})")
                 }
             })
             .reduce(|mut a, s| {
@@ -199,7 +199,7 @@ where
 
         match s {
             None => write!(f, ""),
-            Some(s) => write!(f, "{}", s),
+            Some(s) => write!(f, "{s}"),
         }
     }
 }
@@ -277,8 +277,7 @@ mod tests {
             let result: bool = input.clone().try_into().unwrap();
             assert_eq!(
                 result, expected,
-                "CombinatorInner did not AND items correctly: {:?}",
-                input
+                "CombinatorInner did not AND items correctly: {input:?}"
             );
         }
     }

@@ -70,7 +70,7 @@ impl TryInto<bool> for PathExists {
 impl fmt::Display for PathExists {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let PathExists(path) = self;
-        write!(f, "PATH EXISTS {:?}", path)
+        write!(f, "PATH EXISTS {path:?}")
     }
 }
 

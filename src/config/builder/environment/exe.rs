@@ -164,7 +164,7 @@ fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
 
 #[cfg(unix)]
 fn is_executable(dir: Option<&Path>, exe: &Executable) -> Result<bool, Error> {
-    let file = dir.map_or_else(|| exe.to_path_buf(), |dir| dir.join(&exe));
+    let file = dir.map_or_else(|| exe.to_path_buf(), |dir| dir.join(exe));
     if file.exists() {
         fs::metadata(&file)
             .map(|meta| {
@@ -204,7 +204,7 @@ impl TryInto<bool> for ExeExists {
 impl fmt::Display for ExeExists {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ExeExists(exe) = self;
-        write!(f, "EXE {} EXISTS", exe)
+        write!(f, "EXE {exe} EXISTS")
     }
 }
 
@@ -231,7 +231,7 @@ mod tests {
                 .try_into()
                 .expect("failed to check if exe exists");
 
-            assert!(exists, "exe {} should exist", exe);
+            assert!(exists, "exe {exe} should exist");
         }
     }
 

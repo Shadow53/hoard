@@ -96,7 +96,7 @@ async fn run_operation(
     } else if hoard == HOARD_ANON_FILE {
         tester.home_dir().join("first_anon_file")
     } else {
-        panic!("unexpected hoard {}", hoard);
+        panic!("unexpected hoard {hoard}");
     };
 
     if let Some(parent) = file_path.parent() {
@@ -209,8 +209,7 @@ async fn test_operation_cleanup() {
                 .expect("hoard should exist");
             assert_eq!(
                 &files, expected_files,
-                "expected {:?} got {:?}",
-                expected_files, files
+                "expected {expected_files:?} got {files:?}"
             );
         }
     }
