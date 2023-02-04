@@ -210,10 +210,7 @@ mod tests {
                     panic!("expected Error::InvalidName(\"{s}\"), got {error:?}")
                 }
                 (Some(s1), Error::DisallowedName(s2) | Error::DisallowedCharacters(s2)) => {
-                    assert_eq!(
-                        s1, s2,
-                        "expected invalid name to be \"{s1}\", got \"{s2}\""
-                    );
+                    assert_eq!(s1, s2, "expected invalid name to be \"{s1}\", got \"{s2}\"");
                 }
             }
         }

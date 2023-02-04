@@ -59,10 +59,7 @@ mod tests {
     #[test]
     fn test_from_str() {
         let inputs = [
-            (
-                String::new(),
-                Err(Error::DisallowedName(String::new())),
-            ),
+            (String::new(), Err(Error::DisallowedName(String::new()))),
             (
                 String::from("config"),
                 Err(Error::DisallowedName(String::from("config"))),

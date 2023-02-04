@@ -70,10 +70,7 @@ impl<'writer> FormatFields<'writer> for Formatter {
         fields.record(&mut visitor);
 
         let empty_prefix_newline = format!("\n{EMPTY_PREFIX}");
-        let longest_name_len = visitor
-            .fields.keys().map(String::len)
-            .max()
-            .unwrap_or(0);
+        let longest_name_len = visitor.fields.keys().map(String::len).max().unwrap_or(0);
         let fields = visitor
             .fields
             .iter()

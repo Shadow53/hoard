@@ -239,9 +239,7 @@ impl Tester {
     async fn handle_command_result(&self, command: Command, result: Result<(), Error>) {
         if let Err(error) = result {
             let debug_output = Self::extra_logging_output(self).await;
-            panic!(
-                "command {command:?} failed: {error:?}\n{debug_output}"
-            );
+            panic!("command {command:?} failed: {error:?}\n{debug_output}");
         }
     }
 

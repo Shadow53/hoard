@@ -70,14 +70,12 @@ mod tests {
                 (Err(err), Ok(expected)) => {
                     panic!("expected success {expected:?} but got error {err:?}")
                 }
-                (Ok(result), Ok(expected)) => assert_eq!(
-                    result, expected,
-                    "expected {expected:?} but got {result:?}"
-                ),
-                (Err(err), Err(expected)) => assert_eq!(
-                    err, expected,
-                    "expected error {expected:?} but got {err:?}"
-                ),
+                (Ok(result), Ok(expected)) => {
+                    assert_eq!(result, expected, "expected {expected:?} but got {result:?}")
+                }
+                (Err(err), Err(expected)) => {
+                    assert_eq!(err, expected, "expected error {expected:?} but got {err:?}")
+                }
             }
         }
     }
