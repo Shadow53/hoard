@@ -6,6 +6,7 @@
 
 - [Getting Started](./getting-started/README.md)
     - [Installation](./getting-started/installation.md)
+    - [Initial Setup](./getting-started/initial-setup.md)
     - [Creating the Config File](getting-started/create-config/README.md)
         - [Hoard](getting-started/create-config/hoard.md)
         - [Vim and Neovim](getting-started/create-config/vim.md)
