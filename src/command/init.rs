@@ -1,4 +1,5 @@
 use crate::Config;
+use crate::checkers::history::{get_or_generate_uuid, get_uuid_file};
 use tokio::fs;
 
 use super::DEFAULT_CONFIG;
@@ -25,6 +26,18 @@ pub(crate) async fn run_init(config: &Config) -> Result<(), super::Error> {
             }
         })?;
     }
+
+    let uuid_file = get_uuid_file();
+    if !uuid_file.exists() {
+        tracing::info!("device id not found, creating a new one");
+        get_or_generate_uuid().await.map_err(|error| {
+            super::Error::Init {
+                path: uuid_file,
+                error,
+            }
+        })?;
+    }
+
 
     if !config_file.exists() {
         tracing::info!("no configuration file found, creating default at {}", config_file.display());
