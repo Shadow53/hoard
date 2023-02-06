@@ -90,37 +90,39 @@ exclusivity = [
 # This hoard uses "linux" instead of "unix" because Steam/Itch/etc. are not on the BSDs.
 [hoards.game_saves]
     [hoards.game_saves.apotheon]
-        "unix|steam"         = "${XDG_DATA_HOME}/Apotheon/SavedGames"
-        "unix|steam_flatpak" = "${HOME}/.var/app/com.valvesoftware.Steam/.local/share/Apotheon/SavedGames"
+        "linux|steam"         = "${XDG_DATA_HOME}/Apotheon/SavedGames"
+        "linux|steam_flatpak" = "${HOME}/.var/app/com.valvesoftware.Steam/.local/share/Apotheon/SavedGames"
     [hoards.game_saves.death_and_taxes]
-        "unix|itch" = "${XDG_CONFIG_HOME}/unity3d/Placeholder Gameworks/Death and Taxes/Saves"
+        "linux|itch" = "${XDG_CONFIG_HOME}/unity3d/Placeholder Gameworks/Death and Taxes/Saves"
     [hoards.game_saves.hat_in_time]
-        "unix|steam"         = "${XDG_DATA_HOME}/Steam/steamapps/common/HatInTime/HatInTimeGame/SaveData"
-        "unix|steam_flatpak" = "${HOME}/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/HatInTime/HatInTimeGame/SaveData"
+        "linux|steam"         = "${XDG_DATA_HOME}/Steam/steamapps/common/HatInTime/HatInTimeGame/SaveData"
+        "linux|steam_flatpak" = "${HOME}/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/HatInTime/HatInTimeGame/SaveData"
     [hoards.game_saves.mindustry]
-        "unix|steam"         = "${XDG_DATA_HOME}/Steam/steamapps/common/Mindustry/saves/saves"
-        "unix|steam_flatpak" = "${HOME}/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/Mindustry/saves/saves"
+        "linux|steam"         = "${XDG_DATA_HOME}/Steam/steamapps/common/Mindustry/saves/saves"
+        "linux|steam_flatpak" = "${HOME}/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/Mindustry/saves/saves"
 
 [hoards.git]
-    "linux" = "/home/shadow53/.gitconfig"
+    "unix" = "${HOME}/.gitconfig"
+
+[hoards.hoard]
+    "unix" = "${XDG_CONFIG_HOME}/hoard/config.toml"
+    "macos" = "${HOME}/Library/Application Support/com.shadow53.hoard/config.toml"
+    "windows" = "${APPDATA}\\shadow53\\hoard\\config.toml"
 
 [hoards.vim]
     [hoards.vim.init]
-        # Match linux AND neovim environments
-        "linux|neovim" = "${XDG_CONFIG_HOME}/nvim/init.vim"
-        "linux|vim" = "${HOME}/.vimrc"
-        "windows|neovim" = "C:\\Users\\Shadow53\\AppData\\Local\\nvim\\init.vim"
+        # Match unix AND neovim environments
+        "unix|neovim" = "${XDG_CONFIG_HOME}/nvim/init.vim"
+        "unix|vim" = "${HOME}/.vimrc"
+        "windows|neovim" = "${CSIDL_LOCAL_APPDATA}\\nvim\\init.vim"
         "windows|vim" = "${USERPROFILE}/.vim/_vimrc"
     [hoards.vim.configdir]
-        "windows|neovim" = "C:\\Users\\Shadow53\\AppData\\Local\\nvim\\config"
+        "windows|neovim" = "${CSIDL_LOCAL_APPDATA}\\nvim\\config"
         "windows|vim" = "${USERPROFILE}/.vim/config"
-        "linux|neovim" = "${XDG_CONFIG_HOME}/nvim/config"
-        "linux|vim" = "${HOME}/.vim/config"
+        "unix|neovim" = "${XDG_CONFIG_HOME}/nvim/config"
+        "unix|vim" = "${HOME}/.vim/config"
     [hoards.vim.templates]
-        "windows|neovim" = "C:\\Users\\Shadow53\\AppData\\Local\\nvim\\templates"
-        "windows|vim" = "C:\\Users\\Shadow53\\.vim\\templates"
-        "linux|neovim" = "/home/shadow53/.config/nvim/templates"
-        "linux|vim" = "/home/shadow53/.vim/templates"
-
-[hoards.vorta]
-    "linux" = "/home/shadow53/.local/share/Vorta/settings.db"
+        "windows|neovim" = "${CSIDL_LOCAL_APPDATA}\\nvim\\templates"
+        "windows|vim" = "${USER_PROFILE}\\.vim\\templates"
+        "unix|neovim" = "${XGD_CONFIG_HOME}/nvim/templates"
+        "unix|vim" = "${HOME}/.vim/templates"
