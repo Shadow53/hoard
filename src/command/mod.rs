@@ -62,7 +62,8 @@ pub enum Error {
         /// The path that could not be created.
         path: PathBuf,
         /// Why that path could not be created.
-        #[source] error: std::io::Error,
+        #[source]
+        error: std::io::Error,
     },
     /// Error occurred while restoring a hoard.
     #[error("failed to restore: {0}")]
