@@ -4,9 +4,12 @@ mod backup_restore;
 mod cleanup;
 mod diff;
 mod edit;
+mod init;
 mod list;
 mod status;
 mod upgrade;
+
+use std::path::PathBuf;
 
 use clap::Parser;
 use thiserror::Error;
@@ -15,6 +18,7 @@ pub(crate) use backup_restore::{run_backup, run_restore};
 pub(crate) use cleanup::run_cleanup;
 pub(crate) use diff::run_diff;
 pub(crate) use edit::run_edit;
+pub(crate) use init::run_init;
 pub(crate) use list::run_list;
 pub(crate) use status::run_status;
 pub(crate) use upgrade::run_upgrade;
@@ -22,6 +26,8 @@ pub(crate) use upgrade::run_upgrade;
 use crate::newtypes::HoardName;
 pub use backup_restore::Error as BackupRestoreError;
 pub use edit::Error as EditError;
+
+const DEFAULT_CONFIG: &str = include_str!("../../config.toml.sample");
 
 /// Errors that can occur while running commands.
 #[derive(Debug, Error)]
@@ -50,6 +56,14 @@ pub enum Error {
     /// Error occurred while running the edit command.
     #[error("error while running hoard edit: {0}")]
     Edit(#[from] edit::Error),
+    /// Error occurred while initializing Hoard.
+    #[error("failed to create {path}: {error}")]
+    Init {
+        /// The path that could not be created.
+        path: PathBuf,
+        /// Why that path could not be created.
+        #[source] error: std::io::Error,
+    },
     /// Error occurred while restoring a hoard.
     #[error("failed to restore: {0}")]
     Restore(#[source] backup_restore::Error),
@@ -83,6 +97,8 @@ pub enum Command {
     List,
     /// Open the configuration file in the system default editor.
     Edit,
+    /// Initialize a new Hoard setup.
+    Init,
     /// Show which files differ for a given hoard. Optionally show unified diffs for text files
     /// too.
     Diff {
