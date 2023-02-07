@@ -11,9 +11,12 @@ async fn test_hoard_init() {
     fs::remove_dir(tester.config_dir())
         .await
         .expect("should have deleted hoard config dir");
-    fs::remove_dir(tester.data_dir())
-        .await
-        .expect("should have deleted hoard data dir");
+    if tester.data_dir().exists() {
+        // config dir and data dir are the same on macos
+        fs::remove_dir(tester.data_dir())
+            .await
+            .expect("should have deleted hoard data dir");
+    }
 
     assert!(
         !tester.config_dir().exists(),
