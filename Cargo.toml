@@ -46,7 +46,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["a
 uuid = { version = "1.2", features = ["serde", "v4"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.44", features = ["Storage", "Win32_UI_Shell", "Win32_Foundation", "Win32_Globalization"] }
+windows = { version = "0.46", features = ["Storage", "Win32_UI_Shell", "Win32_Foundation", "Win32_Globalization"] }
 
 [dev-dependencies]
 maplit = "1.0"
