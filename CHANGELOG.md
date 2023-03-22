@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.2
+
+### Features
+
+- add init subcommand (#168)
+
 ## 0.5.1
 
 ### Fixes
