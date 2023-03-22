@@ -139,6 +139,9 @@ impl Config {
             Command::Edit => {
                 command::run_edit(&self.config_file).await?;
             }
+            Command::Init => {
+                command::run_init(self).await?;
+            }
             Command::Validate => {
                 tracing::info!("configuration is valid");
             }

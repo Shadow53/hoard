@@ -18,7 +18,7 @@ const UUID_FILE_NAME: &str = "uuid";
 const HISTORY_DIR_NAME: &str = "history";
 
 #[tracing::instrument(level = "debug")]
-fn get_uuid_file() -> PathBuf {
+pub(crate) fn get_uuid_file() -> PathBuf {
     crate::dirs::config_dir().join(UUID_FILE_NAME)
 }
 

@@ -8,6 +8,8 @@ use tap::TapFallible;
 use thiserror::Error;
 use tokio::{fs, io};
 
+use super::DEFAULT_CONFIG;
+
 /// Errors that may occur while running the edit command.
 #[derive(Debug, Error)]
 #[allow(variant_size_differences)]
@@ -25,8 +27,6 @@ pub enum Error {
     #[error("expected a configuration file, found a directory: {0}")]
     IsDirectory(PathBuf),
 }
-
-const DEFAULT_CONFIG: &str = include_str!("../../config.toml.sample");
 
 /// Edit the configuration file at `path`.
 ///

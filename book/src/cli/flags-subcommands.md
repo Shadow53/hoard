@@ -49,6 +49,15 @@ the system default handler otherwise.
 
 - On Linux and BSD, this delegates to `xdg-open`, which must be installed if `$EDITOR` is not set.
 
+## `hoard init`
+
+```
+hoard [flags...] init
+```
+
+Ensures the Hoard configuration and data directories exist. If there is no configuration file,
+one is created.
+
 ## `hoard list`
 
 ```
