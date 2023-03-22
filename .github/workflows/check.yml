@@ -33,7 +33,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - uses: fossa-contrib/fossa-action@v1
+      - uses: fossa-contrib/fossa-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           # Push-only API key
