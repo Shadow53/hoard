@@ -324,7 +324,7 @@ fn merge_maps(
     for (key, set) in map2 {
         let new_set = match map1.remove(&key) {
             None => set,
-            Some(other_set) => set.union(&other_set).into_iter().cloned().collect(),
+            Some(other_set) => set.union(&other_set).cloned().collect(),
         };
 
         map1.insert(key, new_set);
