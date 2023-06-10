@@ -255,6 +255,8 @@ async fn test_readonly_dir() {
 
     for path in [&file, &sub_dir, &root] {
         let mut perms = fs::metadata(&path).await.unwrap().permissions();
+        // Used for tests, not important that is is world writable or not on Unix
+        #[allow(clippy::permissions_set_readonly_false)]
         perms.set_readonly(false);
         fs::set_permissions(&path, perms.clone()).await.unwrap();
         if path.is_file() {

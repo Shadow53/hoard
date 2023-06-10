@@ -120,7 +120,7 @@ mod tests {
     use crate::{checkers::history::operation::OperationImpl, checksum::MD5, test::relative_path};
 
     fn checksum() -> MD5 {
-        MD5::from_data(&[0xFD, 0xFF, 0xFE])
+        MD5::from_data([0xFD, 0xFF, 0xFE])
     }
 
     fn anon_op() -> OperationV1 {
