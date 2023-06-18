@@ -157,7 +157,7 @@ impl<'de> Deserialize<'de> for OperationVersion {
             };
 
         match Result::map(
-            <OperationV2 as serde::Deserialize>::deserialize(
+            <OperationV2 as Deserialize>::deserialize(
                 serde::__private::de::ContentRefDeserializer::<D::Error>::new(&content),
             ),
             OperationVersion::V2,
@@ -169,7 +169,7 @@ impl<'de> Deserialize<'de> for OperationVersion {
         }
 
         match Result::map(
-            <OperationV1 as serde::Deserialize>::deserialize(
+            <OperationV1 as Deserialize>::deserialize(
                 serde::__private::de::ContentRefDeserializer::<D::Error>::new(&content),
             ),
             OperationVersion::V1,

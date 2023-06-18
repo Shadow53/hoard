@@ -19,7 +19,6 @@
     command = "cargo"
     args = ["+stable", "build", "--target", "x86_64-unknown-linux-musl"]
     [tasks.build-stable.env]
-        RUSTC_BOOTSTRAP="1"
         RUSTFLAGS="-Cinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
@@ -28,7 +27,6 @@
     command = "cargo"
     args = ["nextest", "run"]
     [tasks.test-nextest.env]
-        RUSTC_BOOTSTRAP="1"
         RUSTFLAGS="-Cinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
@@ -38,7 +36,6 @@
     command = "cargo"
     args = ["+stable", "test", "--", "--test-threads=1"]
     [tasks.test-single-thread.env]
-        RUSTC_BOOTSTRAP="1"
         RUSTFLAGS="-Cinstrument-coverage -Copt-level=0 -Ccodegen-units=1"
         LLVM_PROFILE_FILE="profraw/hoard-cargo-test-%p-%m.profraw"
 
@@ -51,8 +48,11 @@
     echo "Ran tests"
     """
 
+[tasks.test-all]
+    dependencies = ["test-nextest", "docker-tests"]
+
 [tasks.grcov]
-    dependencies = ["clean-all", "test-single-thread"]
+    dependencies = ["clean-all", "test-all"]
     # Using `script` is necessary to get the glob expansion
     script = """
     grcov profraw/*.profraw --binary-path ./target/debug \
@@ -64,7 +64,6 @@
     """
     [tasks.grcov.env]
         RUSTFLAGS="-Cinstrument-coverage"
-        RUSTC_BOOTSTRAP="1"
         RUSTUP_TOOLCHAIN="stable"
         HOARD_LOG="trace"
         EXCLUDE_DERIVE="#\\[derive\\("
@@ -92,7 +91,7 @@
     args = ["deadlinks"]
 
 [tasks.check-all]
-    dependencies = ["clippy", "check-format", "docs", "test-nextest", "deadlinks"]
+    dependencies = ["clippy", "check-format", "docs", "test-all", "deadlinks"]
 
 [tasks.changelog]
     command = "git-cliff"

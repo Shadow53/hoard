@@ -256,7 +256,7 @@ mod tests {
 
         #[test]
         fn test_md5_digest_to_string() {
-            let result = Md5::digest_to_string(&DATA);
+            let result = Md5::digest_to_string(DATA);
             assert_eq!(&result, MD5_STR);
         }
 
@@ -298,7 +298,7 @@ mod tests {
 
         #[test]
         fn test_sha256_digest_to_string() {
-            let result = Sha256::digest_to_string(&DATA);
+            let result = Sha256::digest_to_string(DATA);
             assert_eq!(&result, SHA256_STR);
         }
 
