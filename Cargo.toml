@@ -35,7 +35,7 @@ serde_yaml = { version = "0.9", optional = true }
 sha2 = "0.10.6"
 similar = { version = "2.2", default-features = false, features = ["text"] }
 tap = "1.0"
-tempfile = "3.3"
+tempfile = "3.6"
 thiserror = "1.0.37"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
 tokio = { version = "1.21", default-features = false, features = ["rt-multi-thread", "fs", "io-util", "macros"] }
