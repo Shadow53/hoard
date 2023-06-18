@@ -40,7 +40,7 @@ thiserror = "1.0.37"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
 tokio = { version = "1.21", default-features = false, features = ["rt-multi-thread", "fs", "io-util", "macros"] }
 tokio-stream = { version = "0.1", default-features = false, features = ["fs"] }
-toml = "0.7.1"
+toml = "0.7.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "env-filter", "smallvec", "std"] }
 uuid = { version = "1.2", features = ["serde", "v4"] }
