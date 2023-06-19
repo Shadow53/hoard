@@ -36,7 +36,7 @@ sha2 = "0.10.7"
 similar = { version = "2.2", default-features = false, features = ["text"] }
 tap = "1.0"
 tempfile = "3.6"
-thiserror = "1.0.37"
+thiserror = "1.0.40"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
 tokio = { version = "1.28", default-features = false, features = ["rt-multi-thread", "fs", "io-util", "macros"] }
 tokio-stream = { version = "0.1", default-features = false, features = ["fs"] }
