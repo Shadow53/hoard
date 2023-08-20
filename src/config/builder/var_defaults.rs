@@ -11,7 +11,7 @@ use std::{env, fmt};
 /// Most common reasons for this occurring is trying to use an unset variable in a default value,
 /// or having two unset variables' values dependent on each other.
 #[derive(Debug, thiserror::Error)]
-pub struct EnvVarDefaultsError(BTreeMap<String, String>);
+pub struct EnvVarDefaultsError(BTreeMap<String, StringWithEnv>);
 
 impl fmt::Display for EnvVarDefaultsError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -32,15 +32,16 @@ impl fmt::Display for EnvVarDefaultsError {
 #[serde(transparent)]
 #[repr(transparent)]
 #[allow(clippy::module_name_repetitions)]
-pub struct EnvVarDefaults(BTreeMap<String, String>);
+pub struct EnvVarDefaults(BTreeMap<String, StringWithEnv>);
 
 impl EnvVarDefaults {
-    #[cfg(test)]
-    pub(super) fn insert(&mut self, var: String, value: String) -> Option<String> {
+    /// Insert a new environment variable/value pairing.
+    pub fn insert(&mut self, var: String, value: StringWithEnv) -> Option<StringWithEnv> {
         self.0.insert(var, value)
     }
 
-    pub(super) fn merge_with(&mut self, other: Self) {
+    /// Merge `other` into `self`. Values in `other` take precedence.
+    pub fn merge_with(&mut self, other: Self) {
         for (var, value) in other.0 {
             self.0.insert(var, value);
         }
@@ -54,7 +55,7 @@ impl EnvVarDefaults {
     /// # Errors
     ///
     /// See [`EnvVarDefaultsError`].
-    pub(super) fn apply(self) -> Result<(), EnvVarDefaultsError> {
+    pub fn apply(self) -> Result<(), EnvVarDefaultsError> {
         // Add one just so the `while` condition is true once.
         let mut remaining_last_loop = self.0.len() + 1;
         let mut this_loop = self.0;
@@ -64,7 +65,7 @@ impl EnvVarDefaults {
             remaining_last_loop = last_loop.len();
             for (var, value) in last_loop {
                 if env::var_os(&var).is_none() {
-                    match StringWithEnv::from(value.clone()).process() {
+                    match value.clone().process() {
                         Err(_) => _ = this_loop.insert(var, value),
                         Ok(value) => {
                             // This function can panic under certain circumstances. Either check for
