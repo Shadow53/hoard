@@ -1,9 +1,9 @@
 use std::{
+    io::{stdin, stderr, stdout, IsTerminal},
     path::{Path, PathBuf},
     process::ExitStatus,
 };
 
-use atty::Stream;
 use tap::TapFallible;
 use thiserror::Error;
 use tokio::{fs, io};
@@ -68,7 +68,7 @@ pub(crate) async fn run_edit(path: &Path) -> Result<(), super::Error> {
             })?;
     }
 
-    let mut cmd = if atty::is(Stream::Stdout) && atty::is(Stream::Stderr) && atty::is(Stream::Stdin)
+    let mut cmd = if stdin().is_terminal() && stderr().is_terminal() && stdout().is_terminal()
     {
         open_cmd::open_editor(tmp_file.clone()).map_err(|error| {
             tracing::error!(%error, "failed to generate CLI editor command");
