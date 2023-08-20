@@ -31,6 +31,7 @@ impl fmt::Display for EnvVarDefaultsError {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(transparent)]
 #[repr(transparent)]
+#[allow(clippy::module_name_repetitions)]
 pub struct EnvVarDefaults(BTreeMap<String, String>);
 
 impl EnvVarDefaults {
