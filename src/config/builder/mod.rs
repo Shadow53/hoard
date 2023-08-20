@@ -478,7 +478,7 @@ mod tests {
                     let mut defaults = EnvVarDefaults::default();
                     defaults.insert(DEFAULT_VAR.into(), DEFAULT_VAR_VALUE.into());
                     defaults
-                }
+                },
             }
         }
 
@@ -535,7 +535,9 @@ mod tests {
 
             // Add extra env values to ensure they merge properly
             layer1.var_defaults.insert("ENV1".into(), "1".into());
-            layer1.var_defaults.insert(DEFAULT_VAR.into(), "non default".into());
+            layer1
+                .var_defaults
+                .insert(DEFAULT_VAR.into(), "non default".into());
             layer2.var_defaults.insert("ENV2".into(), "2".into());
 
             let mut expected = layer2.clone();

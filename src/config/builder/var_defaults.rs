@@ -1,10 +1,10 @@
 //! See [`EnvVarDefaults`].
 
-use std::collections::BTreeMap;
-use std::{env, fmt};
-use std::fmt::Formatter;
-use serde::{Deserialize, Serialize};
 use crate::env_vars::StringWithEnv;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::fmt::Formatter;
+use std::{env, fmt};
 
 /// Failed to apply one or more environment variables in [`EnvVarDefaults::apply`].
 ///

@@ -1,5 +1,5 @@
 use std::{
-    io::{stdin, stderr, stdout, IsTerminal},
+    io::{stderr, stdin, stdout, IsTerminal},
     path::{Path, PathBuf},
     process::ExitStatus,
 };
@@ -68,8 +68,7 @@ pub(crate) async fn run_edit(path: &Path) -> Result<(), super::Error> {
             })?;
     }
 
-    let mut cmd = if stdin().is_terminal() && stderr().is_terminal() && stdout().is_terminal()
-    {
+    let mut cmd = if stdin().is_terminal() && stderr().is_terminal() && stdout().is_terminal() {
         open_cmd::open_editor(tmp_file.clone()).map_err(|error| {
             tracing::error!(%error, "failed to generate CLI editor command");
             Error::Start(error)
