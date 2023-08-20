@@ -1,7 +1,8 @@
 //! The [`Builder`] struct serves as an intermediate step between raw configuration and the
 //! [`Config`] type that is used by `hoard`.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryInto;
+use std::env;
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
@@ -13,9 +14,11 @@ use tokio::{fs, io};
 use environment::Environment;
 
 use crate::command::Command;
+use crate::config::builder::var_defaults::EnvVarDefaults;
 use crate::hoard::PileConfig;
 use crate::newtypes::{EnvironmentName, HoardName};
 use crate::CONFIG_FILE_STEM;
+use crate::env_vars::StringWithEnv;
 
 use super::Config;
 
@@ -24,6 +27,7 @@ use self::hoard::Hoard;
 pub mod environment;
 pub mod envtrie;
 pub mod hoard;
+mod var_defaults;
 
 const DEFAULT_CONFIG_EXT: &str = "toml";
 /// The items are listed in descending order of precedence
@@ -63,6 +67,8 @@ pub struct Builder {
     #[clap(skip)]
     #[serde(rename = "envs")]
     environments: Option<BTreeMap<EnvironmentName, Environment>>,
+    #[clap(skip)]
+    var_defaults: EnvVarDefaults,
     #[clap(skip)]
     exclusivity: Option<Vec<Vec<EnvironmentName>>>,
     #[clap(long)]
@@ -112,6 +118,7 @@ impl Builder {
             hoards: None,
             config_dir: None,
             data_dir: None,
+            var_defaults: EnvVarDefaults::default(),
             config_file: None,
             command: None,
             environments: None,
@@ -263,6 +270,8 @@ impl Builder {
             self = self.set_command(path);
         }
 
+        self.var_defaults.merge_with(other.var_defaults);
+
         self.force = self.force || other.force;
 
         self
@@ -385,6 +394,8 @@ impl Builder {
         let force = self.force;
         tracing::debug!(?force);
 
+        self.var_defaults.apply()?;
+
         if let Some(path) = self.config_dir {
             crate::dirs::set_config_dir(&path);
         }
@@ -395,7 +406,7 @@ impl Builder {
 
         if let Some(hoards) = &mut self.hoards {
             tracing::debug!("layering global config onto hoards");
-            for (_, hoard) in hoards.iter_mut() {
+            for hoard in hoards.values_mut() {
                 hoard.layer_config(self.global_config.as_ref());
             }
         }
