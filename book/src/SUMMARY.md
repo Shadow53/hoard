@@ -18,7 +18,8 @@
     - [Checks](./cli/checks.md)
 
 - [Configuration File](./config/README.md)
-    - [Environments](./config/envs.md)
+    - [Environments](./config/environments.md)
+    - [Environment Variables](./config/envvars.md)
     - [Hoards and Piles](./config/hoards-piles.md)
 
 - [File Permissions](./permissions.md)

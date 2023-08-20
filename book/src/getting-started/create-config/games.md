@@ -41,7 +41,7 @@ for the game stores, since all three of them could be installed at once time.
 > The double square brackets (`[[]]`) are used to indicate that *all* of the XDG environment variables are set. If
 > single square brackets (`[]`) were used, it would mean that *at least one* must be set.
 > 
-> For more, see the documentation for [environments](../../config/envs.md).
+> For more, see the documentation for [environments](../../config/environments.md).
 
 ```toml
 exclusivity = [

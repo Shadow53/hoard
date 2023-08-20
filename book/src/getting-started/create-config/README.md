@@ -30,10 +30,10 @@ When adding configuration for a specific file or set of files, consider:
 - What to name the hoard and, optionally, the pile or piles within it. See the examples linked above for ideas of how
   to structure hoards.
 - What conditions must be true for a path to be used. These determine the environments, or
-  [`envs`](../../config/envs.md) that you will define.
+  [`envs`](../../config/environments.md) that you will define.
 - If there are multiple, mutually exclusive conditions that can be true at the same time (see 
   [Vim and Neovim](vim-neovim.md) for an example). This determines if you need to add anything under
-  [`exclusivity`](../../config/envs.md#exclusivity).
+  [`exclusivity`](../../config/environments.md#exclusivity).
 - Whether the programs use environment variables to determine where to place files, or if it is hardcoded. This will
   inform whether you use environment variables in the pile path or not.
 - Whether there are files in a directory that you want to [ignore](../../config/hoards-piles.md#ignore-patterns) when
