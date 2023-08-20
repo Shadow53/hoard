@@ -1,5 +1,5 @@
+use std::fmt;
 use std::str::FromStr;
-use std::{fmt, ops::Deref};
 
 use serde::{de, Deserialize, Deserializer, Serialize};
 
@@ -101,17 +101,9 @@ impl From<PileName> for Option<NonEmptyPileName> {
     }
 }
 
-impl Deref for PileName {
-    type Target = Option<NonEmptyPileName>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 impl fmt::Display for PileName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.as_deref() {
+        match self.as_ref() {
             None => write!(f, ""),
             Some(name) => write!(f, "{name}"),
         }
@@ -266,14 +258,6 @@ mod tests {
             non_empty.clone(),
             NonEmptyPileName::try_from(PileName::from(non_empty)).unwrap()
         );
-    }
-
-    #[test]
-    #[allow(clippy::explicit_deref_methods)]
-    fn test_deref() {
-        let name: PileName = "testing".parse().unwrap();
-        assert_eq!(&name.0, name.deref());
-        assert_eq!(&None, PileName::anonymous().deref());
     }
 
     #[test]

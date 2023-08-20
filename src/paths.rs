@@ -327,7 +327,7 @@ impl From<&HoardName> for RelativePath {
 
 impl From<&PileName> for RelativePath {
     fn from(name: &PileName) -> Self {
-        RelativePath(name.as_deref().map(PathBuf::from))
+        RelativePath(name.as_str().map(PathBuf::from))
     }
 }
 
