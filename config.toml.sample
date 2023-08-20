@@ -9,6 +9,10 @@ exclusivity = [
     ["steam_flatpak", "steam"]
 ]
 
+[defaults]
+    XDG_CONFIG_HOME = "${HOME}/.config"
+    XDG_DATA_HOME = "${HOME}/.local/share"
+
 [envs]
 
 # Match if `fish` is somewhere in $PATH.
