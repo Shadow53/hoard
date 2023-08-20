@@ -22,6 +22,10 @@
         RUSTFLAGS="-Cinstrument-coverage"
         LLVM_PROFILE_FILE="profraw/hoard-python-test-%p-%m.profraw"
 
+[tasks.deny]
+    command = "cargo"
+    args = ["deny", "check"]
+
 [tasks.test-nextest]
     dependencies = ["clean-all", "install-stable", "create-profraw-dir"]
     command = "cargo"
@@ -49,7 +53,8 @@
     """
 
 [tasks.test-all]
-    dependencies = ["test-nextest", "docker-tests"]
+    # Do docker tests first so ./target is not sent to Docker
+    dependencies = ["docker-tests", "test-nextest"]
 
 [tasks.grcov]
     dependencies = ["clean-all", "test-all"]
@@ -84,15 +89,23 @@
 
 [tasks.outdated]
     command = "cargo"
-    args = ["outdated"]
+    args = ["outdated", "-R"]
 
 [tasks.deadlinks]
     command = "cargo"
     args = ["deadlinks"]
 
 [tasks.check-all]
-    dependencies = ["clippy", "check-format", "docs", "test-all", "deadlinks"]
+    dependencies = ["clippy", "check-format", "docs", "test-all", "deadlinks", "deny", "msrv-verify"]
 
 [tasks.changelog]
     command = "git-cliff"
     args = ["-o", "CHANGELOG.md"]
+
+[tasks.msrv]
+    command = "cargo"
+    args = ["msrv"]
+
+[tasks.msrv-verify]
+    command = "cargo"
+    args = ["msrv", "verify"]
