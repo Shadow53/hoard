@@ -69,7 +69,7 @@ pub struct Builder {
     #[serde(rename = "envs")]
     environments: Option<BTreeMap<EnvironmentName, Environment>>,
     #[clap(skip)]
-    #[serde(default)]
+    #[serde(default, rename = "defaults")]
     var_defaults: EnvVarDefaults,
     #[clap(skip)]
     exclusivity: Option<Vec<Vec<EnvironmentName>>>,
