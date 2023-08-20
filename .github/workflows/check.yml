@@ -54,7 +54,6 @@ jobs:
 
       - name: Install cargo-msrv
         uses: actions-rs/install@v0.1
-        if: matrix.os == 'ubuntu-latest'
         with:
           crate: cargo-msrv
           version: latest
@@ -62,7 +61,6 @@ jobs:
 
       - name: Install cargo-make
         uses: actions-rs/install@v0.1
-        if: matrix.os == 'ubuntu-latest'
         with:
           crate: cargo-make
           version: latest
@@ -90,7 +88,6 @@ jobs:
 
       - name: Install cargo-deny
         uses: actions-rs/install@v0.1
-        if: matrix.os == 'ubuntu-latest'
         with:
           crate: cargo-deny
           version: latest
@@ -98,7 +95,6 @@ jobs:
 
       - name: Install cargo-make
         uses: actions-rs/install@v0.1
-        if: matrix.os == 'ubuntu-latest'
         with:
           crate: cargo-make
           version: latest
