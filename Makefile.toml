@@ -96,7 +96,7 @@
     args = ["deadlinks"]
 
 [tasks.check-all]
-    dependencies = ["clippy", "check-format", "docs", "test-all", "deadlinks", "deny", "msrv-verify"]
+    dependencies = ["clippy", "check-format", "docs", "test-nextest", "deadlinks", "deny", "msrv-verify"]
 
 [tasks.changelog]
     command = "git-cliff"
