@@ -22,7 +22,8 @@
 #![deny(clippy::complexity)]
 #![deny(clippy::perf)]
 #![deny(clippy::pedantic)]
-#![deny(rustdoc::missing_doc_code_examples)]
+// See https://github.com/rust-lang/rust/issues/87858
+//#![deny(rustdoc::missing_doc_code_examples)]
 #![deny(
 absolute_paths_not_starting_with_crate,
 anonymous_parameters,
