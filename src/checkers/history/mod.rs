@@ -82,6 +82,7 @@ async fn get_history_dirs_not_for_id(id: &Uuid) -> Result<Vec<HoardPath>, io::Er
 ///
 /// Any I/O unexpected errors that may occur while reading and/or
 /// writing the UUID file.
+#[allow(clippy::missing_panics_doc)]
 pub async fn get_or_generate_uuid() -> Result<Uuid, io::Error> {
     let uuid_file = get_uuid_file();
     let _span = tracing::debug_span!("get_or_generate_uuid", file = ?uuid_file);

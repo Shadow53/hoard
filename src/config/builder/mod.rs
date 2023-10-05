@@ -13,6 +13,7 @@ use tokio::{fs, io};
 use environment::Environment;
 
 use crate::command::Command;
+use crate::config::builder::var_defaults::{EnvVarDefaults, EnvVarDefaultsError};
 use crate::hoard::PileConfig;
 use crate::newtypes::{EnvironmentName, HoardName};
 use crate::CONFIG_FILE_STEM;
@@ -24,6 +25,7 @@ use self::hoard::Hoard;
 pub mod environment;
 pub mod envtrie;
 pub mod hoard;
+pub mod var_defaults;
 
 const DEFAULT_CONFIG_EXT: &str = "toml";
 /// The items are listed in descending order of precedence
@@ -52,9 +54,12 @@ pub enum Error {
         "configuration file does not have file extension \".toml\", \".yaml\", or \".yml\": {0}"
     )]
     InvalidExtension(PathBuf),
+    /// Failed to set one or more environment variable default.
+    #[error(transparent)]
+    EnvVarDefaults(#[from] EnvVarDefaultsError),
 }
 
-/// Intermediate data structure to build a [`Config`](crate::config::Config).
+/// Intermediate data structure to build a [`Config`].
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Parser)]
 #[clap(author, version, about, long_about = None, rename_all = "kebab")]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +68,9 @@ pub struct Builder {
     #[clap(skip)]
     #[serde(rename = "envs")]
     environments: Option<BTreeMap<EnvironmentName, Environment>>,
+    #[clap(skip)]
+    #[serde(default, rename = "defaults")]
+    var_defaults: EnvVarDefaults,
     #[clap(skip)]
     exclusivity: Option<Vec<Vec<EnvironmentName>>>,
     #[clap(long)]
@@ -112,6 +120,7 @@ impl Builder {
             hoards: None,
             config_dir: None,
             data_dir: None,
+            var_defaults: EnvVarDefaults::default(),
             config_file: None,
             command: None,
             environments: None,
@@ -263,6 +272,8 @@ impl Builder {
             self = self.set_command(path);
         }
 
+        self.var_defaults.merge_with(other.var_defaults);
+
         self.force = self.force || other.force;
 
         self
@@ -385,6 +396,8 @@ impl Builder {
         let force = self.force;
         tracing::debug!(?force);
 
+        self.var_defaults.apply()?;
+
         if let Some(path) = self.config_dir {
             crate::dirs::set_config_dir(&path);
         }
@@ -395,7 +408,7 @@ impl Builder {
 
         if let Some(hoards) = &mut self.hoards {
             tracing::debug!("layering global config onto hoards");
-            for (_, hoard) in hoards.iter_mut() {
+            for hoard in hoards.values_mut() {
                 hoard.layer_config(self.global_config.as_ref());
             }
         }
@@ -430,6 +443,9 @@ mod tests {
     mod builder {
         use super::*;
 
+        const DEFAULT_VAR: &str = "UNSET";
+        const DEFAULT_VAR_VALUE: &str = "no longer unset";
+
         fn get_default_populated_builder() -> Builder {
             Builder {
                 config_file: Some(Builder::default_config_file()),
@@ -441,6 +457,7 @@ mod tests {
                 hoards: None,
                 force: false,
                 global_config: None,
+                var_defaults: EnvVarDefaults::default(),
             }
         }
 
@@ -457,6 +474,11 @@ mod tests {
                 hoards: None,
                 force: false,
                 global_config: None,
+                var_defaults: {
+                    let mut defaults = EnvVarDefaults::default();
+                    defaults.insert(DEFAULT_VAR.into(), DEFAULT_VAR_VALUE.into());
+                    defaults
+                },
             }
         }
 
@@ -477,6 +499,7 @@ mod tests {
                 exclusivity: None,
                 force: false,
                 global_config: None,
+                var_defaults: EnvVarDefaults::default(),
             };
 
             assert_eq!(
@@ -507,16 +530,30 @@ mod tests {
 
         #[test]
         fn layered_builder_prefers_argument_to_self() {
-            let layer1 = get_default_populated_builder();
-            let layer2 = get_non_default_populated_builder();
+            let mut layer1 = get_default_populated_builder();
+            let mut layer2 = get_non_default_populated_builder();
+
+            // Add extra env values to ensure they merge properly
+            layer1.var_defaults.insert("ENV1".into(), "1".into());
+            layer1
+                .var_defaults
+                .insert(DEFAULT_VAR.into(), "non default".into());
+            layer2.var_defaults.insert("ENV2".into(), "2".into());
+
+            let mut expected = layer2.clone();
+            expected.var_defaults.insert("ENV1".into(), "1".into());
 
             assert_eq!(
-                layer2,
+                expected,
                 layer1.clone().layer(layer2.clone()),
                 "layer() should prefer the argument"
             );
+
+            let mut expected = layer1.clone();
+            expected.var_defaults.insert("ENV2".into(), "2".into());
+
             assert_eq!(
-                layer1,
+                expected,
                 layer2.layer(layer1.clone()),
                 "layer() should prefer the argument"
             );
@@ -565,6 +602,14 @@ mod tests {
 
             assert_eq!(Some(config.config_file), builder.config_file);
             assert_eq!(Some(config.command), builder.command);
+        }
+
+        #[test]
+        #[serial_test::serial]
+        fn builder_sets_env_vars_correctly() {
+            let builder = get_non_default_populated_builder();
+            builder.build().unwrap();
+            assert_eq!(std::env::var(DEFAULT_VAR).unwrap(), DEFAULT_VAR_VALUE);
         }
     }
 }

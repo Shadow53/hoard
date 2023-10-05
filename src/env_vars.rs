@@ -12,7 +12,7 @@ use std::{env, fmt};
 //
 // The `+?` is non-greedy matching, which is necessary for if there are multiple variables.
 static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"\$\{[^(=|\x{0}|$)]+?}"#).expect("failed to compile regular expression")
+    Regex::new(r"\$\{[^(=|\x{0}|$)]+?}").expect("failed to compile regular expression")
 });
 
 /// An error that may occur during expansion.
@@ -61,6 +61,80 @@ impl std::error::Error for Error {
     }
 }
 
+/// A [`String`] that may contain one or more environment variables to be expanded.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct StringWithEnv(String);
+
+impl From<String> for StringWithEnv {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for StringWithEnv {
+    fn from(s: &str) -> Self {
+        Self::from(s.to_string())
+    }
+}
+
+impl fmt::Display for StringWithEnv {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl StringWithEnv {
+    /// Replace any environment variables with their associated values.
+    ///
+    /// # Errors
+    ///
+    /// See [`Error`]
+    pub fn process(self) -> Result<String, Error> {
+        let mut new_string = self.0;
+        let mut start: usize = 0;
+        let mut old_start: usize;
+
+        while let Some(mat) = ENV_REGEX.find(&new_string[start..]) {
+            let var = mat.as_str();
+            let var = &var[2..var.len() - 1];
+            tracing::trace!(var, "found environment variable {}", var,);
+
+            // Error is not logged here because:
+            // (a) The context is not terribly important for the error
+            // (b) This is used when parsing the configuration file, so there is no
+            //     simple way to only parse the paths that apply to this system.
+            let value = env::var(var).map_err(|error| Error::Env {
+                error,
+                var: var.to_string(),
+            })?;
+
+            old_start = start;
+            start += mat.start() + value.len();
+            if start > (new_string.len() + value.len() - mat.as_str().len()) {
+                start = new_string.len();
+            }
+
+            let range = mat.range();
+            // grcov: ignore-start
+            tracing::trace!(
+                var,
+                path = %new_string,
+                %value,
+                "expanding first instance of variable in path"
+            );
+            // grcov: ignore-end
+            new_string.replace_range(range.start + old_start..range.end + old_start, &value);
+            if start >= new_string.len() {
+                break;
+            }
+        }
+
+        Ok(new_string)
+    }
+}
+
 /// A [`String`] representing a path that may contain one or more environment variables to be
 /// expanded.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -86,34 +160,6 @@ impl fmt::Display for PathWithEnv {
     }
 }
 
-/// Takes the input string, expands all environment variables, and returns the
-/// expanded string as a [`PathBuf`].
-///
-/// # Example
-///
-/// ```
-/// use std::path::PathBuf;
-/// use hoard::env_vars::PathWithEnv;
-/// use hoard::paths::SystemPath;
-///
-/// #[cfg(unix)]
-/// let template = "/some/${CUSTOM_VAR}/path";
-/// #[cfg(windows)]
-/// let template = "C:/some/${CUSTOM_VAR}/path";
-/// std::env::set_var("CUSTOM_VAR", "foobar");
-/// let path = PathWithEnv::from(template)
-///     .process()
-///     .expect("failed to expand path");
-/// #[cfg(unix)]
-/// let expected = SystemPath::try_from(PathBuf::from("/some/foobar/path")).unwrap();
-/// #[cfg(windows)]
-/// let expected = SystemPath::try_from(PathBuf::from("C:/some/foobar/path")).unwrap();
-/// assert_eq!(path, expected);
-/// ```
-///
-/// # Errors
-///
-/// - Any [`VarError`](env::VarError) from looking up the environment variable's value.
 impl PathWithEnv {
     /// Replace any environment variables with their associated values and attempt to convert
     /// into a [`SystemPath`].
@@ -123,44 +169,7 @@ impl PathWithEnv {
     /// See [`Error`]
     #[tracing::instrument(level = "debug", name = "process_path_with_env")]
     pub fn process(self) -> Result<SystemPath, Error> {
-        let mut new_path = self.0;
-        let mut start: usize = 0;
-        let mut old_start: usize;
-
-        while let Some(mat) = ENV_REGEX.find(&new_path[start..]) {
-            let var = mat.as_str();
-            let var = &var[2..var.len() - 1];
-            tracing::trace!(var, "found environment variable {}", var,);
-
-            // Error is not logged here because:
-            // (a) The context is not terribly important for the error
-            // (b) This is used when parsing the configuration file, so there is no
-            //     simple way to only parse the paths that apply to this system.
-            let value = env::var(var).map_err(|error| Error::Env {
-                error,
-                var: var.to_string(),
-            })?;
-
-            old_start = start;
-            start += mat.start() + value.len();
-            if start > (new_path.len() + value.len() - mat.as_str().len()) {
-                start = new_path.len();
-            }
-
-            let range = mat.range();
-            // grcov: ignore-start
-            tracing::trace!(
-                var,
-                path = %new_path,
-                %value,
-                "expanding first instance of variable in path"
-            );
-            // grcov: ignore-end
-            new_path.replace_range(range.start + old_start..range.end + old_start, &value);
-            if start >= new_path.len() {
-                break;
-            }
-        }
+        let new_path = StringWithEnv(self.0).process()?;
 
         // Splitting into components and collecting will collapse multiple separators.
         SystemPath::try_from(PathBuf::from(new_path).components().collect::<PathBuf>())

@@ -225,7 +225,7 @@ mod tests {
                 path_exists: Some(Combinator(vec![Inner::Single(path_exists.clone())])),
             };
 
-            let expected = vec![
+            let expected = [
                 format!("({hostname})"),
                 format!("({os})"),
                 format!("({env_var})"),
