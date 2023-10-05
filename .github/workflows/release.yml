@@ -16,7 +16,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Install Knope
-        uses: knope-dev/action@v1
+        uses: knope-dev/action@v2.0.0
       - uses: Swatinem/rust-cache@v2
       - run: |
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
