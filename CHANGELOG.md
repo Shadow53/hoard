@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.0 (2023-10-05)
+
+### Breaking Changes
+
+#### allow setting default environment variable values (#185)
+
+### Fixes
+
+#### update rust crate sha2 to 0.10.7 (#176)
+
+#### update rust crate tempfile to 3.6 (#170)
+
+#### update rust crate uuid to 1.3 (#167)
+
+#### update rust crate regex to 1.8 (#154)
+
+#### update rust crate digest to 0.10.7 (#155)
+
+#### update rust crate toml to 0.7.4 (#159)
+
+#### update rust crate thiserror to 1.0.40 (#164)
+
+#### update rust crate clap to 4.3 (#165)
+
 ## 0.5.2
 
 ### Features
