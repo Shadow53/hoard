@@ -430,21 +430,21 @@ impl EnvTrie {
             .collect::<Result<Vec<_>, _>>()?;
 
         tracing::trace!("merging trees into a single trie");
-        let tree =
-            nodes
-                .into_iter()
-                .try_fold(BTreeMap::<EnvironmentName, Node>::new(), |mut acc, node| {
-                    // TODO: Use result flattening when stable
-                    // Explicitly call `drop()` to drop any old value.
-                    match acc.remove(&node.name) {
-                        None => drop(acc.insert(node.name.clone(), node)),
-                        Some(existing) => {
-                            let new_node = existing.merge_with(node)?;
-                            drop(acc.insert(new_node.name.clone(), new_node));
-                        }
+        let tree = nodes.into_iter().try_fold(
+            BTreeMap::<EnvironmentName, Node>::new(),
+            |mut acc, node| {
+                // TODO: Use result flattening when stable
+                // Explicitly call `drop()` to drop any old value.
+                match acc.remove(&node.name) {
+                    None => drop(acc.insert(node.name.clone(), node)),
+                    Some(existing) => {
+                        let new_node = existing.merge_with(node)?;
+                        drop(acc.insert(new_node.name.clone(), new_node));
                     }
-                    Ok(acc)
-                })?;
+                }
+                Ok(acc)
+            },
+        )?;
         Ok(EnvTrie(tree))
     }
 
@@ -471,16 +471,18 @@ impl EnvTrie {
                     .transpose()
                     .map(|path| (env, node, path))
             })
-            .try_fold(None, |acc: Option<(&Node, _)>, (_, node, path)| match (acc, path) {
-                (None, path) => Ok(Some((node, path))),
-                (Some((acc, acc_path)), path) => match acc.score.cmp(&node.score) {
-                    Ordering::Equal => Err(Error::Indecision(
-                        acc.name.clone().into(),
-                        node.name.clone().into(),
-                    )),
-                    Ordering::Less => Ok(Some((node, path))),
-                    Ordering::Greater => Ok(Some((acc, acc_path))),
-                },
+            .try_fold(None, |acc: Option<(&Node, _)>, (_, node, path)| {
+                match (acc, path) {
+                    (None, path) => Ok(Some((node, path))),
+                    (Some((acc, acc_path)), path) => match acc.score.cmp(&node.score) {
+                        Ordering::Equal => Err(Error::Indecision(
+                            acc.name.clone().into(),
+                            node.name.clone().into(),
+                        )),
+                        Ordering::Less => Ok(Some((node, path))),
+                        Ordering::Greater => Ok(Some((acc, acc_path))),
+                    },
+                }
             })?
             .map(|(_, path)| path)
             .transpose()
