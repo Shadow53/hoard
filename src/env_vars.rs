@@ -12,7 +12,7 @@ use std::{env, fmt};
 //
 // The `+?` is non-greedy matching, which is necessary for if there are multiple variables.
 static ENV_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"\$\{[^(=|\x{0}|$)]+?}"#).expect("failed to compile regular expression")
+    Regex::new(r"\$\{[^(=|\x{0}|$)]+?}").expect("failed to compile regular expression")
 });
 
 /// An error that may occur during expansion.

@@ -173,6 +173,10 @@ pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
     // Get hoard history root
     // Iterate over every uuid in the directory
     let root = get_history_root_dir();
+
+    // The .fold() at the end creates a new error based on the old one, which
+    // is not compatible with try_fold()
+    #[allow(clippy::manual_try_fold)]
     fs::read_dir(&root)
         .await
         .map(ReadDirStream::new)

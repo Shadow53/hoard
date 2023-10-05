@@ -272,7 +272,7 @@ fn get_weighted_map(
     // Check for cycles, then discard graph
     tracing::trace!("checking for cycles");
     let mut score_dag = DiGraph::<EnvironmentName, ()>::new();
-    for list in exclusive_list.iter() {
+    for list in exclusive_list {
         let mut prev_idx = None;
 
         for name in list.iter().rev() {
@@ -433,22 +433,17 @@ impl EnvTrie {
         let tree =
             nodes
                 .into_iter()
-                .fold(Ok(BTreeMap::<EnvironmentName, Node>::new()), |acc, node| {
+                .try_fold(BTreeMap::<EnvironmentName, Node>::new(), |mut acc, node| {
                     // TODO: Use result flattening when stable
-                    match acc {
-                        Err(err) => Err(err),
-                        Ok(mut tree) => {
-                            // Explicitly call `drop()` to drop any old value.
-                            match tree.remove(&node.name) {
-                                None => drop(tree.insert(node.name.clone(), node)),
-                                Some(existing) => {
-                                    let new_node = existing.merge_with(node)?;
-                                    drop(tree.insert(new_node.name.clone(), new_node));
-                                }
-                            }
-                            Ok(tree)
+                    // Explicitly call `drop()` to drop any old value.
+                    match acc.remove(&node.name) {
+                        None => drop(acc.insert(node.name.clone(), node)),
+                        Some(existing) => {
+                            let new_node = existing.merge_with(node)?;
+                            drop(acc.insert(new_node.name.clone(), new_node));
                         }
                     }
+                    Ok(acc)
                 })?;
         Ok(EnvTrie(tree))
     }
@@ -476,10 +471,9 @@ impl EnvTrie {
                     .transpose()
                     .map(|path| (env, node, path))
             })
-            .fold(Ok(None), |acc, (_, node, path)| match (acc, path) {
-                (Err(err), _) | (_, Err(err)) => Err(err),
-                (Ok(None), Ok(path)) => Ok(Some((node, path))),
-                (Ok(Some((acc, acc_path))), Ok(path)) => match acc.score.cmp(&node.score) {
+            .try_fold(None, |acc: Option<(&Node, _)>, (_, node, path)| match (acc, path) {
+                (None, path) => Ok(Some((node, path))),
+                (Some((acc, acc_path)), path) => match acc.score.cmp(&node.score) {
                     Ordering::Equal => Err(Error::Indecision(
                         acc.name.clone().into(),
                         node.name.clone().into(),
@@ -489,7 +483,6 @@ impl EnvTrie {
                 },
             })?
             .map(|(_, path)| path)
-            .map(Ok)
             .transpose()
     }
 }
@@ -549,7 +542,7 @@ mod tests {
                     return false;
                 }
 
-                for (key, node1) in tree1.iter() {
+                for (key, node1) in tree1 {
                     let equal = match tree2.get(key) {
                         None => false,
                         Some(node2) => node_eq_ignore_score(node1, node2),

@@ -168,6 +168,7 @@ impl HoardPath {
     /// use it as the prefix directory for a [`RelativePath`]. It is up to the caller to make
     /// sure the resulting path is valid for use.
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
             rhs.0
@@ -227,6 +228,7 @@ impl SystemPath {
     /// use it as the prefix directory for a [`RelativePath`]. It is up to the caller to make
     /// sure the resulting path is valid for use.
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn join(&self, rhs: &RelativePath) -> Self {
         Self::try_from(
             rhs.0
