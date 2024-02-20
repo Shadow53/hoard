@@ -30,7 +30,7 @@ open_cmd = { version = "0.1.0", features = ["tracing"] }
 petgraph = "0.6"
 regex = "1.8"
 # Use at least 1.0.184 because of serde-rs/serde#2538
-serde = { version = ">=1.0.184", features = ["derive"] }
+serde = { version = ">=1.0.197", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = { version = "0.9", optional = true }
 sha2 = "0.10.7"
