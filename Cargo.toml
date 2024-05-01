@@ -39,7 +39,7 @@ tap = "1.0"
 tempfile = "3.6"
 thiserror = "1.0.40"
 time = { version = "0.3", default-features = false, features = ["formatting", "macros", "serde", "std"] }
-tokio = { version = "1.28", default-features = false, features = ["rt-multi-thread", "fs", "io-util", "macros"] }
+tokio = { version = "1.37.0", default-features = false, features = ["rt-multi-thread", "fs", "io-util", "macros"] }
 tokio-stream = { version = "0.1", default-features = false, features = ["fs"] }
 toml = "0.8.2"
 tracing = "0.1"
@@ -54,7 +54,7 @@ maplit = "1.0"
 rand = "0.8"
 serde_test = "1.0"
 futures = { version = "0.3", default-features = false, features = ["executor"] }
-tokio = { version = "1.28", default-features = false, features = ["process"] }
+tokio = { version = "1.37.0", default-features = false, features = ["process"] }
 serial_test = "2.0.0"
 
 [target.'cfg(windows)'.dev-dependencies]
