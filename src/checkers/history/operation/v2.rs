@@ -109,7 +109,7 @@ impl OperationV2 {
             .difference(&these_files)
             .fold(HashMap::new(), |mut acc, (pile_name, rel_path)| {
                 acc.entry(pile_name.clone())
-                    .or_insert_with(HashSet::new)
+                    .or_default()
                     .insert(rel_path.clone());
                 acc
             });
@@ -453,8 +453,7 @@ impl Pile {
         self.created
             .get(rel_path)
             .or_else(|| self.modified.get(rel_path))
-            .or_else(|| self.unmodified.get(rel_path))
-            .map(Clone::clone)
+            .or_else(|| self.unmodified.get(rel_path)).cloned()
     }
 
     fn all_files_with_checksums(&self) -> impl Iterator<Item = (&RelativePath, Option<Checksum>)> {

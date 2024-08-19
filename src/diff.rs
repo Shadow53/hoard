@@ -57,9 +57,9 @@ pub enum Diff {
     Text(String),
     /// Binary content differs. Also occurs if a file changes between text and binary formats.
     Binary,
-    /// The left path to diff_files did not exist, but the right path did.
+    /// The left path to `diff_files` did not exist, but the right path did.
     HoardNotExists,
-    /// The left path to diff_paths existed, but the right path did not.
+    /// The left path to `diff_paths` existed, but the right path did not.
     SystemNotExists,
 }
 

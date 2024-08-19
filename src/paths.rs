@@ -259,7 +259,7 @@ impl Serialize for RelativePath {
     {
         self.0
             .clone()
-            .unwrap_or_else(PathBuf::new)
+            .unwrap_or_default()
             .serialize(serializer)
     }
 }

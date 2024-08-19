@@ -396,7 +396,7 @@ impl Operation {
     ///
     /// [`Error::UpgradeRequired`] if this `Operation` is not the most recent schema.
     pub fn as_latest_version(&self) -> Result<&Self, Error> {
-        self.require_latest_version().map(|_| self)
+        self.require_latest_version().map(|()| self)
     }
 
     /// Returns the owned `Operation` if it is the most recent schema version, otherwise returns an error.
@@ -405,7 +405,7 @@ impl Operation {
     ///
     /// [`Error::UpgradeRequired`] if this `Operation` is not the most recent schema.
     pub fn into_latest_version(self) -> Result<Self, Error> {
-        self.require_latest_version().map(|_| self)
+        self.require_latest_version().map(|()| self)
     }
 
     #[tracing::instrument(name = "operation_from_file")]
