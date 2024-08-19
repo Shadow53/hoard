@@ -53,7 +53,7 @@ pub trait Digestable: sealed::Sealed {
 }
 
 impl Digestable for md5::Md5 {
-    type OutputSize = <md5::Md5 as md5::digest::OutputSizeUser>::OutputSize;
+    type OutputSize = <md5::Md5 as digest::OutputSizeUser>::OutputSize;
     const DIGEST_NAME: &'static str = "MD5";
     fn digest_to_array<D: AsRef<[u8]>>(data: D) -> GenericArray<u8, Self::OutputSize> {
         <md5::Md5 as md5::Digest>::digest(data.as_ref())
@@ -61,7 +61,7 @@ impl Digestable for md5::Md5 {
 }
 
 impl Digestable for sha2::Sha256 {
-    type OutputSize = <sha2::Sha256 as sha2::digest::OutputSizeUser>::OutputSize;
+    type OutputSize = <sha2::Sha256 as digest::OutputSizeUser>::OutputSize;
     const DIGEST_NAME: &'static str = "SHA256";
     fn digest_to_array<D: AsRef<[u8]>>(data: D) -> GenericArray<u8, Self::OutputSize> {
         <sha2::Sha256 as sha2::Digest>::digest(data.as_ref())
@@ -119,7 +119,7 @@ where
     <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
+        Some(self.0.cmp(&other.0))
     }
 }
 

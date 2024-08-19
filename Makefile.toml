@@ -57,6 +57,7 @@
     dependencies = ["docker-tests", "test-nextest"]
 
 [tasks.grcov]
+    install_crate = { crate_name = "grcov" }
     dependencies = ["clean-all", "test-all"]
     # Using `script` is necessary to get the glob expansion
     script = """

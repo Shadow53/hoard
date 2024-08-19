@@ -60,7 +60,7 @@ impl Deref for Executable {
 
 impl fmt::Display for Executable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        std::fmt::Display::fmt(&self.0.display(), f)
+        fmt::Display::fmt(&self.0.display(), f)
     }
 }
 

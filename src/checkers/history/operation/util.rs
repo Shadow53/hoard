@@ -201,12 +201,12 @@ pub(crate) async fn cleanup_operations() -> Result<u32, (u32, Error)> {
         })
         // Return the first error or the number of files deleted.
         .fold(Ok((0, ())), |acc, res2| async move {
-            let (count, _) = acc?;
+            let (count, ()) = acc?;
             res2.map_err(|err| (count, err))?;
             Ok((count + 1, ()))
         })
         .await
-        .map(|(count, _)| count)
+        .map(|(count, ())| count)
 }
 
 #[tracing::instrument(level = "trace")]
