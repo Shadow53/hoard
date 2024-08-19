@@ -34,7 +34,7 @@ fn pwstr_len(pwstr: PWSTR) -> usize {
 #[allow(unsafe_code)]
 pub fn get_known_folder(folder_id: GUID) -> WinResult<PathBuf> {
     unsafe {
-        SHGetKnownFolderPath(&folder_id, KF_FLAG_CREATE, HANDLE(0)).map(|pwstr| {
+        SHGetKnownFolderPath(&folder_id, KF_FLAG_CREATE, HANDLE(std::ptr::null_mut())).map(|pwstr| {
             let slice = std::slice::from_raw_parts(pwstr.0, pwstr_len(pwstr));
             PathBuf::from(OsString::from_wide(slice))
         })
@@ -57,7 +57,7 @@ pub fn set_known_folder(folder_id: GUID, new_path: &Path) -> WinResult<()> {
     unsafe {
         let new_path: Vec<u16> = new_path.as_os_str().encode_wide().chain([0]).collect();
         let new_path = PCWSTR(new_path.as_ptr());
-        SHSetKnownFolderPath(&folder_id, 0, HANDLE(0), new_path)
+        SHSetKnownFolderPath(&folder_id, 0, HANDLE(std::ptr::null_mut()), new_path)
     }
 }
 
