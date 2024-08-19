@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.1 (2024-08-19)
+
+### Fixes
+
+- update dependencies, fix unsafe windows code (#203)
+
 ## 0.6.0 (2023-10-05)
 
 ### Breaking Changes
