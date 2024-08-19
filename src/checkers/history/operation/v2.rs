@@ -453,7 +453,8 @@ impl Pile {
         self.created
             .get(rel_path)
             .or_else(|| self.modified.get(rel_path))
-            .or_else(|| self.unmodified.get(rel_path)).cloned()
+            .or_else(|| self.unmodified.get(rel_path))
+            .cloned()
     }
 
     fn all_files_with_checksums(&self) -> impl Iterator<Item = (&RelativePath, Option<Checksum>)> {
