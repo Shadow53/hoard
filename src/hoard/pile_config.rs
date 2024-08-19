@@ -252,7 +252,7 @@ impl Config {
     fn layer(&mut self, other: &Self) {
         // Overlay a more general encryption config, if a specific one doesn't exist.
         if self.encryption.is_none() {
-            self.encryption = other.encryption.clone();
+            self.encryption.clone_from(&other.encryption);
         }
 
         self.checksum_type = self.checksum_type.or(other.checksum_type);

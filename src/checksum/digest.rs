@@ -119,7 +119,7 @@ where
     <<T as Digestable>::OutputSize as Add>::Output: ArrayLength<u8>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
+        Some(self.0.cmp(&other.0))
     }
 }
 
