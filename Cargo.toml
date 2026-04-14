@@ -51,7 +51,7 @@ windows = { version = "0.58", features = ["Storage", "Win32_UI_Shell", "Win32_Fo
 
 [dev-dependencies]
 maplit = "1.0"
-rand = "0.8"
+rand = "0.9"
 serde_test = "1.0"
 futures = { version = "0.3", default-features = false, features = ["executor"] }
 tokio = { version = "1.28", default-features = false, features = ["process"] }
